@@ -55,7 +55,6 @@ ${styles()}
           <a class="nav-item ${page==='settings'?'on':''}" href="/settings" data-view="settings" data-admin-only><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span><span data-i18n="navSettings">Settings</span></a>
         </div>
       </nav>
-      <div class="side-foot" id="sideFoot">–</div>
     </aside>
 
     <div class="side-scrim" id="sideScrim" aria-hidden="true"></div>
@@ -617,7 +616,6 @@ ${styles()}
         statAccounts:"账号", statActive:"可用", statReqs:"请求(7d)", statKeys:"密钥",
         pageOf:(c,t,n)=>"第 "+c+" / "+t+" 页 · 共 "+n+" 条", prev:"上一页", next:"下一页",
         diskInfo:(d,b)=>d+" 天 · "+b,
-        sideHint:"日志在运维区 · 日常优先用总览/账号",
         navCommunity:"社区", navContribute:"贡献席位", navLeaderboard:"贡献榜",
         subContribute:"绑定 SuperGrok · 加入共享容量", subLeaderboard:"社区贡献席位排行",
         qaContrib:"分享 SuperGrok 容量", qaLb:"查看贡献排行",
@@ -710,7 +708,6 @@ ${styles()}
         statAccounts:"Accounts", statActive:"Active", statReqs:"Requests (7d)", statKeys:"API Keys",
         pageOf:(c,t,n)=>"Page "+c+" / "+t+" · "+n+" total", prev:"Prev", next:"Next",
         diskInfo:(d,b)=>d+" days · "+b,
-        sideHint:"Logs under Ops · daily work: Overview / Accounts",
         navCommunity:"Community", navContribute:"Contribute", navLeaderboard:"Leaderboard",
         subContribute:"Link SuperGrok · grow shared capacity", subLeaderboard:"Community contribution ranking",
         qaContrib:"Share SuperGrok capacity", qaLb:"See top contributors",
@@ -867,7 +864,6 @@ ${styles()}
       document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.getAttribute("data-i18n")); });
       document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
       $("langSeg").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.lang === lang));
-      $("sideFoot").textContent = t("sideHint");
       paintAdminExplain();
       paintProxyUI();
       paintCurl();
@@ -1016,6 +1012,12 @@ ${styles()}
       if ($("currentLabel")) $("currentLabel").textContent = "Current: " + (routing.currentAccountId || "–") + " · " + routing.mode;
     }
 
+    function shortErr(s) {
+      const t = String(s || "").replace(/\s+/g, " ").trim();
+      if (t.length <= 72) return t;
+      return t.slice(0, 72) + "…";
+    }
+
     function creditCell(a) {
       if (!a.credits) return '<span class="mono">' + esc(t("notChecked")) + "</span>";
       const used = a.credits.creditUsagePercent ?? 0;
@@ -1057,11 +1059,17 @@ ${styles()}
       const slice = allAccounts.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((a) => {
         const cur = a.isCurrent;
+        const err = a.lastError ? shortErr(a.lastError) : "";
         return '<div class="dt-row' + (cur ? " current" : "") + '">' +
-          '<div><div class="name">' + esc(a.name) + (cur ? ' <span class="badge current">' + esc(t("current")) + "</span>" : "") +
-          (a.donorUserId ? ' <span class="badge" title="donor">' + esc("contrib") + "</span>" : "") +
-          '</div><div class="mono">' + esc(a.id) + (a.donorUserId ? " · " + esc(a.donorUserId) : "") + "</div>" +
-          (a.lastError ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(a.lastError) + "</div>" : "") +
+          '<div><div class="name">' + esc(a.name) + '</div>' +
+          '<div class="mono">' + esc(a.id) + (a.donorUserId ? " · " + esc(a.donorUserId) : "") + "</div>" +
+          ((cur || a.donorUserId)
+            ? '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">' +
+              (cur ? '<span class="badge current">' + esc(t("current")) + "</span>" : "") +
+              (a.donorUserId ? '<span class="badge" title="donor">' + esc("contrib") + "</span>" : "") +
+              "</div>"
+            : "") +
+          (err ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
           "</div>" +
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
           "<div>" + creditCell(a) + "</div>" +
@@ -1754,9 +1762,10 @@ ${styles()}
       const start = (contribPage - 1) * PAGE_SIZE;
       const slice = myAccounts.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((a) => {
+        const err = a.lastError ? shortErr(a.lastError) : "";
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(a.name) + '</div><div class="mono">' + esc(a.id) + "</div>" +
-          (a.lastError ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(a.lastError) + "</div>" : "") +
+          (err ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
           "</div>" +
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
           "<div>" + creditCell(a) + "</div>" +

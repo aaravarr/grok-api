@@ -35,7 +35,6 @@ export function styles(): string {
     .nav-item .ic{width:18px;height:18px;flex-shrink:0;display:grid;place-items:center;opacity:.72}
     .nav-item .ic svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
     .nav-item:hover .ic,.nav-item.on .ic{opacity:1}
-    .side-foot{margin-top:auto;padding:12px 10px 6px;border-top:1px solid var(--hairline);font-size:11px;color:var(--mute);line-height:1.45}
 
     .main-wrap{min-width:0;width:100%;display:flex;flex-direction:column;min-height:100dvh}
     .topbar{height:var(--top);border-bottom:1px solid var(--hairline);background:rgba(255,255,255,.92);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:20;gap:12px}
@@ -112,7 +111,7 @@ export function styles(): string {
     .codebox.show{display:block}.codebox .label{color:var(--mute);font-size:12px;margin-bottom:8px}
     .codebox .code{font-family:var(--mono);font-size:28px;font-weight:500;letter-spacing:.14em}
 
-    /* CSS Grid data tables — scroll container stays width-bound; min-width lives on rows */
+    /* CSS Grid data tables — fixed track widths so head and every row share identical width */
     .dt{
       width:100%;max-width:100%;
       overflow-x:auto;overflow-y:hidden;
@@ -124,55 +123,56 @@ export function styles(): string {
       display:grid;align-items:center;column-gap:0;
       border-bottom:1px solid var(--hairline);
       box-sizing:border-box;
-      width:max-content;min-width:100%;
+      /* lock to --dt-min: never let content inflate a single row past the header */
+      width:var(--dt-min,100%);
+      min-width:max(100%,var(--dt-min,0px));
+      grid-template-columns:var(--dt-cols);
     }
     .dt-head{background:#fafafa;position:sticky;top:0;z-index:1}
     .dt-head > div{
-      padding:10px 14px;color:var(--mute);font-weight:500;font-size:12px;white-space:nowrap;
+      padding:10px 12px;color:var(--mute);font-weight:500;font-size:12px;white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis;
     }
-    .dt-row > div{padding:12px 14px;font-size:13px;min-width:0}
+    .dt-row > div{
+      padding:10px 12px;font-size:13px;line-height:1.4;min-width:0;
+      overflow:hidden;
+    }
     .dt-row:hover{background:var(--canvas-soft)}
     .dt-row.current{background:#f0f7ff;box-shadow:inset 3px 0 0 var(--link)}
     .dt-body > .dt-row:last-child{border-bottom:0}
     .dt-row.clickable{cursor:pointer}
     .dt-empty{padding:40px 16px;text-align:center;color:var(--mute);font-size:13px}
-    .dt-actions{display:flex;flex-wrap:nowrap;gap:6px;align-items:center}
+    .dt-actions{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:flex-start;overflow:hidden}
     .dt-actions .btn{flex-shrink:0}
-    .dt-time{display:flex;flex-direction:column;align-items:flex-start;gap:4px;overflow:hidden;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px;color:var(--mute)}
+    .dt-time{display:flex;flex-direction:column;align-items:flex-start;gap:2px;overflow:hidden;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--mute)}
     .dt-time-main{white-space:nowrap}
     /*
-      Fixed track sizes (no max-content): each row is its own grid, so fr/max-content
-      would size independently and columns drift. Use the same explicit template for head+rows.
-      min-width is on head/row (not .dt) so .dt can stay viewport-width and scroll.
+      Explicit px tracks only (no fr). Each head/row is its own grid; fr would size
+      independently per row from content and make body rows wider than the header.
+      --dt-min MUST equal the sum of --dt-cols.
     */
-    .dt-accounts{--dt-min:820px;--dt-cols:minmax(0,1.6fr) 100px minmax(0,1.2fr) 56px 150px 252px}
-    .dt-users{--dt-min:860px;--dt-cols:minmax(0,1.4fr) 88px 88px minmax(0,1.1fr) 118px 220px}
-    .dt-keys{--dt-min:780px;--dt-cols:minmax(0,1.3fr) minmax(0,1fr) 88px 140px 56px 160px}
-    .dt-logs{--dt-min:960px;--dt-cols:118px minmax(0,1fr) minmax(0,1fr) 72px minmax(0,1.2fr) 80px minmax(0,.9fr) minmax(0,.9fr)}
-    .dt-logs.no-account{--dt-min:820px;--dt-cols:118px minmax(0,1fr) minmax(0,1fr) 72px minmax(0,1.2fr) 80px minmax(0,1fr)}
-    .dt-accounts .dt-head,.dt-accounts .dt-row,
-    .dt-users .dt-head,.dt-users .dt-row,
-    .dt-keys .dt-head,.dt-keys .dt-row,
-    .dt-logs .dt-head,.dt-logs .dt-row{
-      grid-template-columns:var(--dt-cols);
-      min-width:var(--dt-min);
-    }
+    .dt-accounts{--dt-min:900px;--dt-cols:220px 96px 120px 56px 140px 268px}
+    .dt-users{--dt-min:880px;--dt-cols:200px 88px 88px 140px 120px 244px}
+    .dt-keys{--dt-min:800px;--dt-cols:180px 160px 88px 140px 56px 176px}
+    .dt-logs{--dt-min:980px;--dt-cols:118px 140px 140px 72px 160px 72px 130px 148px}
+    .dt-logs.no-account{--dt-min:850px;--dt-cols:118px 150px 150px 72px 170px 72px 218px}
     .acc-err{
-      color:var(--error);font-size:12px;line-height:1.35;margin-top:4px;
-      display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
-      overflow:hidden;word-break:break-word;max-width:100%;
+      color:var(--error);font-size:11px;line-height:1.3;margin-top:3px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
     }
-    .badge{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:500;background:var(--canvas-soft-2);color:var(--body);border:1px solid var(--hairline);max-width:100%}
+    .badge{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;background:var(--canvas-soft-2);color:var(--body);border:1px solid var(--hairline);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .badge.active{background:var(--success-bg);color:var(--success);border-color:#b7e4c7}
     .badge.exhausted{background:var(--violet-bg);color:var(--violet);border-color:#d8ccf1}
     .badge.expired,.badge.error{background:var(--error-bg);color:var(--error);border-color:#f0b8bb}
     .badge.current{background:var(--link-bg);color:var(--link-deep);border-color:#b6d4ff}
-    .mono{font-family:var(--mono);font-size:12px;color:var(--mute)}.name{font-weight:500;color:var(--ink)}
+    .mono{font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .name{font-weight:500;font-size:13px;line-height:1.35;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .name .badge{vertical-align:middle;margin-left:4px}
     .actions{display:flex;flex-wrap:nowrap;gap:6px;align-items:center}
-    .meter{height:6px;border-radius:99px;background:var(--canvas-soft-2);overflow:hidden;border:1px solid var(--hairline);width:100%;max-width:120px}
+    .meter{height:6px;border-radius:99px;background:var(--canvas-soft-2);overflow:hidden;border:1px solid var(--hairline);width:100%;max-width:100px}
     .meter>i{display:block;height:100%;background:var(--link)}
     .meter.warn>i{background:var(--warn)}.meter.bad>i{background:var(--error)}
-    .credit-txt{font-family:var(--mono);font-size:12px;color:var(--body);margin-top:4px}
+    .credit-txt{font-family:var(--mono);font-size:11px;line-height:1.3;color:var(--body);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .empty{padding:40px 16px;text-align:center;color:var(--mute)}
     .callout{border:1px solid var(--hairline);border-radius:10px;padding:12px 14px;background:var(--canvas-soft);font-size:13px;color:var(--body);line-height:1.5}
     .callout strong{color:var(--ink);font-weight:500}
@@ -300,10 +300,12 @@ export function styles(): string {
       .settings-row .seg button{flex:1}
       #proxyCustomWrap.show{width:100%}
       .log-meta{grid-template-columns:1fr}
-      .dt-actions{flex-wrap:wrap}
-      .dt-accounts{--dt-min:680px;--dt-cols:minmax(0,1.4fr) 90px minmax(0,1.1fr) 48px 120px 200px}
-      .dt-users{--dt-min:760px;--dt-cols:minmax(0,1.2fr) 80px 80px minmax(0,1fr) 100px 200px}
-      .dt-contrib{--dt-min:680px}
+      /* keep actions on one line so row width stays locked to --dt-min */
+      .dt-actions{flex-wrap:nowrap}
+      .dt-accounts{--dt-min:860px;--dt-cols:200px 90px 110px 48px 130px 282px}
+      .dt-users{--dt-min:820px;--dt-cols:180px 80px 80px 130px 110px 240px}
+      .dt-keys{--dt-min:760px;--dt-cols:160px 150px 80px 130px 48px 192px}
+      .dt-contrib{--dt-min:780px;--dt-cols:200px 90px 110px 56px 140px 184px}
       .toast{top:max(12px,calc(env(safe-area-inset-top) + 8px));left:16px;right:16px;width:auto;max-width:none;transform:translateY(-6px);min-width:0}
       .toast.show{transform:translateY(0)}
       .modal-mask{padding:12px;padding-top:max(12px,env(safe-area-inset-top));align-items:flex-end}
@@ -427,12 +429,8 @@ export function styles(): string {
     .rank-badge.top1{background:#fff6df;border-color:#f0d789;color:#9a6700}
     .rank-badge.top2{background:#f1f5f9;border-color:#cbd5e1;color:#475569}
     .rank-badge.top3{background:#fff1e8;border-color:#f0c2a0;color:#9a3412}
-    .dt-contrib{--dt-min:760px;--dt-cols:minmax(0,1.5fr) 100px minmax(0,1.2fr) 64px 150px 160px}
-    .dt-lb{--dt-min:420px;--dt-cols:72px minmax(0,1.6fr) 100px 100px}
-    .dt-contrib .dt-head,.dt-contrib .dt-row,.dt-lb .dt-head,.dt-lb .dt-row{
-      grid-template-columns:var(--dt-cols);
-      min-width:var(--dt-min);
-    }
+    .dt-contrib{--dt-min:820px;--dt-cols:220px 96px 120px 56px 140px 188px}
+    .dt-lb{--dt-min:440px;--dt-cols:72px 168px 100px 100px}
     .empty-cta{padding:48px 20px;text-align:center}
     .empty-cta h3{margin:0 0 6px;font-size:16px;font-weight:600}
     .empty-cta p{margin:0 0 16px;color:var(--mute);font-size:13px}
