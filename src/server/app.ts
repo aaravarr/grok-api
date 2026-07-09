@@ -3,6 +3,7 @@ import type { Context, Next } from "hono";
 import { cors } from "hono/cors";
 import { config } from "../config.js";
 import {
+  buildLeaderboard,
   createApiKey,
   deleteAccount,
   deleteApiKey,
@@ -10,6 +11,7 @@ import {
   getApiKey,
   getRouting,
   listAccounts,
+  listAccountsByDonor,
   listApiKeys,
   publicAccount,
   publicApiKey,
@@ -94,7 +96,7 @@ export function createApp() {
   app.get("/setup", (c) => c.html(authPageHtml("setup")));
   app.get("/", (c) => c.html(homePageHtml()));
   app.get("/overview", (c) => c.html(appPageHtml("overview")));
-  for (const p of ["accounts", "keys", "users", "usage", "logs", "settings"] as const) {
+  for (const p of ["accounts", "keys", "users", "usage", "logs", "settings", "contribute", "leaderboard"] as const) {
     app.get("/" + p, (c) => c.html(appPageHtml(p)));
   }
   app.get("/app", (c) => c.redirect("/overview"));
@@ -106,6 +108,31 @@ export function createApp() {
       needsSetup: await needsSetup(),
     }),
   );
+
+  // Self-hosted Geist fonts (avoid fonts.googleapis.com in China)
+  app.get("/static/fonts/:file", async (c) => {
+    const file = c.req.param("file");
+    if (!/^[A-Za-z0-9._-]+\.(woff2|woff)$/.test(file)) {
+      return c.text("bad request", 400);
+    }
+    const { readFile } = await import("node:fs/promises");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const path = join(here, "../web/static/fonts", file);
+    try {
+      const buf = await readFile(path);
+      const ct = file.endsWith(".woff2") ? "font/woff2" : "font/woff";
+      return new Response(buf, {
+        headers: {
+          "Content-Type": ct,
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    } catch {
+      return c.text("not found", 404);
+    }
+  });
 
   app.get("/api/meta", async (c) => {
     const settings = await loadSettings();
@@ -298,6 +325,128 @@ export function createApp() {
       apiKeyIds: myKeys.map((k) => k.id),
     });
     return c.json({ stats });
+  });
+
+  // ---------- Contribute (user-donated xAI accounts) ----------
+  app.get("/api/me/accounts", async (c) => {
+    const user = c.get("user")!;
+    const accounts = await listAccountsByDonor(user.id);
+    return c.json({
+      accounts: accounts.map((a) => publicAccount(a)),
+      stats: {
+        total: accounts.length,
+        active: accounts.filter((a) => a.status === "active").length,
+        exhausted: accounts.filter((a) => a.status === "exhausted").length,
+        expired: accounts.filter((a) => a.status === "expired").length,
+        error: accounts.filter((a) => a.status === "error").length,
+      },
+    });
+  });
+
+  app.post("/api/me/accounts/oauth", async (c) => {
+    const user = c.get("user")!;
+    const body = (await c.req.json().catch(() => ({}))) as {
+      name?: string;
+      openBrowser?: boolean;
+    };
+    try {
+      const session = await startDeviceLogin({
+        name: body.name || `contrib-${user.username}`,
+        openBrowser: body.openBrowser === true, // browser open only when server-side requested
+        donorUserId: user.id,
+      });
+      return c.json({
+        mode: "device_code",
+        sessionId: session.sessionId,
+        userCode: session.userCode,
+        verificationUri: session.verificationUri,
+        verificationUriComplete: session.verificationUriComplete,
+        expiresIn: session.expiresIn,
+        instructions: `打开 ${session.verificationUri}，输入代码 ${session.userCode}`,
+      });
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
+    }
+  });
+
+  app.get("/api/me/accounts/oauth/poll", async (c) => {
+    const user = c.get("user")!;
+    const sessionId = c.req.query("sessionId");
+    if (!sessionId) return c.json({ error: "missing sessionId" }, 400);
+    const session = getDeviceSession(sessionId);
+    if (!session) return c.json({ error: "session 不存在或已过期" }, 404);
+    if (session.donorUserId && session.donorUserId !== user.id) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    const result = await pollDeviceLogin(sessionId);
+    if (result.ok) {
+      const acc = await getAccount(result.accountId);
+      if (acc && acc.donorUserId && acc.donorUserId !== user.id) {
+        return c.json({ error: "forbidden" }, 403);
+      }
+      return c.json({
+        ok: true,
+        pending: false,
+        account: acc ? publicAccount(acc) : { id: result.accountId },
+      });
+    }
+    if (result.pending) {
+      return c.json({
+        ok: false,
+        pending: true,
+        userCode: session.userCode,
+        verificationUri: session.verificationUri,
+      });
+    }
+    return c.json({ ok: false, pending: false, error: result.error }, 400);
+  });
+
+  app.post("/api/me/accounts/:id/credits", async (c) => {
+    const user = c.get("user")!;
+    const acc = await getAccount(c.req.param("id"));
+    if (!acc || acc.donorUserId !== user.id) return c.json({ error: "not found" }, 404);
+    try {
+      const credits = await fetchAccountCredits(acc.id, { force: true });
+      const fresh = await getAccount(acc.id);
+      return c.json({
+        credits,
+        account: fresh ? publicAccount(fresh) : null,
+      });
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
+    }
+  });
+
+  app.patch("/api/me/accounts/:id", async (c) => {
+    const user = c.get("user")!;
+    const acc = await getAccount(c.req.param("id"));
+    if (!acc || acc.donorUserId !== user.id) return c.json({ error: "not found" }, 404);
+    const body = (await c.req.json().catch(() => ({}))) as { name?: string; note?: string };
+    const patch: { name?: string; note?: string } = {};
+    if (body.name !== undefined) patch.name = body.name;
+    if (body.note !== undefined) patch.note = body.note;
+    const updated = await updateAccount(acc.id, patch);
+    if (!updated) return c.json({ error: "not found" }, 404);
+    return c.json({ account: publicAccount(updated) });
+  });
+
+  app.delete("/api/me/accounts/:id", async (c) => {
+    const user = c.get("user")!;
+    const acc = await getAccount(c.req.param("id"));
+    if (!acc || acc.donorUserId !== user.id) return c.json({ error: "not found" }, 404);
+    await deleteAccount(acc.id);
+    return c.json({ ok: true });
+  });
+
+  // Leaderboard — login required; excludes admin donors
+  app.get("/api/leaderboard", async (c) => {
+    const session = await resolveSession(bearer(c));
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const users = await listUsers();
+    const adminIds = new Set(users.filter((u) => u.role === "admin").map((u) => u.id));
+    const names = new Map(users.map((u) => [u.id, u.username] as const));
+    const board = await buildLeaderboard(session.user.id, adminIds, names);
+    return c.json(board);
   });
 
   // ---------- Admin ----------

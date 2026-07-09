@@ -33,6 +33,8 @@ export interface Account {
   lastError?: string;
   note?: string;
   credits?: CreditSnapshot;
+  /** App user who contributed this xAI account (null/undefined = admin-managed pool) */
+  donorUserId?: string | null;
 }
 
 export interface ApiKeyRecord {
@@ -83,6 +85,8 @@ export interface DeviceSession {
   accountId?: string;
   error?: string;
   createdAt: number;
+  /** Contributor user id when started from /contribute */
+  donorUserId?: string | null;
 }
 
 export interface TokenResponse {

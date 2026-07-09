@@ -28,6 +28,7 @@ export interface DeviceSession {
   accountId?: string;
   error?: string;
   createdAt: number;
+  donorUserId?: string | null;
 }
 
 interface DeviceCodeResponse {
@@ -145,6 +146,7 @@ function startPolling(sessionId: string): void {
           access: tokens.access_token,
           refresh: tokens.refresh_token ?? "",
           expires: now() + (tokens.expires_in ?? 3600) * 1000,
+          donorUserId: current.donorUserId ?? null,
         });
 
         current.status = "success";
@@ -176,6 +178,7 @@ function startPolling(sessionId: string): void {
 export async function startDeviceLogin(opts?: {
   name?: string;
   openBrowser?: boolean;
+  donorUserId?: string | null;
 }): Promise<{
   sessionId: string;
   userCode: string;
@@ -201,6 +204,7 @@ export async function startDeviceLogin(opts?: {
     expiresAt: now() + expiresMs,
     status: "pending",
     createdAt: now(),
+    donorUserId: opts?.donorUserId ?? null,
   };
   sessions.set(session.id, session);
   startPolling(session.id);

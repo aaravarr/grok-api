@@ -7,19 +7,18 @@ export type AppPage =
   | "users"
   | "usage"
   | "logs"
-  | "settings";
+  | "settings"
+  | "contribute"
+  | "leaderboard";
 
 export function appPageHtml(page: AppPage | string): string {
-  if (!['overview','accounts','keys','users','usage','logs','settings'].includes(page)) page = 'overview';
+  if (!['overview','accounts','keys','users','usage','logs','settings','contribute','leaderboard'].includes(page)) page = 'overview';
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Grok API</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
 ${styles()}
@@ -39,6 +38,11 @@ ${styles()}
           <a class="nav-item ${page==='accounts'?'on':''}" href="/accounts" data-view="accounts" data-admin-only><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span data-i18n="navAccounts">Accounts</span></a>
           <a class="nav-item ${page==='keys'?'on':''}" href="/keys" data-view="keys"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg></span><span data-i18n="navKeys">API Keys</span></a>
           <a class="nav-item ${page==='users'?'on':''}" href="/users" data-view="users" data-admin-only><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span data-i18n="navUsers">Users</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label" data-i18n="navCommunity">Community</div>
+          <a class="nav-item ${page==='contribute'?'on':''}" href="/contribute" data-view="contribute"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><span data-i18n="navContribute">Contribute</span></a>
+          <a class="nav-item ${page==='leaderboard'?'on':''}" href="/leaderboard" data-view="leaderboard"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M5 8H3a2 2 0 0 0 2 2h0"/><path d="M19 8h2a2 2 0 0 1-2 2h0"/></svg></span><span data-i18n="navLeaderboard">Leaderboard</span></a>
         </div>
         <div class="nav-group">
           <div class="nav-label" data-i18n="navAnalyze">Analyze</div>
@@ -106,6 +110,8 @@ ${styles()}
               <div class="card-hd"><strong data-i18n="ovQuick">Quick actions</strong></div>
               <div class="card-bd">
                 <div class="quick-actions" id="quickActions">
+                  <button type="button" class="qa" data-goto="contribute"><strong data-i18n="navContribute">Contribute</strong><span data-i18n="qaContrib">Share SuperGrok capacity</span></button>
+                  <button type="button" class="qa" data-goto="leaderboard"><strong data-i18n="navLeaderboard">Leaderboard</strong><span data-i18n="qaLb">See top contributors</span></button>
                   <button type="button" class="qa" data-goto="keys"><strong data-i18n="navKeys">API Keys</strong><span data-i18n="qaKey">Issue client keys</span></button>
                   <button type="button" class="qa" data-goto="usage"><strong data-i18n="navUsage">Usage</strong><span data-i18n="qaUsage">Charts & distribution</span></button>
                   <button type="button" class="qa" data-goto="logs"><strong data-i18n="navLogs">Logs</strong><span data-i18n="qaLogs">Debug full requests</span></button>
@@ -281,6 +287,136 @@ ${styles()}
           </div>
         </section>
 
+        <!-- CONTRIBUTE -->
+        <section class="view ${page==='contribute'?'on':''}" id="view-contribute">
+          <div class="contrib-hero">
+            <div class="contrib-kicker" data-i18n="contribKicker">Community capacity</div>
+            <h1 data-i18n="contribTitle">Share your SuperGrok seat</h1>
+            <p data-i18n="contribSub">Link an xAI account you own. Its remaining credits join the shared pool — everyone gets more reliable access, and you climb the contributor board.</p>
+            <div class="contrib-cta-row">
+              <button class="btn" type="button" id="btnContribStart" data-i18n="contribCta">Contribute an account</button>
+              <button class="btn btn-secondary" type="button" data-goto="leaderboard" data-i18n="contribSeeLb">View leaderboard</button>
+              <span class="mono" id="contribMineCount" style="color:var(--mute)">–</span>
+            </div>
+          </div>
+
+          <div class="why-grid">
+            <div class="why-card">
+              <div class="why-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+              <h3 data-i18n="why1t">Private to you</h3>
+              <p data-i18n="why1d">Only you can see the accounts you linked — status, credits, and usage. Others never see your list.</p>
+            </div>
+            <div class="why-card">
+              <div class="why-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+              <h3 data-i18n="why2t">Power the pool</h3>
+              <p data-i18n="why2d">Idle SuperGrok credits become shared capacity. Credit-aware routing picks healthy seats automatically.</p>
+            </div>
+            <div class="why-card">
+              <div class="why-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/></svg></div>
+              <h3 data-i18n="why3t">Climb the board</h3>
+              <p data-i18n="why3d">Every successful link counts toward your rank. Admins are excluded — pure community scoreboard.</p>
+            </div>
+          </div>
+
+          <div class="panel mb">
+            <div class="panel-hd">
+              <strong data-i18n="contribHow">How it works</strong>
+              <div class="spacer"></div>
+              <input id="contribName" class="input" data-i18n-placeholder="accNamePh" style="max-width:200px" />
+              <button class="btn" type="button" id="btnContribAdd" data-i18n="contribCta">Contribute an account</button>
+            </div>
+            <div class="panel-bd" style="padding:0">
+              <div class="steps">
+                <div class="step"><div class="n">01</div><strong data-i18n="step1t">Start OAuth</strong><span data-i18n="step1d">We open an xAI device-code flow. No password is stored by us.</span></div>
+                <div class="step"><div class="n">02</div><strong data-i18n="step2t">Approve in browser</strong><span data-i18n="step2d">Enter the code on accounts.x.ai and authorize SuperGrok access.</span></div>
+                <div class="step"><div class="n">03</div><strong data-i18n="step3t">Join the pool</strong><span data-i18n="step3d">Credits are checked and the seat becomes available for routing.</span></div>
+              </div>
+              <div id="contribStage" class="oauth-stage">
+                <div class="label" style="color:var(--mute);font-size:12px;margin-bottom:10px" data-i18n="deviceHint">Enter this Device Code:</div>
+                <div class="oauth-code" id="contribUserCode">––––</div>
+                <div class="oauth-meta">
+                  <div class="hint"><span class="pulse-dot" id="contribPulse"></span><span id="contribPollStatus" data-i18n="waiting">Waiting…</span></div>
+                  <div class="hint"><span data-i18n="verifyUrl">URL</span>：<a id="contribVerifyLink" href="#" target="_blank" rel="noreferrer">–</a></div>
+                  <button class="btn btn-secondary btn-sm" type="button" id="btnContribCopy" data-i18n="copy">Copy</button>
+                </div>
+              </div>
+            </div>
+            <div id="msgContrib" class="msg"></div>
+          </div>
+
+          <div class="mine-stats">
+            <div class="stat"><div class="n" id="cTotal">–</div><div class="l" data-i18n="statMine">My seats</div></div>
+            <div class="stat"><div class="n" id="cActive">–</div><div class="l" data-i18n="statActive">Active</div></div>
+            <div class="stat"><div class="n" id="cExhausted">–</div><div class="l" data-i18n="statExhausted">Exhausted</div></div>
+            <div class="stat"><div class="n" id="cRank">–</div><div class="l" data-i18n="statMyRank">My rank</div></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-hd">
+              <strong data-i18n="mineTitle">My contributions</strong>
+              <span class="mono" data-i18n="mineHint">Visible only to you</span>
+              <div class="spacer"></div>
+              <button class="btn btn-secondary btn-sm" type="button" id="btnContribRefresh" data-i18n="refresh">Refresh</button>
+            </div>
+            <div class="dt dt-contrib">
+              <div class="dt-head">
+                <div data-i18n="colAccount">Account</div>
+                <div data-i18n="colStatus">Status</div>
+                <div data-i18n="colCredits">Credits</div>
+                <div data-i18n="colUses">Uses</div>
+                <div data-i18n="colLastUsed">Last used</div>
+                <div data-i18n="colActions">Actions</div>
+              </div>
+              <div class="dt-body" id="tbodyContrib"><div class="dt-empty">…</div></div>
+            </div>
+            <div class="pager" id="contribPager"></div>
+          </div>
+        </section>
+
+        <!-- LEADERBOARD -->
+        <section class="view ${page==='leaderboard'?'on':''}" id="view-leaderboard">
+          <div class="contrib-hero" style="background:radial-gradient(120% 140% at 100% 0%,#f3e8ff 0%,#fff 48%,#eef6ff 100%)">
+            <div class="contrib-kicker" data-i18n="lbKicker">Public ranking</div>
+            <h1 data-i18n="lbTitle">Contributor leaderboard</h1>
+            <p data-i18n="lbSub">Ranked by number of SuperGrok seats contributed. Admin accounts are excluded so the board stays community-first.</p>
+            <div class="contrib-cta-row">
+              <button class="btn" type="button" data-goto="contribute" data-i18n="lbCta">Contribute now</button>
+              <span class="mono" id="lbSummary" style="color:var(--mute)">–</span>
+            </div>
+          </div>
+
+          <div class="rank-me" id="lbMeCard">
+            <div>
+              <div class="mono" style="font-size:12px;color:var(--mute);margin-bottom:4px" data-i18n="lbYourRank">Your rank</div>
+              <div class="big" id="lbMeRank">–</div>
+              <div class="meta" id="lbMeMeta">–</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <span class="pill" id="lbMeCount">0</span>
+              <button class="btn btn-secondary btn-sm" type="button" data-goto="contribute" data-i18n="lbBoost">Boost rank</button>
+            </div>
+          </div>
+
+          <div class="podium" id="lbPodium"></div>
+
+          <div class="panel">
+            <div class="panel-hd">
+              <strong data-i18n="lbTable">Full ranking</strong>
+              <div class="spacer"></div>
+              <button class="btn btn-secondary btn-sm" type="button" id="btnLbRefresh" data-i18n="refresh">Refresh</button>
+            </div>
+            <div class="dt dt-lb">
+              <div class="dt-head">
+                <div data-i18n="colRank">Rank</div>
+                <div data-i18n="colUser">User</div>
+                <div data-i18n="colSeats">Seats</div>
+                <div data-i18n="colActive">Active</div>
+              </div>
+              <div class="dt-body" id="tbodyLb"><div class="dt-empty">…</div></div>
+            </div>
+          </div>
+        </section>
+
         <!-- SETTINGS -->
         <section class="view ${page==='settings'?'on':''}" id="view-settings">
           <div class="panel">
@@ -394,7 +530,7 @@ ${styles()}
 
   <script>
     const PAGE = ${JSON.stringify(page)};
-    const PAGE_HREF = { overview:"/overview", accounts:"/accounts", keys:"/keys", users:"/users", usage:"/usage", logs:"/logs", settings:"/settings" };
+    const PAGE_HREF = { overview:"/overview", accounts:"/accounts", keys:"/keys", users:"/users", usage:"/usage", logs:"/logs", settings:"/settings", contribute:"/contribute", leaderboard:"/leaderboard" };
     const PAGE_SIZE = 8;
     const LOG_PAGE = 15;
     const PALETTE = ["#0070f3","#7928ca","#0a7a3e","#ab570a","#ee0000","#00a0a0","#333","#888"];
@@ -406,6 +542,8 @@ ${styles()}
       usage: { titleKey: "navUsage", subKey: "subUsage" },
       logs: { titleKey: "navLogs", subKey: "subLogs" },
       settings: { titleKey: "navSettings", subKey: "subSettings", admin: true },
+      contribute: { titleKey: "navContribute", subKey: "subContribute" },
+      leaderboard: { titleKey: "navLeaderboard", subKey: "subLeaderboard" },
     };
     const I18N = {
       zh: {
@@ -476,6 +614,30 @@ ${styles()}
         pageOf:(c,t,n)=>"第 "+c+" / "+t+" 页 · 共 "+n+" 条", prev:"上一页", next:"下一页",
         diskInfo:(d,b)=>d+" 天 · "+b,
         sideHint:"日志在运维区 · 日常优先用总览/账号",
+        navCommunity:"社区", navContribute:"贡献席位", navLeaderboard:"贡献榜",
+        subContribute:"绑定 SuperGrok · 加入共享容量", subLeaderboard:"社区贡献席位排行",
+        qaContrib:"分享 SuperGrok 容量", qaLb:"查看贡献排行",
+        contribKicker:"社区容量", contribTitle:"分享你的 SuperGrok 席位",
+        contribSub:"绑定你拥有的 xAI 账号。剩余额度会进入共享池——大家更稳，你也能登上贡献榜。",
+        contribCta:"贡献一个账号", contribSeeLb:"查看贡献榜",
+        why1t:"仅你可见", why1d:"你绑定的账号状态、额度与调用记录只对你开放，其他用户看不到列表。",
+        why2t:"点亮账号池", why2d:"闲置的 SuperGrok 额度变成共享容量。额度感知路由会自动挑选健康席位。",
+        why3t:"冲榜荣誉", why3d:"每次成功绑定都会计入排名。管理员不参与榜单，纯粹的社区排行。",
+        contribHow:"如何贡献", step1t:"发起 OAuth", step1d:"走 xAI 设备码流程，我们不保存你的密码。",
+        step2t:"浏览器授权", step2d:"在 accounts.x.ai 输入代码，授权 SuperGrok 访问。",
+        step3t:"进入池子", step3d:"自动检查额度，席位即可参与路由。",
+        mineTitle:"我的贡献", mineHint:"仅自己可见",
+        statMine:"我的席位", statExhausted:"已耗尽", statMyRank:"我的排名",
+        noContrib:"还没有贡献。点上方按钮绑定第一个账号。",
+        contribOk:"贡献成功", contribRankUnranked:"未上榜",
+        lbKicker:"公开排行", lbTitle:"贡献者排行榜",
+        lbSub:"按贡献的 SuperGrok 席位数量排序。管理员账号已排除，榜单只反映社区贡献。",
+        lbCta:"立即贡献", lbYourRank:"你的排名", lbBoost:"提升排名",
+        lbTable:"完整榜单", lbEmpty:"还没有贡献者。成为第一名？",
+        lbSeats:(n)=>n+" 个席位", lbSummary:(c,d)=>c+" 位贡献者 · 共 "+d+" 个席位",
+        lbUnranked:"尚未上榜 — 贡献一个账号即可入榜",
+        colRank:"名次", colSeats:"席位",
+        copyCode:"复制代码",
       },
       en: {
         title:"Account Pool", subtitle:"SuperGrok OAuth pool · credit-aware routing · OpenAI-compatible proxy.",
@@ -545,6 +707,30 @@ ${styles()}
         pageOf:(c,t,n)=>"Page "+c+" / "+t+" · "+n+" total", prev:"Prev", next:"Next",
         diskInfo:(d,b)=>d+" days · "+b,
         sideHint:"Logs under Ops · daily work: Overview / Accounts",
+        navCommunity:"Community", navContribute:"Contribute", navLeaderboard:"Leaderboard",
+        subContribute:"Link SuperGrok · grow shared capacity", subLeaderboard:"Community contribution ranking",
+        qaContrib:"Share SuperGrok capacity", qaLb:"See top contributors",
+        contribKicker:"Community capacity", contribTitle:"Share your SuperGrok seat",
+        contribSub:"Link an xAI account you own. Remaining credits join the shared pool — everyone gets more reliable access, and you climb the board.",
+        contribCta:"Contribute an account", contribSeeLb:"View leaderboard",
+        why1t:"Private to you", why1d:"Only you can see the accounts you linked — status, credits, and usage. Others never see your list.",
+        why2t:"Power the pool", why2d:"Idle SuperGrok credits become shared capacity. Credit-aware routing picks healthy seats automatically.",
+        why3t:"Climb the board", why3d:"Every successful link counts toward your rank. Admins are excluded — pure community scoreboard.",
+        contribHow:"How it works", step1t:"Start OAuth", step1d:"We open an xAI device-code flow. No password is stored by us.",
+        step2t:"Approve in browser", step2d:"Enter the code on accounts.x.ai and authorize SuperGrok access.",
+        step3t:"Join the pool", step3d:"Credits are checked and the seat becomes available for routing.",
+        mineTitle:"My contributions", mineHint:"Visible only to you",
+        statMine:"My seats", statExhausted:"Exhausted", statMyRank:"My rank",
+        noContrib:"No contributions yet. Click above to link your first account.",
+        contribOk:"Contribution added", contribRankUnranked:"Unranked",
+        lbKicker:"Public ranking", lbTitle:"Contributor leaderboard",
+        lbSub:"Ranked by SuperGrok seats contributed. Admin accounts are excluded so the board stays community-first.",
+        lbCta:"Contribute now", lbYourRank:"Your rank", lbBoost:"Boost rank",
+        lbTable:"Full ranking", lbEmpty:"No contributors yet. Be the first?",
+        lbSeats:(n)=>n+" seats", lbSummary:(c,d)=>c+" contributors · "+d+" seats",
+        lbUnranked:"Not ranked yet — contribute one account to join",
+        colRank:"Rank", colSeats:"Seats",
+        copyCode:"Copy code",
       }
     };
 
@@ -559,8 +745,12 @@ ${styles()}
     let curlEp = "chat";
     let proxyMode = "auto";
     let allAccounts = [];
+    let myAccounts = [];
     let allKeys = [];
     let accPage = 1;
+    let contribPage = 1;
+    let contribPollTimer = null;
+    let leaderboardData = null;
     let keyPage = 1;
     let logPage = 1;
     let logTotal = 0;
@@ -610,6 +800,8 @@ ${styles()}
         }
       }
       if (name === "users" && isAdmin()) loadUsers();
+      if (name === "contribute") { loadMyAccounts(); loadLeaderboardLite(); }
+      if (name === "leaderboard") loadLeaderboard();
     }
 
     function applyRoleNav() {
@@ -672,6 +864,19 @@ ${styles()}
       setView(view);
       renderAccounts();
       renderKeys();
+      renderMyAccounts();
+      if (leaderboardData) {
+        paintPodium(leaderboardData.entries || []);
+        paintLbTable(leaderboardData.entries || []);
+        if (leaderboardData.me) {
+          if ($("lbMeRank")) $("lbMeRank").textContent = "#" + leaderboardData.me.rank;
+          if ($("lbMeMeta")) $("lbMeMeta").textContent = leaderboardData.me.username + " · " + t("lbSeats", leaderboardData.me.count);
+          if ($("lbMeCount")) $("lbMeCount").textContent = t("lbSeats", leaderboardData.me.count);
+        } else if ($("lbMeMeta")) {
+          $("lbMeMeta").textContent = t("lbUnranked");
+        }
+        if ($("lbSummary")) $("lbSummary").textContent = t("lbSummary", leaderboardData.totalContributors || 0, leaderboardData.totalDonated || 0);
+      }
     }
 
     function paintAdminExplain() {
@@ -826,7 +1031,8 @@ ${styles()}
         const cur = a.isCurrent;
         return '<div class="dt-row' + (cur ? " current" : "") + '">' +
           '<div><div class="name">' + esc(a.name) + (cur ? ' <span class="badge current">' + esc(t("current")) + "</span>" : "") +
-          '</div><div class="mono">' + esc(a.id) + "</div>" +
+          (a.donorUserId ? ' <span class="badge" title="donor">' + esc("contrib") + "</span>" : "") +
+          '</div><div class="mono">' + esc(a.id) + (a.donorUserId ? " · " + esc(a.donorUserId) : "") + "</div>" +
           (a.lastError ? '<div style="color:var(--error);font-size:12px;margin-top:4px">' + esc(a.lastError) + "</div>" : "") +
           "</div>" +
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
@@ -1502,6 +1708,209 @@ ${styles()}
 
     function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
+    function stopContribPoll() {
+      if (contribPollTimer) { clearInterval(contribPollTimer); contribPollTimer = null; }
+    }
+
+    function renderMyAccounts() {
+      const tbody = $("tbodyContrib");
+      if (!tbody) return;
+      if (!myAccounts.length) {
+        tbody.innerHTML = '<div class="empty-cta"><h3>' + esc(t("noContrib")) + '</h3><p>' + esc(t("mineHint")) + '</p><button class="btn" type="button" id="btnEmptyContrib">' + esc(t("contribCta")) + '</button></div>';
+        if ($("contribPager")) $("contribPager").innerHTML = "";
+        const b = $("btnEmptyContrib");
+        if (b) b.onclick = () => startContribute();
+        return;
+      }
+      contribPage = renderPager($("contribPager"), contribPage, myAccounts.length, PAGE_SIZE, (pg) => { contribPage = pg; renderMyAccounts(); });
+      const start = (contribPage - 1) * PAGE_SIZE;
+      const slice = myAccounts.slice(start, start + PAGE_SIZE);
+      tbody.innerHTML = slice.map((a) => {
+        return '<div class="dt-row">' +
+          '<div><div class="name">' + esc(a.name) + '</div><div class="mono">' + esc(a.id) + "</div>" +
+          (a.lastError ? '<div style="color:var(--error);font-size:12px;margin-top:4px">' + esc(a.lastError) + "</div>" : "") +
+          "</div>" +
+          '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
+          "<div>" + creditCell(a) + "</div>" +
+          '<div class="mono">' + a.useCount + "</div>" +
+          '<div class="dt-time">' + fmtTime(a.lastUsedAt) + "</div>" +
+          '<div class="dt-actions">' +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="c-credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>" +
+          '<button class="btn btn-danger btn-sm" type="button" data-act="c-del" data-id="' + esc(a.id) + '">' + esc(t("del")) + "</button>" +
+          "</div></div>";
+      }).join("");
+      tbody.querySelectorAll("button[data-act]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-id");
+          const act = btn.getAttribute("data-act");
+          if (act === "c-credits") checkMyCredits(id);
+          if (act === "c-del") delMyAcc(id);
+        });
+      });
+    }
+
+    async function loadMyAccounts() {
+      try {
+        const res = await fetch("/api/me/accounts", { headers: headers() });
+        if (!res.ok) return;
+        const data = await res.json();
+        myAccounts = data.accounts || [];
+        const st = data.stats || {};
+        if ($("cTotal")) $("cTotal").textContent = st.total ?? myAccounts.length;
+        if ($("cActive")) $("cActive").textContent = st.active ?? 0;
+        if ($("cExhausted")) $("cExhausted").textContent = st.exhausted ?? 0;
+        if ($("contribMineCount")) $("contribMineCount").textContent = t("lbSeats", st.total ?? myAccounts.length);
+        const maxPage = Math.max(1, Math.ceil(myAccounts.length / PAGE_SIZE));
+        if (contribPage > maxPage) contribPage = maxPage;
+        renderMyAccounts();
+      } catch {}
+    }
+
+    async function loadLeaderboardLite() {
+      try {
+        const res = await fetch("/api/leaderboard", { headers: headers() });
+        if (!res.ok) return;
+        const data = await res.json();
+        if ($("cRank")) {
+          $("cRank").textContent = data.me ? ("#" + data.me.rank) : t("contribRankUnranked");
+        }
+      } catch {}
+    }
+
+    async function loadLeaderboard() {
+      try {
+        const res = await fetch("/api/leaderboard", { headers: headers() });
+        if (!res.ok) return;
+        const data = await res.json();
+        leaderboardData = data;
+        if ($("lbSummary")) $("lbSummary").textContent = t("lbSummary", data.totalContributors || 0, data.totalDonated || 0);
+        if (data.me) {
+          if ($("lbMeRank")) $("lbMeRank").textContent = "#" + data.me.rank;
+          if ($("lbMeMeta")) $("lbMeMeta").textContent = data.me.username + " · " + t("lbSeats", data.me.count);
+          if ($("lbMeCount")) $("lbMeCount").textContent = t("lbSeats", data.me.count);
+        } else {
+          if ($("lbMeRank")) $("lbMeRank").textContent = "–";
+          if ($("lbMeMeta")) $("lbMeMeta").textContent = t("lbUnranked");
+          if ($("lbMeCount")) $("lbMeCount").textContent = t("lbSeats", 0);
+        }
+        if ($("cRank")) $("cRank").textContent = data.me ? ("#" + data.me.rank) : t("contribRankUnranked");
+        paintPodium(data.entries || []);
+        paintLbTable(data.entries || []);
+      } catch {}
+    }
+
+    function paintPodium(entries) {
+      const el = $("lbPodium");
+      if (!el) return;
+      if (!entries.length) {
+        el.innerHTML = '<div class="empty-cta" style="grid-column:1/-1"><h3>' + esc(t("lbEmpty")) + '</h3><button class="btn" type="button" data-goto="contribute">' + esc(t("lbCta")) + '</button></div>';
+        el.querySelectorAll("[data-goto]").forEach((b) => b.addEventListener("click", () => go(b.getAttribute("data-goto"))));
+        return;
+      }
+      const top = [entries[1], entries[0], entries[2]]; // silver, gold, bronze visual order
+      const cls = ["silver", "gold", "bronze"];
+      const place = ["#2", "#1", "#3"];
+      el.innerHTML = top.map((e, i) => {
+        if (!e) return '<div class="pod ' + cls[i] + '" style="opacity:.35"><div class="place">' + place[i] + '</div><div class="uname">–</div><div class="cnt">0</div><div class="lbl">' + esc(t("colSeats")) + '</div></div>';
+        return '<div class="pod ' + cls[i] + (e.isMe ? " me" : "") + '">' +
+          '<div class="place">' + place[i] + '</div>' +
+          '<div class="uname">' + esc(e.username) + (e.isMe ? ' · me' : '') + '</div>' +
+          '<div class="cnt">' + e.count + '</div>' +
+          '<div class="lbl">' + esc(t("colSeats")) + ' · ' + e.activeCount + ' ' + esc(t("statActive")).toLowerCase() + '</div>' +
+          '</div>';
+      }).join("");
+    }
+
+    function paintLbTable(entries) {
+      const tbody = $("tbodyLb");
+      if (!tbody) return;
+      if (!entries.length) {
+        tbody.innerHTML = '<div class="dt-empty">' + esc(t("lbEmpty")) + "</div>";
+        return;
+      }
+      tbody.innerHTML = entries.map((e) => {
+        const rb = e.rank === 1 ? "top1" : e.rank === 2 ? "top2" : e.rank === 3 ? "top3" : "";
+        return '<div class="dt-row' + (e.isMe ? " me lb-row" : "") + '">' +
+          '<div><span class="rank-badge ' + rb + '">#' + e.rank + "</span></div>" +
+          '<div><div class="name">' + esc(e.username) + (e.isMe ? ' <span class="badge current">me</span>' : "") + '</div></div>' +
+          '<div class="mono">' + e.count + "</div>" +
+          '<div class="mono">' + e.activeCount + "</div>" +
+          "</div>";
+      }).join("");
+    }
+
+    async function startContribute() {
+      hideMsg($("msgContrib"));
+      stopContribPoll();
+      if ($("btnContribAdd")) $("btnContribAdd").disabled = true;
+      if ($("btnContribStart")) $("btnContribStart").disabled = true;
+      if ($("contribStage")) $("contribStage").classList.remove("show");
+      try {
+        const res = await fetch("/api/me/accounts/oauth", {
+          method: "POST", headers: jsonHeaders(),
+          body: JSON.stringify({ name: ($("contribName") && $("contribName").value) || undefined, openBrowser: false }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        const url = data.verificationUriComplete || data.verificationUri;
+        $("contribUserCode").textContent = data.userCode;
+        $("contribVerifyLink").textContent = data.verificationUri;
+        $("contribVerifyLink").href = url;
+        $("contribPollStatus").textContent = t("waiting");
+        $("contribStage").classList.add("show");
+        // open verification page for the user
+        try { window.open(url, "_blank", "noopener,noreferrer"); } catch {}
+        const sessionId = data.sessionId;
+        contribPollTimer = setInterval(async () => {
+          try {
+            const pr = await fetch("/api/me/accounts/oauth/poll?sessionId=" + encodeURIComponent(sessionId), { headers: headers() });
+            const result = await pr.json();
+            if (result.ok) {
+              stopContribPoll();
+              $("contribStage").classList.remove("show");
+              showMsg($("msgContrib"), t("contribOk") + ": " + (result.account?.name || result.account?.id), "ok");
+              if ($("contribName")) $("contribName").value = "";
+              if ($("btnContribAdd")) $("btnContribAdd").disabled = false;
+              if ($("btnContribStart")) $("btnContribStart").disabled = false;
+              await Promise.all([loadMyAccounts(), loadLeaderboardLite()]);
+              return;
+            }
+            if (result.pending) {
+              $("contribPollStatus").textContent = t("waiting") + " " + new Date().toLocaleTimeString();
+              return;
+            }
+            stopContribPoll();
+            if ($("btnContribAdd")) $("btnContribAdd").disabled = false;
+            if ($("btnContribStart")) $("btnContribStart").disabled = false;
+            showMsg($("msgContrib"), result.error || "failed", "err");
+          } catch {
+            $("contribPollStatus").textContent = t("waiting");
+          }
+        }, 2000);
+      } catch (e) {
+        showMsg($("msgContrib"), e.message, "err");
+        if ($("btnContribAdd")) $("btnContribAdd").disabled = false;
+        if ($("btnContribStart")) $("btnContribStart").disabled = false;
+      }
+    }
+
+    async function checkMyCredits(id) {
+      try {
+        const res = await fetch("/api/me/accounts/" + id + "/credits", { method: "POST", headers: headers() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        const c = data.credits;
+        showMsg($("msgContrib"), t("usedLeft", c.creditUsagePercent, c.remainingPercent), "ok");
+        await loadMyAccounts();
+      } catch (e) { showMsg($("msgContrib"), e.message, "err"); }
+    }
+
+    async function delMyAcc(id) {
+      if (!confirm(id + " ?")) return;
+      await fetch("/api/me/accounts/" + id, { method: "DELETE", headers: headers() });
+      await Promise.all([loadMyAccounts(), loadLeaderboardLite()]);
+    }
+
     async function addOAuth() {
       hideMsg($("msg")); stopPoll(); $("btnAdd").disabled = true; $("codeBox").classList.remove("show");
       try {
@@ -1782,7 +2191,20 @@ ${styles()}
     };
 
     if ($("btnAdd")) $("btnAdd").onclick = addOAuth;
-    $("btnRefresh").onclick = () => { hideMsg($("msg")); hideMsg($("msgKeys")); hideMsg($("msgLogs")); loadAll(); };
+    if ($("btnContribAdd")) $("btnContribAdd").onclick = startContribute;
+    if ($("btnContribStart")) $("btnContribStart").onclick = startContribute;
+    if ($("btnContribRefresh")) $("btnContribRefresh").onclick = () => { hideMsg($("msgContrib")); loadMyAccounts(); loadLeaderboardLite(); };
+    if ($("btnLbRefresh")) $("btnLbRefresh").onclick = () => loadLeaderboard();
+    if ($("btnContribCopy")) $("btnContribCopy").onclick = async () => {
+      const code = $("contribUserCode")?.textContent || "";
+      try { await navigator.clipboard.writeText(code.replace(/\s+/g, "")); }
+      catch {
+        const ta = document.createElement("textarea"); ta.value = code; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+      }
+      $("btnContribCopy").textContent = t("copied");
+      setTimeout(() => { if ($("btnContribCopy")) $("btnContribCopy").textContent = t("copy"); }, 1200);
+    };
+    $("btnRefresh").onclick = () => { hideMsg($("msg")); hideMsg($("msgKeys")); hideMsg($("msgLogs")); hideMsg($("msgContrib")); loadAll(); };
     $("btnLogout").onclick = logout;
 
     async function loadAll() {
@@ -1792,6 +2214,8 @@ ${styles()}
       applyRoleNav();
       const tasks = [loadKeys(), loadUsage(), loadLogs()];
       if (isAdmin()) tasks.push(loadAccounts());
+      if (view === "contribute" || view === "overview") tasks.push(loadMyAccounts(), loadLeaderboardLite());
+      if (view === "leaderboard") tasks.push(loadLeaderboard());
       await Promise.all(tasks);
       paintCurl();
     }

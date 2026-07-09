@@ -87,11 +87,16 @@ export async function getAccount(id: string): Promise<Account | undefined> {
   return (await loadStore()).accounts.find((a) => a.id === id);
 }
 
+export async function listAccountsByDonor(userId: string): Promise<Account[]> {
+  return (await loadStore()).accounts.filter((a) => a.donorUserId === userId);
+}
+
 export async function addAccount(input: {
   name?: string;
   access: string;
   refresh: string;
   expires: number;
+  donorUserId?: string | null;
 }): Promise<Account> {
   return mutate((store) => {
     const t = now();
@@ -107,6 +112,7 @@ export async function addAccount(input: {
       createdAt: t,
       updatedAt: t,
       useCount: 0,
+      donorUserId: input.donorUserId ?? null,
     };
     store.accounts.push(account);
     if (!store.routing.currentAccountId) {
@@ -129,6 +135,7 @@ export async function updateAccount(
       | "useCount"
       | "tokens"
       | "credits"
+      | "donorUserId"
     >
   >,
 ): Promise<Account | undefined> {
@@ -374,6 +381,7 @@ export function publicAccount(a: Account, currentId?: string | null) {
     expiresAt: a.tokens.expires,
     hasRefresh: Boolean(a.tokens.refresh),
     isCurrent: currentId ? a.id === currentId : false,
+    donorUserId: a.donorUserId ?? null,
     credits: a.credits
       ? {
           creditUsagePercent: a.credits.creditUsagePercent,
@@ -404,5 +412,66 @@ export function publicApiKey(k: ApiKeyRecord) {
     note: k.note,
     userId: k.userId ?? null,
     expired: k.expiresAt != null && k.expiresAt <= now(),
+  };
+}
+
+/** Leaderboard entry for contributors (excludes admin donors). */
+export type LeaderboardEntry = {
+  rank: number;
+  userId: string;
+  username: string;
+  count: number;
+  activeCount: number;
+  isMe: boolean;
+};
+
+export async function buildLeaderboard(
+  meUserId: string | null,
+  adminUserIds: Set<string>,
+  usernameById: Map<string, string>,
+): Promise<{
+  entries: LeaderboardEntry[];
+  me: LeaderboardEntry | null;
+  totalContributors: number;
+  totalDonated: number;
+}> {
+  const accounts = await listAccounts();
+  const counts = new Map<string, { count: number; activeCount: number }>();
+  let totalDonated = 0;
+
+  for (const a of accounts) {
+    const uid = a.donorUserId;
+    if (!uid || adminUserIds.has(uid)) continue;
+    totalDonated += 1;
+    const cur = counts.get(uid) ?? { count: 0, activeCount: 0 };
+    cur.count += 1;
+    if (a.status === "active") cur.activeCount += 1;
+    counts.set(uid, cur);
+  }
+
+  const sorted = [...counts.entries()]
+    .map(([userId, c]) => ({
+      userId,
+      username: usernameById.get(userId) ?? userId.slice(0, 6),
+      count: c.count,
+      activeCount: c.activeCount,
+    }))
+    .sort((a, b) => b.count - a.count || a.username.localeCompare(b.username));
+
+  const entries: LeaderboardEntry[] = sorted.map((e, i) => ({
+    rank: i + 1,
+    userId: e.userId,
+    username: e.username,
+    count: e.count,
+    activeCount: e.activeCount,
+    isMe: meUserId != null && e.userId === meUserId,
+  }));
+
+  const me = meUserId ? entries.find((e) => e.userId === meUserId) ?? null : null;
+  return {
+    entries,
+    me,
+    totalContributors: entries.length,
+    totalDonated,
   };
 }
