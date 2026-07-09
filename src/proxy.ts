@@ -1,11 +1,11 @@
 import { execSync } from "node:child_process";
-import { ProxyAgent, setGlobalDispatcher, getGlobalDispatcher } from "undici";
+import { Agent, ProxyAgent, setGlobalDispatcher, getGlobalDispatcher } from "undici";
+import { loadSettings } from "./settings.js";
 
 function normalizeProxyUrl(raw: string): string {
   const s = raw.trim();
   if (!s) return "";
-  if (/^https?:\/\//i.test(s)) return s;
-  // Windows registry often stores "127.0.0.1:7890" or "http=127.0.0.1:7890;https=..."
+  if (/^https?:\/\//i.test(s) || /^socks/i.test(s)) return s;
   if (s.includes("=")) {
     const parts = s.split(";").map((p) => p.trim());
     for (const key of ["https", "http", "all"]) {
@@ -53,42 +53,87 @@ function fromWindowsRegistry(): string {
   }
 }
 
-export function resolveProxyUrl(): string {
-  return fromEnv() || fromWindowsRegistry();
+export type ProxySource = "settings" | "env" | "system" | "none";
+
+let appliedProxyUrl = "";
+let appliedSource: ProxySource = "none";
+let configuredOverride = "";
+
+export function resolveProxyUrl(override?: string): { url: string; source: ProxySource } {
+  const manual = (override ?? configuredOverride).trim();
+  if (manual) return { url: normalizeProxyUrl(manual), source: "settings" };
+  const env = fromEnv();
+  if (env) return { url: env, source: "env" };
+  const sys = fromWindowsRegistry();
+  if (sys) return { url: sys, source: "system" };
+  return { url: "", source: "none" };
 }
 
-let applied = false;
-let appliedProxyUrl = "";
-
-/**
- * Auto-detect outbound proxy:
- * 1) HTTPS_PROXY / HTTP_PROXY / ALL_PROXY env
- * 2) Windows system proxy (registry) when enabled
- * Never hardcodes a host/port.
- */
-export function applyProxy(): string {
-  if (applied) return appliedProxyUrl;
-  applied = true;
-
-  const proxyUrl = resolveProxyUrl();
-  appliedProxyUrl = proxyUrl;
-  if (!proxyUrl) {
-    console.log("[grok-api] proxy    → (none)  set HTTPS_PROXY or enable OS system proxy");
-    return "";
+function installDispatcher(proxyUrl: string): void {
+  if (proxyUrl) {
+    process.env.HTTPS_PROXY = proxyUrl;
+    process.env.HTTP_PROXY = proxyUrl;
+    process.env.https_proxy = proxyUrl;
+    process.env.http_proxy = proxyUrl;
+    setGlobalDispatcher(new ProxyAgent(proxyUrl));
+  } else {
+    delete process.env.HTTPS_PROXY;
+    delete process.env.HTTP_PROXY;
+    delete process.env.https_proxy;
+    delete process.env.http_proxy;
+    setGlobalDispatcher(new Agent());
   }
+}
 
-  process.env.HTTPS_PROXY ||= proxyUrl;
-  process.env.HTTP_PROXY ||= proxyUrl;
-  process.env.https_proxy ||= proxyUrl;
-  process.env.http_proxy ||= proxyUrl;
+/** Initial load: settings file → env → OS system proxy. */
+export async function applyProxy(): Promise<string> {
+  const settings = await loadSettings();
+  configuredOverride = settings.proxyUrl || "";
+  const { url, source } = resolveProxyUrl();
+  appliedProxyUrl = url;
+  appliedSource = source;
+  installDispatcher(url);
+  if (url) {
+    console.log(`[grok-api] proxy    → ${url} (${source})`);
+  } else {
+    console.log("[grok-api] proxy    → (none)");
+  }
+  return url;
+}
 
-  setGlobalDispatcher(new ProxyAgent(proxyUrl));
-  console.log(`[grok-api] proxy    → ${proxyUrl} (auto)`);
-  return proxyUrl;
+/** Runtime update (from admin UI). Empty string = clear override and re-auto-detect. */
+export async function setProxyOverride(proxyUrl: string): Promise<{
+  proxy: string | null;
+  source: ProxySource;
+  configured: string;
+}> {
+  configuredOverride = proxyUrl.trim();
+  const { url, source } = resolveProxyUrl(configuredOverride);
+  appliedProxyUrl = url;
+  appliedSource = source;
+  installDispatcher(url);
+  console.log(`[grok-api] proxy    → ${url || "(none)"} (${source})`);
+  return {
+    proxy: url || null,
+    source,
+    configured: configuredOverride,
+  };
 }
 
 export function getAppliedProxy(): string {
   return appliedProxyUrl;
+}
+
+export function getProxyInfo(): {
+  proxy: string | null;
+  source: ProxySource;
+  configured: string;
+} {
+  return {
+    proxy: appliedProxyUrl || null,
+    source: appliedSource,
+    configured: configuredOverride,
+  };
 }
 
 export function currentDispatcher() {

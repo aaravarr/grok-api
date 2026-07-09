@@ -3,7 +3,7 @@ import { config } from "./config.js";
 import { applyProxy } from "./proxy.js";
 import { createApp } from "./server/app.js";
 
-applyProxy();
+await applyProxy();
 
 const app = createApp();
 

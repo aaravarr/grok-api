@@ -98,7 +98,7 @@ const client = new OpenAI({
 | `HOST` | `127.0.0.1` | 监听地址 |
 | `ADMIN_TOKEN` | 空 | 若设置，则保护 `/api/admin/*`（管理台输入框）。**不是** `/v1` 的 API Key |
 | `XAI_BASE_URL` | `https://api.x.ai/v1` | 推理上游 |
-| `HTTPS_PROXY` / `HTTP_PROXY` | 自动 | 可选；否则读 Windows 系统代理 |
+| `HTTPS_PROXY` / `HTTP_PROXY` | 自动 | 可选；否则读系统代理。也可在管理台「设置」里手动配置 |
 
 数据：`data/accounts.json`（已 gitignore）。勿提交 token。
 

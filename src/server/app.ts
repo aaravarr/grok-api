@@ -21,7 +21,8 @@ import { getDeviceSession, pollDeviceLogin, startDeviceLogin } from "../account/
 import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
 import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js";
-import { getAppliedProxy } from "../proxy.js";
+import { getProxyInfo, setProxyOverride } from "../proxy.js";
+import { loadSettings, saveSettings } from "../settings.js";
 import { adminHtml } from "../web/admin.js";
 
 export function createApp() {
@@ -47,19 +48,40 @@ export function createApp() {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      proxy: getAppliedProxy() || null,
+      ...getProxyInfo(),
       adminTokenRequired: Boolean(config.adminToken),
     }),
   );
 
   /** Public meta for admin UI (no secrets) */
-  app.get("/api/meta", (c) =>
-    c.json({
+  app.get("/api/meta", async (c) => {
+    const settings = await loadSettings();
+    const proxy = getProxyInfo();
+    return c.json({
       adminTokenRequired: Boolean(config.adminToken),
-      proxy: getAppliedProxy() || null,
+      adminTokenHint: config.adminToken
+        ? "server_has_admin_token"
+        : "admin_open",
+      proxy: proxy.proxy,
+      proxySource: proxy.source,
+      proxyConfigured: settings.proxyUrl,
       xaiBaseUrl: config.xai.baseUrl,
-    }),
-  );
+    });
+  });
+
+  app.get("/api/admin/settings", async (c) => {
+    const settings = await loadSettings();
+    return c.json({ settings, runtime: getProxyInfo() });
+  });
+
+  app.patch("/api/admin/settings", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { proxyUrl?: string };
+    const settings = await saveSettings({
+      proxyUrl: body.proxyUrl ?? "",
+    });
+    const runtime = await setProxyOverride(settings.proxyUrl);
+    return c.json({ settings, runtime });
+  });
 
   // ---- Accounts ----
   app.get("/api/admin/accounts", async (c) => {

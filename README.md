@@ -98,7 +98,7 @@ request → (API key if any) → pick account
 | `HOST` | `127.0.0.1` | Bind address |
 | `ADMIN_TOKEN` | _(empty)_ | If set, protects `/api/admin/*` (admin UI field). **Not** the `/v1` API key. |
 | `XAI_BASE_URL` | `https://api.x.ai/v1` | Inference upstream |
-| `HTTPS_PROXY` / `HTTP_PROXY` | auto | Optional; else Windows system proxy is read |
+| `HTTPS_PROXY` / `HTTP_PROXY` | auto | Optional; else Windows system proxy. Can also set in admin UI → Settings |
 
 Data: `data/accounts.json` (gitignored). Do not commit tokens.
 
