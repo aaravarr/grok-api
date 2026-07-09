@@ -41,7 +41,7 @@ export interface AppendLogInput {
   ok: boolean;
   latencyMs: number;
   error?: string;
-  request: unknown;
+  request?: unknown;
   requestTruncated?: boolean;
   response?: unknown;
   responseTruncated?: boolean;

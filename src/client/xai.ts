@@ -1,6 +1,6 @@
-import { config } from "../config.js";
 import { onProviderError, onSuccess, routeAccount } from "../account/router.js";
 import { advanceToNextActive } from "../account/store.js";
+import { getUpstreamBaseUrl } from "../settings.js";
 
 export async function fetchUpstreamModels(preferredId?: string): Promise<{
   status: number;
@@ -12,7 +12,8 @@ export async function fetchUpstreamModels(preferredId?: string): Promise<{
     preferredId,
     checkCredits: false,
   });
-  const res = await fetch(`${config.xai.baseUrl}/models`, {
+  const base = await getUpstreamBaseUrl();
+  const res = await fetch(`${base}/models`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${routed.accessToken}`,
@@ -46,16 +47,15 @@ export interface ProxyResponse {
   accountName: string;
 }
 
-function endpoint(mode: ProxyMode): string {
-  return mode === "responses"
-    ? `${config.xai.baseUrl}/responses`
-    : `${config.xai.baseUrl}/chat/completions`;
+function endpoint(base: string, mode: ProxyMode): string {
+  return mode === "responses" ? `${base}/responses` : `${base}/chat/completions`;
 }
 
 export async function proxyLLM(req: ProxyRequest): Promise<ProxyResponse> {
   const maxRetries = req.maxRetries ?? 3;
   const tried = new Set<string>();
   let lastError = "unknown";
+  const base = await getUpstreamBaseUrl();
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     let routed;
@@ -73,7 +73,7 @@ export async function proxyLLM(req: ProxyRequest): Promise<ProxyResponse> {
     if (tried.has(routed.account.id)) break;
     tried.add(routed.account.id);
 
-    const res = await fetch(endpoint(req.mode), {
+    const res = await fetch(endpoint(base, req.mode), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${routed.accessToken}`,

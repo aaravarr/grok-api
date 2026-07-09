@@ -23,7 +23,7 @@ import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
 import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js";
 import { getProxyInfo, setProxyOverride } from "../proxy.js";
-import { loadSettings, saveSettings } from "../settings.js";
+import { loadSettings, resolveUpstreamBaseUrl, saveSettings } from "../settings.js";
 import { authPageHtml } from "../web/auth-page.js";
 import { appPageHtml } from "../web/app-page.js";
 import { homePageHtml } from "../web/home-page.js";
@@ -118,8 +118,10 @@ export function createApp() {
       proxyConfigured: settings.proxyUrl,
       logRetentionDays: settings.logRetentionDays,
       logEnabled: settings.logEnabled,
+      logBodies: settings.logBodies === true,
       allowRegisterSetting: settings.allowRegister,
-      xaiBaseUrl: config.xai.baseUrl,
+      xaiBaseUrl: resolveUpstreamBaseUrl(settings.upstreamBaseUrl),
+      upstreamBaseUrlConfigured: settings.upstreamBaseUrl || "",
       legacyAdminToken: Boolean(config.adminToken),
     });
   });
@@ -308,29 +310,43 @@ export function createApp() {
   app.patch("/api/admin/settings", async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as {
       proxyUrl?: string;
+      upstreamBaseUrl?: string;
       logRetentionDays?: number;
       logEnabled?: boolean;
+      logBodies?: boolean;
       allowRegister?: boolean;
     };
     const patch: {
       proxyUrl?: string;
+      upstreamBaseUrl?: string;
       logRetentionDays?: number;
       logEnabled?: boolean;
+      logBodies?: boolean;
       allowRegister?: boolean;
     } = {};
     if (body.proxyUrl !== undefined) patch.proxyUrl = body.proxyUrl;
+    if (body.upstreamBaseUrl !== undefined) patch.upstreamBaseUrl = body.upstreamBaseUrl;
     if (body.logRetentionDays !== undefined) patch.logRetentionDays = body.logRetentionDays;
     if (body.logEnabled !== undefined) patch.logEnabled = body.logEnabled;
+    if (body.logBodies !== undefined) patch.logBodies = body.logBodies;
     if (body.allowRegister !== undefined) patch.allowRegister = body.allowRegister;
-    const settings = await saveSettings(patch);
-    let runtime = getProxyInfo();
-    if (body.proxyUrl !== undefined) {
-      runtime = await setProxyOverride(settings.proxyUrl);
+    try {
+      const settings = await saveSettings(patch);
+      let runtime = getProxyInfo();
+      if (body.proxyUrl !== undefined) {
+        runtime = await setProxyOverride(settings.proxyUrl);
+      }
+      if (body.logRetentionDays !== undefined) {
+        await cleanupLogs({ retentionDays: settings.logRetentionDays });
+      }
+      return c.json({
+        settings,
+        runtime,
+        xaiBaseUrl: resolveUpstreamBaseUrl(settings.upstreamBaseUrl),
+      });
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
     }
-    if (body.logRetentionDays !== undefined) {
-      await cleanupLogs({ retentionDays: settings.logRetentionDays });
-    }
-    return c.json({ settings, runtime });
   });
 
   app.get("/api/admin/users", async (c) => {
@@ -742,10 +758,11 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
   }
 
   const meta = parseBodyMeta(body);
-  const reqClone = safeCloneBody(body);
   const inbound = collectRequestHeaders((name) => c.req.header(name));
   const settings = await loadSettings();
   const logging = settings.logEnabled !== false;
+  const logBodies = settings.logBodies === true;
+  const reqClone = logging && logBodies ? safeCloneBody(body) : { value: undefined as unknown, truncated: false };
 
   const baseLog = {
     mode,
@@ -810,8 +827,8 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
             status: result.status,
             ok: result.status >= 200 && result.status < 300,
             latencyMs: Date.now() - t0,
-            response: captured.response,
-            responseTruncated: captured.responseTruncated,
+            response: logBodies ? captured.response : undefined,
+            responseTruncated: logBodies ? captured.responseTruncated : undefined,
             usage: captured.usage,
             error: captured.error,
           });
@@ -831,8 +848,8 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
         status: result.status,
         ok: result.status >= 200 && result.status < 300,
         latencyMs: Date.now() - t0,
-        response: captured.response,
-        responseTruncated: captured.responseTruncated,
+        response: logBodies ? captured.response : undefined,
+        responseTruncated: logBodies ? captured.responseTruncated : undefined,
         usage: captured.usage,
         error: captured.error,
       });

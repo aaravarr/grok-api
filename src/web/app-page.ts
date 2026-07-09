@@ -286,6 +286,14 @@ ${styles()}
             <div class="panel-bd" style="display:grid;gap:18px">
               <div class="callout" id="adminExplain"></div>
               <div>
+                <div style="font-weight:500;margin-bottom:8px" data-i18n="upstreamTitle">xAI upstream</div>
+                <div class="settings-row">
+                  <input id="upstreamUrl" class="input grow" placeholder="https://api.x.ai/v1" style="min-width:220px;flex:1" />
+                  <button class="btn" type="button" id="btnSaveUpstream" data-i18n="saveUpstream">Save</button>
+                </div>
+                <div class="hint" id="upstreamHint" data-i18n="upstreamHint">Empty = default api.x.ai/v1. Can point to a Vercel/OpenAI-compatible reverse proxy (auto-appends /v1).</div>
+              </div>
+              <div>
                 <div style="font-weight:500;margin-bottom:8px" data-i18n="proxyTitle">Outbound proxy</div>
                 <div class="settings-row">
                   <div class="seg" id="proxyModeSeg">
@@ -307,12 +315,15 @@ ${styles()}
                     <input type="checkbox" id="logEnabled" /> <span data-i18n="logEnabled">Enable logging</span>
                   </label>
                   <label class="mono" style="display:flex;align-items:center;gap:6px">
+                    <input type="checkbox" id="logBodies" /> <span data-i18n="logBodies">Store request/response bodies</span>
+                  </label>
+                  <label class="mono" style="display:flex;align-items:center;gap:6px">
                     <span data-i18n="logRetention">Retention (days)</span>
                     <input id="logRetention" class="input" type="number" min="1" max="365" style="min-width:80px;width:80px" />
                   </label>
                   <button class="btn" type="button" id="btnSaveLog" data-i18n="saveLog">Save</button>
                 </div>
-                <div class="hint" data-i18n="logHint">Logs stored as daily JSONL under data/logs · bodies capped at 1MB</div>
+                <div class="hint" data-i18n="logHint">Default: metadata + tokens only. Bodies are large — enable only when debugging.</div>
               </div>
               <div>
                 <div style="font-weight:500;margin-bottom:8px" data-i18n="userSettings">Users</div>
@@ -421,11 +432,14 @@ ${styles()}
         qaCurlTitle:"cURL 示例", qaCurl:"见首页", qaSettings:"代理与日志策略",
         adminExplain:"可选环境变量 <code>ADMIN_TOKEN</code> 可作为紧急管理员通道（Bearer）。日常请使用用户名密码登录。",
         adminExplainOpen:"请使用<strong>用户名密码</strong>登录。首次打开会引导创建管理员；账号池与代理仅管理员可配置。",
+        upstreamTitle:"xAI 上游地址", saveUpstream:"保存上游", upstreamSaved:"上游地址已更新",
+        upstreamHint:"留空=默认 api.x.ai/v1。可填 Vercel/国内反代域名（自动补 /v1）。OAuth 仍走 auth.x.ai。",
+        upstreamActive:(u)=>"当前生效："+u,
         proxyTitle:"出站代理", proxyAuto:"自动", proxyDirect:"直连", proxyCustom:"自定义",
         proxyHintAuto:(src,url)=>"当前生效："+(url||"直连")+"（来源："+src+"）",
         saveProxy:"保存", proxySaved:"代理已更新",
-        logSettings:"请求日志", logEnabled:"启用日志", logRetention:"保留天数", saveLog:"保存日志设置",
-        logHint:"按日 JSONL 存于 data/logs · 单条 body 上限 1MB · 超期自动清理",
+        logSettings:"请求日志", logEnabled:"启用日志", logBodies:"记录请求/响应体", logRetention:"保留天数", saveLog:"保存日志设置",
+        logHint:"默认只记元数据与 Token；正文体积大，排查问题时再勾选",
         logSaved:"日志设置已保存",
         usageTitle:"分析", kpiReq:"请求数", kpiTok:"总 Token", kpiOk:"成功率", kpiLat:"平均延迟",
         kpiIn:"输入(未缓存)", kpiOut:"输出 Token", kpiCache:"缓存输入", kpiReason:"推理 Token", kpiImg:"图片 Token",
@@ -485,11 +499,14 @@ ${styles()}
         qaCurlTitle:"cURL", qaCurl:"On homepage", qaSettings:"Proxy & log policy",
         adminExplain:"Optional env <code>ADMIN_TOKEN</code> is an emergency admin Bearer. Prefer username/password login.",
         adminExplainOpen:"Sign in with username/password. First visit creates the admin. Account pool & proxy are admin-only.",
+        upstreamTitle:"xAI upstream", saveUpstream:"Save upstream", upstreamSaved:"Upstream updated",
+        upstreamHint:"Empty = api.x.ai/v1. Point to a Vercel/OpenAI-compatible reverse proxy (/v1 auto-appended). OAuth still uses auth.x.ai.",
+        upstreamActive:(u)=>"Active: "+u,
         proxyTitle:"Outbound proxy", proxyAuto:"Auto", proxyDirect:"Direct", proxyCustom:"Custom",
         proxyHintAuto:(src,url)=>"Active: "+(url||"direct")+" (source: "+src+")",
         saveProxy:"Save", proxySaved:"Proxy updated",
-        logSettings:"Request logs", logEnabled:"Enable logging", logRetention:"Retention (days)", saveLog:"Save log settings",
-        logHint:"Daily JSONL under data/logs · body capped at 1MB · auto cleanup by retention",
+        logSettings:"Request logs", logEnabled:"Enable logging", logBodies:"Store request/response bodies", logRetention:"Retention (days)", saveLog:"Save log settings",
+        logHint:"Default: metadata + tokens only. Bodies are large — enable when debugging.",
         logSaved:"Log settings saved",
         usageTitle:"Analytics", kpiReq:"Requests", kpiTok:"Total tokens", kpiOk:"Success rate", kpiLat:"Avg latency",
         kpiIn:"Input (uncached)", kpiOut:"Output tokens", kpiCache:"Cached input", kpiReason:"Reasoning", kpiImg:"Image tokens",
@@ -531,7 +548,7 @@ ${styles()}
     let sessionToken = localStorage.getItem("grok_api_session") || "";
     let currentUser = null; // { id, username, role }
         let routing = { mode: "auto", currentAccountId: null };
-    let meta = { needsSetup: false, allowRegister: true, proxy: null, proxySource: "none", proxyConfigured: "", logRetentionDays: 7, logEnabled: true, allowRegisterSetting: true };
+    let meta = { needsSetup: false, allowRegister: true, proxy: null, proxySource: "none", proxyConfigured: "", logRetentionDays: 7, logEnabled: true, logBodies: false, allowRegisterSetting: true, xaiBaseUrl: "https://api.x.ai/v1", upstreamBaseUrlConfigured: "" };
     let pollTimer = null;
     let allUsers = [];
     let curlEp = "chat";
@@ -676,8 +693,16 @@ ${styles()}
       const src = srcMap[meta.proxySource] || meta.proxySource;
       if ($("proxyHint")) $("proxyHint").textContent = t("proxyHintAuto", src, meta.proxy || "");
       if ($("logEnabled")) $("logEnabled").checked = meta.logEnabled !== false;
+      if ($("logBodies")) $("logBodies").checked = meta.logBodies === true;
       if ($("logRetention") && !$("logRetention").matches(":focus")) $("logRetention").value = meta.logRetentionDays || 7;
       if ($("allowRegister")) $("allowRegister").checked = meta.allowRegisterSetting !== false;
+      if ($("upstreamUrl") && !$("upstreamUrl").matches(":focus")) {
+        $("upstreamUrl").value = meta.upstreamBaseUrlConfigured || "";
+      }
+      if ($("upstreamHint")) {
+        const active = meta.xaiBaseUrl || "https://api.x.ai/v1";
+        $("upstreamHint").textContent = t("upstreamActive", active) + " · " + t("upstreamHint");
+      }
     }
 
     function headers() {
@@ -1458,8 +1483,12 @@ ${styles()}
           (log.error ? '<div style="grid-column:1/-1"><div class="k">error</div><div class="v" style="color:var(--error)">' + esc(log.error) + "</div></div>" : "") +
           "</div>" +
           '<div><div class="k" style="color:var(--mute);font-size:12px;margin-bottom:6px">headers</div><pre>' + esc(JSON.stringify(log.headers || {}, null, 2)) + "</pre></div>" +
-          '<div><div class="k" style="color:var(--mute);font-size:12px;margin-bottom:6px">request' + (log.requestTruncated ? " (truncated)" : "") + "</div><pre>" + esc(JSON.stringify(log.request, null, 2)) + "</pre></div>" +
-          '<div><div class="k" style="color:var(--mute);font-size:12px;margin-bottom:6px">response' + (log.responseTruncated ? " (truncated)" : "") + "</div><pre>" + esc(typeof log.response === "string" ? log.response : JSON.stringify(log.response ?? null, null, 2)) + "</pre></div>";
+          (log.request !== undefined
+            ? '<div><div class="k" style="color:var(--mute);font-size:12px;margin-bottom:6px">request' + (log.requestTruncated ? " (truncated)" : "") + "</div><pre>" + esc(JSON.stringify(log.request, null, 2)) + "</pre></div>"
+            : '<div class="hint" style="margin:8px 0">request body not stored (logBodies off)</div>') +
+          (log.response !== undefined
+            ? '<div><div class="k" style="color:var(--mute);font-size:12px;margin-bottom:6px">response' + (log.responseTruncated ? " (truncated)" : "") + "</div><pre>" + esc(typeof log.response === "string" ? log.response : JSON.stringify(log.response ?? null, null, 2)) + "</pre></div>"
+            : '<div class="hint" style="margin:8px 0">response body not stored (logBodies off)</div>');
         $("logModal").classList.add("show");
       } catch (e) {
         showMsg($("msgLogs"), e.message, "err");
@@ -1640,6 +1669,20 @@ ${styles()}
       $("proxyModeSeg").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x.dataset.pmode === proxyMode));
       $("proxyCustomWrap").classList.toggle("show", proxyMode === "custom");
     });
+    if ($("btnSaveUpstream")) $("btnSaveUpstream").onclick = async () => {
+      try {
+        const res = await fetch("/api/admin/settings", {
+          method: "PATCH", headers: jsonHeaders(),
+          body: JSON.stringify({ upstreamBaseUrl: $("upstreamUrl").value.trim() }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        meta.upstreamBaseUrlConfigured = data.settings.upstreamBaseUrl || "";
+        meta.xaiBaseUrl = data.xaiBaseUrl || data.settings.upstreamBaseUrl || meta.xaiBaseUrl;
+        paintProxyUI();
+        showMsg($("msg"), t("upstreamSaved"), "ok");
+      } catch (e) { showMsg($("msg"), e.message, "err"); }
+    };
     if ($("btnSaveProxy")) $("btnSaveProxy").onclick = async () => {
       let value = "";
       if (proxyMode === "direct") value = "direct";
@@ -1665,12 +1708,14 @@ ${styles()}
           method: "PATCH", headers: jsonHeaders(),
           body: JSON.stringify({
             logEnabled: $("logEnabled").checked,
+            logBodies: $("logBodies").checked,
             logRetentionDays: Number($("logRetention").value) || 7,
           }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
         meta.logEnabled = data.settings.logEnabled;
+        meta.logBodies = data.settings.logBodies === true;
         meta.logRetentionDays = data.settings.logRetentionDays;
         paintProxyUI();
         showMsg($("msgLogs"), t("logSaved"), "ok");

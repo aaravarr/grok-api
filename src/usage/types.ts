@@ -44,10 +44,10 @@ export interface RequestLog {
   ok: boolean;
   latencyMs: number;
   error?: string;
-  /** Full request body (may be truncated) */
-  request: unknown;
+  /** Full request body (may be truncated). Omitted when logBodies is off. */
+  request?: unknown;
   requestTruncated?: boolean;
-  /** Full response body or SSE text (may be truncated) */
+  /** Full response body or SSE text (may be truncated). Omitted when logBodies is off. */
   response?: unknown;
   responseTruncated?: boolean;
   usage?: TokenUsage;
