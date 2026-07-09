@@ -112,7 +112,8 @@ export function styles(): string {
     .dt-empty{padding:40px 16px;text-align:center;color:var(--mute);font-size:13px}
     .dt-actions{display:flex;flex-wrap:nowrap;gap:6px;align-items:center}
     .dt-actions .btn{flex-shrink:0}
-    .dt-time{white-space:nowrap;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px;color:var(--mute)}
+    .dt-time{display:flex;flex-direction:column;align-items:flex-start;gap:4px;overflow:hidden;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px;color:var(--mute)}
+    .dt-time-main{white-space:nowrap}
     /*
       Fixed track sizes (no max-content): each row is its own grid, so fr/max-content
       would size independently and columns drift. Use the same explicit template for head+rows.
@@ -120,8 +121,8 @@ export function styles(): string {
     .dt-accounts{--dt-cols:minmax(0,1.6fr) 100px minmax(0,1.2fr) 56px 150px 252px;min-width:820px}
     .dt-users{--dt-cols:minmax(0,1.5fr) 96px 96px 150px 160px;min-width:700px}
     .dt-keys{--dt-cols:minmax(0,1.3fr) minmax(0,1fr) 88px 140px 56px 160px;min-width:780px}
-    .dt-logs{--dt-cols:150px minmax(0,1fr) minmax(0,1fr) 72px minmax(0,1.2fr) 80px minmax(0,.9fr) minmax(0,.9fr);min-width:960px}
-    .dt-logs.no-account{--dt-cols:150px minmax(0,1fr) minmax(0,1fr) 72px minmax(0,1.2fr) 80px minmax(0,1fr);min-width:820px}
+    .dt-logs{--dt-cols:118px minmax(0,1fr) minmax(0,1fr) 72px minmax(0,1.2fr) 80px minmax(0,.9fr) minmax(0,.9fr);min-width:960px}
+    .dt-logs.no-account{--dt-cols:118px minmax(0,1fr) minmax(0,1fr) 72px minmax(0,1.2fr) 80px minmax(0,1fr);min-width:820px}
     .dt-accounts .dt-head,.dt-accounts .dt-row,
     .dt-users .dt-head,.dt-users .dt-row,
     .dt-keys .dt-head,.dt-keys .dt-row,

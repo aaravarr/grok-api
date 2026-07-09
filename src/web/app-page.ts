@@ -665,7 +665,12 @@ ${styles()}
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
     }
-    function fmtTime(ts) { return ts ? new Date(ts).toLocaleString() : "–"; }
+    function fmtTime(ts) {
+      if (!ts) return "–";
+      const d = new Date(ts);
+      const p = (n) => String(n).padStart(2, "0");
+      return p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+    }
     function baseUrl() { return location.origin; }
     function fmtNum(n) {
       if (n == null || !Number.isFinite(n)) return "–";
@@ -884,7 +889,8 @@ ${styles()}
         const client = clientLabel(r);
         const uaTip = r.userAgent ? ' title="' + esc(r.userAgent) + '"' : "";
         return '<div class="dt-row clickable" data-id="' + esc(r.id) + '">' +
-          '<div class="dt-time">' + esc(fmtTime(r.ts)) + (r.stream ? ' <span class="badge">stream</span>' : "") + "</div>" +
+          '<div class="dt-time"><div class="dt-time-main">' + esc(fmtTime(r.ts)) + "</div>" +
+          (r.stream ? '<span class="badge">stream</span>' : "") + "</div>" +
           '<div' + uaTip + '><div class="name">' + esc(client) + '</div>' +
           (r.userAgent && r.client && r.userAgent !== r.client ? '<div class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.userAgent) + "</div>" : "") +
           "</div>" +
