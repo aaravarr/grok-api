@@ -6,6 +6,7 @@ export function homePageHtml(): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Grok API</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml" />
   <style>
     @font-face{font-family:"Geist";src:url("/static/fonts/Geist-Regular.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap}
     @font-face{font-family:"Geist";src:url("/static/fonts/Geist-Medium.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap}
@@ -60,9 +61,10 @@ export function homePageHtml(): string {
     .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.03em;min-width:0}
     .brand span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .mark{
-      width:22px;height:22px;border-radius:6px;background:var(--ink);
+      width:24px;height:24px;border-radius:7px;background:var(--ink);
       display:grid;place-items:center;flex-shrink:0;
     }
+    .mark svg{display:block}
     .nav-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
     .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
     .seg button{border:0;background:transparent;height:30px;padding:0 11px;color:var(--body);font-size:13px;font-weight:500}
@@ -217,7 +219,7 @@ export function homePageHtml(): string {
   <div class="nav" id="nav">
     <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;width:100%">
       <a class="brand" href="/">
-        <span class="mark" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 1L14.5 13H1.5L8 1Z" fill="white"/></svg></span>
+        <span class="mark" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="3.4" cy="3.4" r="1.35" fill="white"/><circle cx="3.4" cy="8" r="1.35" fill="white"/><circle cx="3.4" cy="12.6" r="1.35" fill="white"/><path d="M5.4 3.4C7.5 3.4 8.9 6.2 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 8H9.9" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 12.6C7.5 12.6 8.9 9.8 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M9.3 5.5L12.6 8L9.3 10.5" stroke="white" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         <span>Grok API</span>
       </a>
       <div class="nav-right">

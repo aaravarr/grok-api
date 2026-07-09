@@ -26,6 +26,7 @@ export function styles(): string {
     .brand{display:flex;align-items:center;gap:10px;padding:6px 10px 16px;font-weight:600;letter-spacing:-.4px;color:var(--ink);text-decoration:none;border-radius:8px;transition:background .15s var(--ease)}
     .brand:hover{background:var(--canvas-soft-2);color:var(--ink)}
     .brand-mark{width:24px;height:24px;border-radius:7px;background:var(--ink);display:grid;place-items:center;flex-shrink:0}
+    .brand-mark svg{display:block}
     .nav-group{margin-bottom:12px}
     .nav-label{font-size:11px;font-weight:500;color:var(--mute);padding:8px 12px 6px;letter-spacing:.02em}
     .nav-item{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;text-align:left;padding:9px 12px;border-radius:8px;color:var(--body);font-weight:500;font-size:13.5px;text-decoration:none;transition:background .15s var(--ease),color .15s var(--ease),box-shadow .15s var(--ease)}

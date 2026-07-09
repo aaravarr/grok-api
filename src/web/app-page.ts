@@ -19,6 +19,7 @@ export function appPageHtml(page: AppPage | string): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Grok API</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
 ${styles()}
@@ -28,7 +29,7 @@ ${styles()}
   <div class="app" id="appRoot">
     <aside class="side" id="side">
       <a class="brand" href="/" title="Home">
-        <div class="brand-mark" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1L14.5 13H1.5L8 1Z" fill="white"/></svg></div>
+        <div class="brand-mark" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="3.4" cy="3.4" r="1.35" fill="white"/><circle cx="3.4" cy="8" r="1.35" fill="white"/><circle cx="3.4" cy="12.6" r="1.35" fill="white"/><path d="M5.4 3.4C7.5 3.4 8.9 6.2 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 8H9.9" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 12.6C7.5 12.6 8.9 9.8 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M9.3 5.5L12.6 8L9.3 10.5" stroke="white" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <span>Grok API</span>
       </a>
       <nav>

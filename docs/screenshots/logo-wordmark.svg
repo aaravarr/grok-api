@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
-  <rect width="128" height="128" rx="28" fill="#171717"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="128" viewBox="0 0 512 128" fill="none">
+  <rect x="0" y="0" width="128" height="128" rx="28" fill="#171717"/>
   <circle cx="36" cy="38" r="8" fill="#fff"/>
   <circle cx="36" cy="64" r="8" fill="#fff"/>
   <circle cx="36" cy="90" r="8" fill="#fff"/>
@@ -7,4 +7,7 @@
   <path d="M48 64H82" stroke="#fff" stroke-width="7.5" stroke-linecap="round"/>
   <path d="M48 90C64 90 74 74 82 64" stroke="#fff" stroke-width="7.5" stroke-linecap="round"/>
   <path d="M78 50L100 64L78 78" stroke="#fff" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#171717" font-family="Geist, Inter, system-ui, -apple-system, sans-serif" font-weight="600">
+    <text x="152" y="78" font-size="52" letter-spacing="-1.6">Grok API</text>
+  </g>
 </svg>

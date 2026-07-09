@@ -134,6 +134,32 @@ export function createApp() {
     }
   });
 
+  // Brand assets (favicon / logo)
+  app.get("/static/:file", async (c) => {
+    const file = c.req.param("file");
+    if (!/^(logo|logo-light)\.svg$/.test(file)) {
+      return c.text("not found", 404);
+    }
+    const { readFile } = await import("node:fs/promises");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const path = join(here, "../web/static", file);
+    try {
+      const buf = await readFile(path);
+      return new Response(buf, {
+        headers: {
+          "Content-Type": "image/svg+xml; charset=utf-8",
+          "Cache-Control": "public, max-age=86400",
+        },
+      });
+    } catch {
+      return c.text("not found", 404);
+    }
+  });
+  app.get("/favicon.ico", (c) => c.redirect("/static/logo.svg", 302));
+  app.get("/favicon.svg", (c) => c.redirect("/static/logo.svg", 302));
+
   app.get("/api/meta", async (c) => {
     const settings = await loadSettings();
     const proxy = getProxyInfo();
