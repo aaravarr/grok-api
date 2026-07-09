@@ -119,7 +119,7 @@ export function styles(): string {
       would size independently and columns drift. Use the same explicit template for head+rows.
     */
     .dt-accounts{--dt-cols:minmax(0,1.6fr) 100px minmax(0,1.2fr) 56px 150px 252px;min-width:820px}
-    .dt-users{--dt-cols:minmax(0,1.5fr) 96px 96px 150px 160px;min-width:700px}
+    .dt-users{--dt-cols:minmax(0,1.4fr) 88px 88px minmax(0,1.1fr) 118px 220px;min-width:860px}
     .dt-keys{--dt-cols:minmax(0,1.3fr) minmax(0,1fr) 88px 140px 56px 160px;min-width:780px}
     .dt-logs{--dt-cols:118px minmax(0,1fr) minmax(0,1fr) 72px minmax(0,1.2fr) 80px minmax(0,.9fr) minmax(0,.9fr);min-width:960px}
     .dt-logs.no-account{--dt-cols:118px minmax(0,1fr) minmax(0,1fr) 72px minmax(0,1.2fr) 80px minmax(0,1fr);min-width:820px}
@@ -230,7 +230,7 @@ export function styles(): string {
       .log-meta{grid-template-columns:1fr}
       .dt-actions{flex-wrap:wrap}
       .dt-accounts{--dt-cols:minmax(0,1.4fr) 90px minmax(0,1.1fr) 48px 120px 200px;min-width:680px}
-      .dt-users{--dt-cols:minmax(0,1.3fr) 88px 88px 120px 140px;min-width:600px}
+      .dt-users{--dt-cols:minmax(0,1.2fr) 80px 80px minmax(0,1fr) 100px 200px;min-width:760px}
     }
     @media(min-width:1400px){
       .content{padding:28px 36px 80px}

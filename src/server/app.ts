@@ -45,6 +45,9 @@ import { collectRequestHeaders } from "../usage/client-meta.js";
 import { computeUsageStats } from "../usage/stats.js";
 import {
   deleteUser,
+  getUser,
+  incrementUserTokenUsed,
+  isUserQuotaExceeded,
   listUsers,
   loginUser,
   logoutSession,
@@ -340,6 +343,9 @@ export function createApp() {
       enabled?: boolean;
       role?: "admin" | "user";
       password?: string;
+      tokenQuota?: number | null;
+      resetUsed?: boolean;
+      tokenUsed?: number;
     };
     const me = c.get("user")!;
     if (body.password) {
@@ -350,10 +356,29 @@ export function createApp() {
     if (body.role === "user" && c.req.param("id") === me.id) {
       return c.json({ error: "不能取消自己的管理员身份" }, 400);
     }
-    const updated = await updateUser(c.req.param("id"), {
-      enabled: body.enabled,
-      role: body.role,
-    });
+    const patch: Parameters<typeof updateUser>[1] = {};
+    if (body.enabled !== undefined) patch.enabled = body.enabled;
+    if (body.role !== undefined) patch.role = body.role;
+    if (body.tokenQuota !== undefined) {
+      if (body.tokenQuota === null || body.tokenQuota === ("" as unknown as number)) {
+        patch.tokenQuota = null;
+      } else {
+        const n = Number(body.tokenQuota);
+        if (!Number.isFinite(n) || n < 0) {
+          return c.json({ error: "tokenQuota 须为非负整数或 null（不限）" }, 400);
+        }
+        patch.tokenQuota = Math.floor(n);
+      }
+    }
+    if (body.resetUsed === true) patch.tokenUsed = 0;
+    else if (body.tokenUsed !== undefined) {
+      const n = Number(body.tokenUsed);
+      if (!Number.isFinite(n) || n < 0) {
+        return c.json({ error: "tokenUsed 须为非负整数" }, 400);
+      }
+      patch.tokenUsed = Math.floor(n);
+    }
+    const updated = await updateUser(c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
     return c.json({ user: publicUser(updated) });
   });
@@ -636,6 +661,8 @@ async function requireAdmin(c: Context<{ Variables: Variables }>, next: Next) {
       passwordHash: "",
       role: "admin",
       enabled: true,
+      tokenQuota: null,
+      tokenUsed: 0,
       createdAt: 0,
       updatedAt: 0,
     });
@@ -666,8 +693,39 @@ async function apiKeyMiddleware(c: Context<{ Variables: Variables }>, next: Next
     c.set("apiKeyId", result.record.id);
     c.set("apiKeyAlias", result.record.alias || result.record.keyPrefix);
     c.set("apiKeyUserId", result.record.userId ?? null);
+    if (result.record.userId) {
+      const owner = await getUser(result.record.userId);
+      if (owner && isUserQuotaExceeded(owner)) {
+        return c.json(
+          {
+            error: {
+              message: "Token quota exceeded",
+              type: "quota_exceeded",
+              tokenUsed: owner.tokenUsed ?? 0,
+              tokenQuota: owner.tokenQuota,
+            },
+          },
+          429,
+        );
+      }
+    }
   }
   await next();
+}
+
+function usageTotalTokens(usage: { totalTokens?: number; promptTokens?: number; completionTokens?: number } | undefined): number {
+  if (!usage) return 0;
+  if (typeof usage.totalTokens === "number" && usage.totalTokens > 0) return Math.floor(usage.totalTokens);
+  const p = typeof usage.promptTokens === "number" ? usage.promptTokens : 0;
+  const c = typeof usage.completionTokens === "number" ? usage.completionTokens : 0;
+  const sum = p + c;
+  return sum > 0 ? Math.floor(sum) : 0;
+}
+
+function chargeUserTokens(userId: string | null | undefined, usage: { totalTokens?: number; promptTokens?: number; completionTokens?: number } | undefined) {
+  if (!userId) return;
+  const n = usageTotalTokens(usage);
+  if (n > 0) void incrementUserTokenUsed(userId, n);
 }
 
 async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode) {
@@ -735,43 +793,50 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
       contentType.includes("text/event-stream") ||
       contentType.includes("event-stream");
 
-    if (!logging) {
+    const shouldCharge = Boolean(apiKeyUserId) && result.status >= 200 && result.status < 300;
+    if (!logging && !shouldCharge) {
       return new Response(result.body, { status: result.status, headers });
     }
 
     if (isSse) {
       const clientBody = teeAndCapture(result.body, (captured) => {
-        void appendRequestLog({
-          ...baseLog,
-          stream: true,
-          accountId: result.accountId,
-          accountName: result.accountName,
-          status: result.status,
-          ok: result.status >= 200 && result.status < 300,
-          latencyMs: Date.now() - t0,
-          response: captured.response,
-          responseTruncated: captured.responseTruncated,
-          usage: captured.usage,
-          error: captured.error,
-        });
+        if (shouldCharge) chargeUserTokens(apiKeyUserId, captured.usage);
+        if (logging) {
+          void appendRequestLog({
+            ...baseLog,
+            stream: true,
+            accountId: result.accountId,
+            accountName: result.accountName,
+            status: result.status,
+            ok: result.status >= 200 && result.status < 300,
+            latencyMs: Date.now() - t0,
+            response: captured.response,
+            responseTruncated: captured.responseTruncated,
+            usage: captured.usage,
+            error: captured.error,
+          });
+        }
       });
       return new Response(clientBody, { status: result.status, headers });
     }
 
     const { bytes, result: captured } = await captureJsonResponse(result.body);
-    void appendRequestLog({
-      ...baseLog,
-      stream: false,
-      accountId: result.accountId,
-      accountName: result.accountName,
-      status: result.status,
-      ok: result.status >= 200 && result.status < 300,
-      latencyMs: Date.now() - t0,
-      response: captured.response,
-      responseTruncated: captured.responseTruncated,
-      usage: captured.usage,
-      error: captured.error,
-    });
+    if (shouldCharge) chargeUserTokens(apiKeyUserId, captured.usage);
+    if (logging) {
+      void appendRequestLog({
+        ...baseLog,
+        stream: false,
+        accountId: result.accountId,
+        accountName: result.accountName,
+        status: result.status,
+        ok: result.status >= 200 && result.status < 300,
+        latencyMs: Date.now() - t0,
+        response: captured.response,
+        responseTruncated: captured.responseTruncated,
+        usage: captured.usage,
+        error: captured.error,
+      });
+    }
     return new Response(bytes, { status: result.status, headers });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

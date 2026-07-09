@@ -18,6 +18,10 @@ export interface User {
   passwordHash: string;
   role: UserRole;
   enabled: boolean;
+  /** Total token budget; null = unlimited */
+  tokenQuota: number | null;
+  /** Accumulated totalTokens consumed */
+  tokenUsed: number;
   createdAt: number;
   updatedAt: number;
   lastLoginAt?: number;
@@ -49,6 +53,29 @@ function emptyStore(): UsersStore {
   return { version: 1, users: [], sessions: [] };
 }
 
+function normalizeUser(raw: Partial<User> & Pick<User, "id" | "username" | "passwordHash" | "role">): User {
+  const quota =
+    typeof raw.tokenQuota === "number" && Number.isFinite(raw.tokenQuota) && raw.tokenQuota >= 0
+      ? Math.floor(raw.tokenQuota)
+      : null;
+  const used =
+    typeof raw.tokenUsed === "number" && Number.isFinite(raw.tokenUsed) && raw.tokenUsed > 0
+      ? Math.floor(raw.tokenUsed)
+      : 0;
+  return {
+    id: raw.id,
+    username: raw.username,
+    passwordHash: raw.passwordHash,
+    role: raw.role === "admin" ? "admin" : "user",
+    enabled: raw.enabled !== false,
+    tokenQuota: quota,
+    tokenUsed: used,
+    createdAt: raw.createdAt ?? 0,
+    updatedAt: raw.updatedAt ?? 0,
+    lastLoginAt: raw.lastLoginAt,
+  };
+}
+
 async function loadStore(): Promise<UsersStore> {
   await mkdir(config.dataDir, { recursive: true });
   try {
@@ -56,7 +83,7 @@ async function loadStore(): Promise<UsersStore> {
     const data = JSON.parse(raw) as Partial<UsersStore>;
     return {
       version: 1,
-      users: Array.isArray(data.users) ? data.users : [],
+      users: Array.isArray(data.users) ? data.users.map((u) => normalizeUser(u as User)) : [],
       sessions: Array.isArray(data.sessions) ? data.sessions : [],
     };
   } catch {
@@ -86,15 +113,26 @@ async function mutate<T>(fn: (store: UsersStore) => T | Promise<T>): Promise<T> 
 }
 
 export function publicUser(u: User) {
+  const tokenQuota = u.tokenQuota ?? null;
+  const tokenUsed = u.tokenUsed ?? 0;
   return {
     id: u.id,
     username: u.username,
     role: u.role,
     enabled: u.enabled,
+    tokenQuota,
+    tokenUsed,
+    tokenRemaining: tokenQuota == null ? null : Math.max(0, tokenQuota - tokenUsed),
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
     lastLoginAt: u.lastLoginAt,
   };
+}
+
+/** true when a finite quota is set and already exhausted */
+export function isUserQuotaExceeded(u: User): boolean {
+  if (u.tokenQuota == null) return false;
+  return (u.tokenUsed ?? 0) >= u.tokenQuota;
 }
 
 export async function needsSetup(): Promise<boolean> {
@@ -148,6 +186,8 @@ export async function setupAdmin(input: {
       passwordHash: await hashPassword(input.password),
       role: "admin",
       enabled: true,
+      tokenQuota: null,
+      tokenUsed: 0,
       createdAt: t,
       updatedAt: t,
       lastLoginAt: t,
@@ -184,6 +224,8 @@ export async function registerUser(input: {
       passwordHash: await hashPassword(input.password),
       role: "user",
       enabled: true,
+      tokenQuota: null,
+      tokenUsed: 0,
       createdAt: t,
       updatedAt: t,
       lastLoginAt: t,
@@ -262,7 +304,7 @@ export async function resolveSession(
 
 export async function updateUser(
   id: string,
-  patch: Partial<Pick<User, "enabled" | "role" | "passwordHash">>,
+  patch: Partial<Pick<User, "enabled" | "role" | "passwordHash" | "tokenQuota" | "tokenUsed">>,
 ): Promise<User | undefined> {
   return mutate((store) => {
     const u = store.users.find((x) => x.id === id);
@@ -270,8 +312,28 @@ export async function updateUser(
     if (patch.enabled !== undefined) u.enabled = patch.enabled;
     if (patch.role !== undefined) u.role = patch.role;
     if (patch.passwordHash !== undefined) u.passwordHash = patch.passwordHash;
+    if (patch.tokenQuota !== undefined) {
+      u.tokenQuota =
+        patch.tokenQuota == null
+          ? null
+          : Math.max(0, Math.floor(Number(patch.tokenQuota)) || 0);
+    }
+    if (patch.tokenUsed !== undefined) {
+      u.tokenUsed = Math.max(0, Math.floor(Number(patch.tokenUsed)) || 0);
+    }
     u.updatedAt = now();
     return u;
+  });
+}
+
+export async function incrementUserTokenUsed(id: string, tokens: number): Promise<void> {
+  const n = Math.floor(Number(tokens));
+  if (!id || !Number.isFinite(n) || n <= 0) return;
+  await mutate((store) => {
+    const u = store.users.find((x) => x.id === id);
+    if (!u) return;
+    u.tokenUsed = (u.tokenUsed ?? 0) + n;
+    u.updatedAt = now();
   });
 }
 

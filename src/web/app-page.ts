@@ -175,6 +175,7 @@ ${styles()}
                 <div data-i18n="colUser">User</div>
                 <div data-i18n="colRole">Role</div>
                 <div data-i18n="colStatus">Status</div>
+                <div data-i18n="colQuota">Quota</div>
                 <div data-i18n="colLastUsed">Last login</div>
                 <div data-i18n="colActions">Actions</div>
               </div>
@@ -356,6 +357,28 @@ ${styles()}
     </div>
   </div>
 
+  <div class="modal-mask" id="quotaModal">
+    <div class="modal" role="dialog">
+      <h3 data-i18n="editQuota">Edit token quota</h3>
+      <p id="quotaUserHint" class="mono" style="margin-bottom:12px"></p>
+      <div class="field">
+        <label data-i18n="quotaLabel">Token quota (empty = unlimited)</label>
+        <input id="quotaInput" class="input" style="width:100%" type="number" min="0" step="1" placeholder="∞" />
+      </div>
+      <div class="field">
+        <label data-i18n="quotaUsedLabel">Tokens used</label>
+        <div class="mono" id="quotaUsedDisp">0</div>
+      </div>
+      <label class="check" style="display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:13px">
+        <input type="checkbox" id="quotaResetUsed" /> <span data-i18n="quotaResetUsed">Reset used to 0</span>
+      </label>
+      <div class="row">
+        <button class="btn btn-secondary" type="button" id="quotaCancel" data-i18n="close">Close</button>
+        <button class="btn" type="button" id="quotaSubmit" data-i18n="saveQuota">Save</button>
+      </div>
+    </div>
+  </div>
+
 
   <script>
     const PAGE = ${JSON.stringify(page)};
@@ -386,9 +409,12 @@ ${styles()}
         navOverview:"总览", navAccounts:"账号", navKeys:"密钥", navUsers:"用户", navUsage:"用量", navLogs:"日志", navSettings:"设置",
         subOverview:"状态一览与快捷入口", subAccounts:"OAuth 池 · 路由与额度", subKeys:"客户端鉴权密钥",
         subUsers:"注册用户与角色", subUsage:"Token / 次数 / 模型分布", subLogs:"完整请求排查（低频）", subSettings:"代理与日志策略",
-        usersHint:"管理注册用户", colUser:"用户", colRole:"角色",
+        usersHint:"管理注册用户", colUser:"用户", colRole:"角色", colQuota:"额度",
         allowRegister:"允许注册", userSettings:"用户注册",
         roleAdmin:"管理员", roleUser:"用户",
+        editQuota:"编辑 Token 额度", quotaLabel:"Token 额度（空=不限）", quotaUsedLabel:"已用 Token",
+        quotaResetUsed:"将已用清零", saveQuota:"保存额度", quotaUnlimited:"不限",
+        quotaFmt:(u,q)=>u+" / "+q, setQuota:"额度",
         viewMore:"查看详情 →", viewAllLogs:"全部日志 →",
         ovUsage:"近 7 日用量", ovQuick:"快捷操作", ovRecent:"最近请求",
         qaAcc:"添加 / 切换 / 查额度", qaKey:"签发客户端密钥", qaUsage:"图表与分布", qaLogs:"完整请求排查",
@@ -447,9 +473,12 @@ ${styles()}
         navOverview:"Overview", navAccounts:"Accounts", navKeys:"API Keys", navUsers:"Users", navUsage:"Usage", navLogs:"Logs", navSettings:"Settings",
         subOverview:"Status & shortcuts", subAccounts:"OAuth pool · routing & credits", subKeys:"Client auth keys",
         subUsers:"Registered users & roles", subUsage:"Tokens / calls / models", subLogs:"Full request debug (rare)", subSettings:"Proxy & log policy",
-        usersHint:"Manage registered users", colUser:"User", colRole:"Role",
+        usersHint:"Manage registered users", colUser:"User", colRole:"Role", colQuota:"Quota",
         allowRegister:"Allow registration", userSettings:"Registration",
         roleAdmin:"Admin", roleUser:"User",
+        editQuota:"Edit token quota", quotaLabel:"Token quota (empty = unlimited)", quotaUsedLabel:"Tokens used",
+        quotaResetUsed:"Reset used to 0", saveQuota:"Save quota", quotaUnlimited:"Unlimited",
+        quotaFmt:(u,q)=>u+" / "+q, setQuota:"Quota",
         viewMore:"Details →", viewAllLogs:"All logs →",
         ovUsage:"Usage (7d)", ovQuick:"Quick actions", ovRecent:"Recent requests",
         qaAcc:"Add / switch / credits", qaKey:"Issue client keys", qaUsage:"Charts & mix", qaLogs:"Full request debug",
@@ -1283,6 +1312,29 @@ ${styles()}
       renderKeys();
     }
 
+    function fmtQuota(u) {
+      const used = u.tokenUsed ?? 0;
+      if (u.tokenQuota == null) return fmtNum(used) + " / " + t("quotaUnlimited");
+      return t("quotaFmt", fmtNum(used), fmtNum(u.tokenQuota));
+    }
+
+    let quotaEditId = null;
+
+    function openQuotaModal(u) {
+      quotaEditId = u.id;
+      $("quotaUserHint").textContent = u.username + " · " + u.id;
+      $("quotaInput").value = u.tokenQuota == null ? "" : String(u.tokenQuota);
+      $("quotaUsedDisp").textContent = fmtNum(u.tokenUsed ?? 0);
+      $("quotaResetUsed").checked = false;
+      $("quotaModal").classList.add("show");
+      $("quotaInput").focus();
+    }
+
+    function closeQuotaModal() {
+      quotaEditId = null;
+      $("quotaModal").classList.remove("show");
+    }
+
     async function loadUsers() {
       if (!isAdmin()) return;
       const res = await fetch("/api/admin/users", { headers: headers() });
@@ -1295,13 +1347,16 @@ ${styles()}
         return;
       }
       tbody.innerHTML = allUsers.map((u) => {
+        const qCls = u.tokenQuota != null && (u.tokenUsed ?? 0) >= u.tokenQuota ? " error" : "";
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(u.username) + '</div><div class="mono">' + esc(u.id) + "</div></div>" +
           '<div><span class="badge ' + (u.role === "admin" ? "current" : "") + '">' + esc(u.role === "admin" ? t("roleAdmin") : t("roleUser")) + "</span></div>" +
           '<div><span class="badge ' + (u.enabled ? "active" : "error") + '">' + (u.enabled ? "active" : "disabled") + "</span></div>" +
+          '<div class="mono' + qCls + '">' + esc(fmtQuota(u)) + "</div>" +
           '<div class="dt-time">' + fmtTime(u.lastLoginAt) + "</div>" +
           '<div class="dt-actions">' +
-          (u.id === currentUser?.id ? '<span class="mono">–</span>' :
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="quota-user" data-id="' + esc(u.id) + '">' + esc(t("setQuota")) + "</button>" +
+          (u.id === currentUser?.id ? "" :
             '<button class="btn btn-secondary btn-sm" type="button" data-act="toggle-user" data-id="' + esc(u.id) + '" data-en="' + (u.enabled ? "0" : "1") + '">' +
             esc(u.enabled ? t("disable") : t("enable")) + "</button>" +
             '<button class="btn btn-danger btn-sm" type="button" data-act="del-user" data-id="' + esc(u.id) + '">' + esc(t("del")) + "</button>") +
@@ -1312,6 +1367,11 @@ ${styles()}
           const id = btn.getAttribute("data-id");
           const act = btn.getAttribute("data-act");
           try {
+            if (act === "quota-user") {
+              const u = allUsers.find((x) => x.id === id);
+              if (u) openQuotaModal(u);
+              return;
+            }
             if (act === "toggle-user") {
               await fetch("/api/admin/users/" + id, { method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ enabled: btn.getAttribute("data-en") === "1" }) });
             }
@@ -1484,6 +1544,27 @@ ${styles()}
     if ($("keyModal")) $("keyModal").addEventListener("click", (e) => { if (e.target === $("keyModal")) closeKeyModal(); });
     if ($("logClose")) $("logClose").onclick = () => $("logModal").classList.remove("show");
     if ($("logModal")) $("logModal").addEventListener("click", (e) => { if (e.target === $("logModal")) $("logModal").classList.remove("show"); });
+    if ($("quotaCancel")) $("quotaCancel").onclick = closeQuotaModal;
+    if ($("quotaModal")) $("quotaModal").addEventListener("click", (e) => { if (e.target === $("quotaModal")) closeQuotaModal(); });
+    if ($("quotaSubmit")) $("quotaSubmit").onclick = async () => {
+      if (!quotaEditId) return;
+      try {
+        const raw = $("quotaInput").value.trim();
+        const body = {};
+        body.tokenQuota = raw === "" ? null : Number(raw);
+        if (body.tokenQuota !== null && (!Number.isFinite(body.tokenQuota) || body.tokenQuota < 0)) {
+          throw new Error("tokenQuota");
+        }
+        if ($("quotaResetUsed").checked) body.resetUsed = true;
+        const res = await fetch("/api/admin/users/" + quotaEditId, {
+          method: "PATCH", headers: jsonHeaders(), body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        closeQuotaModal();
+        await loadUsers();
+      } catch (e) { showMsg($("msgUsers"), e.message, "err"); closeQuotaModal(); }
+    };
     if ($("keySubmit")) $("keySubmit").onclick = async () => {
       try {
         const days = $("keyDays").value ? Number($("keyDays").value) : null;
