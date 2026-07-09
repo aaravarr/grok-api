@@ -636,7 +636,7 @@ ${styles()}
         lbTable:"完整榜单", lbEmpty:"还没有贡献者。成为第一名？",
         lbSeats:(n)=>n+" 个席位", lbSummary:(c,d)=>c+" 位贡献者 · 共 "+d+" 个席位",
         lbUnranked:"尚未上榜 — 贡献一个账号即可入榜",
-        colRank:"名次", colSeats:"席位",
+        colRank:"名次", colSeats:"席位", colActive:"可用",
         copyCode:"复制代码",
       },
       en: {
@@ -729,7 +729,7 @@ ${styles()}
         lbTable:"Full ranking", lbEmpty:"No contributors yet. Be the first?",
         lbSeats:(n)=>n+" seats", lbSummary:(c,d)=>c+" contributors · "+d+" seats",
         lbUnranked:"Not ranked yet — contribute one account to join",
-        colRank:"Rank", colSeats:"Seats",
+        colRank:"Rank", colSeats:"Seats", colActive:"Active",
         copyCode:"Copy code",
       }
     };

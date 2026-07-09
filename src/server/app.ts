@@ -351,7 +351,7 @@ export function createApp() {
     };
     try {
       const session = await startDeviceLogin({
-        name: body.name || `contrib-${user.username}`,
+        name: body.name?.trim() || undefined, // store assigns unique contrib-N when empty
         openBrowser: body.openBrowser === true, // browser open only when server-side requested
         donorUserId: user.id,
       });

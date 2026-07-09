@@ -100,9 +100,18 @@ export async function addAccount(input: {
 }): Promise<Account> {
   return mutate((store) => {
     const t = now();
+    let name = input.name?.trim() || "";
+    if (!name) {
+      if (input.donorUserId) {
+        const n = store.accounts.filter((a) => a.donorUserId === input.donorUserId).length + 1;
+        name = `contrib-${n}`;
+      } else {
+        name = `account-${store.accounts.length + 1}`;
+      }
+    }
     const account: Account = {
       id: randomId(8),
-      name: input.name?.trim() || `account-${store.accounts.length + 1}`,
+      name,
       status: "active",
       tokens: {
         access: input.access,
