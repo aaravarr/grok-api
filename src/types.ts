@@ -49,6 +49,8 @@ export interface ApiKeyRecord {
   lastUsedAt?: number;
   useCount: number;
   note?: string;
+  /** Owning app user (multi-user). Legacy keys may omit. */
+  userId?: string | null;
 }
 
 export type RoutingMode = "auto" | "manual";

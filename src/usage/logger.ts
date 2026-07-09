@@ -34,6 +34,7 @@ export interface AppendLogInput {
   stream: boolean;
   apiKeyId?: string | null;
   apiKeyAlias?: string | null;
+  userId?: string | null;
   accountId?: string;
   accountName?: string;
   status: number;
@@ -85,6 +86,9 @@ export interface ListLogsQuery {
   model?: string;
   accountId?: string;
   apiKeyId?: string;
+  userId?: string;
+  /** Restrict to these key ids (user isolation) */
+  apiKeyIds?: string[];
   ok?: boolean;
 }
 
@@ -114,6 +118,14 @@ export async function listRequestLogs(query: ListLogsQuery = {}): Promise<ListLo
   if (query.model) filtered = filtered.filter((r) => r.model === query.model);
   if (query.accountId) filtered = filtered.filter((r) => r.accountId === query.accountId);
   if (query.apiKeyId) filtered = filtered.filter((r) => r.apiKeyId === query.apiKeyId);
+  if (query.userId) {
+    filtered = filtered.filter(
+      (r) => r.userId === query.userId || (query.apiKeyIds?.includes(r.apiKeyId || "") ?? false),
+    );
+  } else if (query.apiKeyIds) {
+    const set = new Set(query.apiKeyIds);
+    filtered = filtered.filter((r) => r.apiKeyId != null && set.has(r.apiKeyId));
+  }
   if (query.ok !== undefined) filtered = filtered.filter((r) => r.ok === query.ok);
 
   const total = filtered.length;

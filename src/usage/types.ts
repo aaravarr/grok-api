@@ -36,6 +36,8 @@ export interface RequestLog {
   stream: boolean;
   apiKeyId?: string | null;
   apiKeyAlias?: string | null;
+  /** Owning app user (from API key) */
+  userId?: string | null;
   accountId?: string;
   accountName?: string;
   status: number;

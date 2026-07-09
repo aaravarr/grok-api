@@ -10,12 +10,15 @@ export interface AppSettings {
   logRetentionDays: number;
   /** Whether to record full request/response logs. */
   logEnabled: boolean;
+  /** Allow public self-registration after admin setup. */
+  allowRegister: boolean;
 }
 
 const defaultSettings = (): AppSettings => ({
   proxyUrl: "",
   logRetentionDays: 7,
   logEnabled: true,
+  allowRegister: true,
 });
 
 function settingsPath(): string {
@@ -37,6 +40,7 @@ export async function loadSettings(): Promise<AppSettings> {
       proxyUrl: typeof data.proxyUrl === "string" ? data.proxyUrl.trim() : "",
       logRetentionDays: normalizeRetention(data.logRetentionDays, 7),
       logEnabled: data.logEnabled !== false,
+      allowRegister: data.allowRegister !== false,
     };
   } catch {
     return defaultSettings();
@@ -52,6 +56,8 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
         ? normalizeRetention(patch.logRetentionDays, cur.logRetentionDays)
         : cur.logRetentionDays,
     logEnabled: patch.logEnabled !== undefined ? Boolean(patch.logEnabled) : cur.logEnabled,
+    allowRegister:
+      patch.allowRegister !== undefined ? Boolean(patch.allowRegister) : cur.allowRegister,
   };
   await atomicWriteJson(settingsPath(), next);
   return next;

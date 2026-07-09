@@ -265,14 +265,17 @@ export function generateApiKey(): { key: string; prefix: string; hash: string } 
   return { key, prefix, hash: hashApiKey(key) };
 }
 
-export async function listApiKeys(): Promise<ApiKeyRecord[]> {
-  return (await loadStore()).apiKeys;
+export async function listApiKeys(userId?: string | null): Promise<ApiKeyRecord[]> {
+  const keys = (await loadStore()).apiKeys;
+  if (userId == null || userId === "") return keys;
+  return keys.filter((k) => k.userId === userId);
 }
 
 export async function createApiKey(input: {
   alias: string;
   expiresAt?: number | null;
   note?: string;
+  userId?: string | null;
 }): Promise<{ record: ApiKeyRecord; key: string }> {
   const { key, prefix, hash } = generateApiKey();
   const record = await mutate((store) => {
@@ -288,11 +291,16 @@ export async function createApiKey(input: {
       expiresAt: input.expiresAt ?? null,
       useCount: 0,
       note: input.note,
+      userId: input.userId ?? null,
     };
     store.apiKeys.push(rec);
     return rec;
   });
   return { record, key };
+}
+
+export async function getApiKey(id: string): Promise<ApiKeyRecord | undefined> {
+  return (await loadStore()).apiKeys.find((k) => k.id === id);
 }
 
 export async function updateApiKey(
@@ -394,6 +402,7 @@ export function publicApiKey(k: ApiKeyRecord) {
     lastUsedAt: k.lastUsedAt,
     useCount: k.useCount,
     note: k.note,
+    userId: k.userId ?? null,
     expired: k.expiresAt != null && k.expiresAt <= now(),
   };
 }

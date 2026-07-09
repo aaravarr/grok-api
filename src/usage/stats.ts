@@ -129,15 +129,31 @@ function summaryOf(b: UsageBucket): UsageStats["summary"] {
   };
 }
 
-export async function computeUsageStats(days = 7): Promise<UsageStats> {
+export async function computeUsageStats(
+  days = 7,
+  filter?: { userId?: string; apiKeyIds?: string[] },
+): Promise<UsageStats> {
   const rangeDays = Math.max(1, Math.min(90, days));
-  const [logs, accounts, apiKeys] = await Promise.all([
+  const [allLogs, accounts, apiKeys] = await Promise.all([
     readLogsSince(rangeDays),
     listAccounts(),
-    listApiKeys(),
+    listApiKeys(filter?.userId),
   ]);
+  let logs = allLogs;
+  if (filter?.userId) {
+    const keySet = new Set(
+      filter.apiKeyIds ?? apiKeys.filter((k) => k.userId === filter.userId).map((k) => k.id),
+    );
+    logs = allLogs.filter(
+      (r) => r.userId === filter.userId || (r.apiKeyId != null && keySet.has(r.apiKeyId)),
+    );
+  } else if (filter?.apiKeyIds) {
+    const keySet = new Set(filter.apiKeyIds);
+    logs = allLogs.filter((r) => r.apiKeyId != null && keySet.has(r.apiKeyId));
+  }
   const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
-  const keyAliasById = new Map(apiKeys.map((k) => [k.id, k.alias || k.keyPrefix]));
+  const allKeysForLabel = filter?.userId ? apiKeys : await listApiKeys();
+  const keyAliasById = new Map(allKeysForLabel.map((k) => [k.id, k.alias || k.keyPrefix]));
 
   const byDayMap = new Map<string, UsageBucket>();
   const byModelMap = new Map<string, UsageBucket>();
