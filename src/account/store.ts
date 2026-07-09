@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
-import path from "node:path";
+import { mkdir, readFile } from "node:fs/promises";
 import { config } from "../config.js";
+import { atomicWriteJson } from "../fs-atomic.js";
 import type {
   Account,
   AccountStatus,
@@ -57,21 +57,23 @@ export async function loadStore(): Promise<AccountsStore> {
 
 export async function saveStore(store: AccountsStore): Promise<void> {
   await ensureDataDir();
-  const payload = JSON.stringify({ ...store, version: 2 }, null, 2);
-  const tmp = `${config.authFile}.${process.pid}.tmp`;
-  await writeFile(tmp, payload, "utf8");
-  await rename(tmp, config.authFile);
+  await atomicWriteJson(config.authFile, { ...store, version: 2 });
 }
 
 /** Serialize mutations to avoid races */
 async function mutate<T>(fn: (store: AccountsStore) => Promise<T> | T): Promise<T> {
   let result!: T;
-  writeChain = writeChain.then(async () => {
+  const run = writeChain.then(async () => {
     const store = await loadStore();
     result = await fn(store);
     await saveStore(store);
   });
-  await writeChain;
+  // Keep chain alive even if one write fails
+  writeChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  await run;
   return result;
 }
 

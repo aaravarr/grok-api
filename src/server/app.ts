@@ -24,9 +24,30 @@ import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js"
 import { getProxyInfo, setProxyOverride } from "../proxy.js";
 import { loadSettings, saveSettings } from "../settings.js";
 import { adminHtml } from "../web/admin.js";
+import {
+  appendRequestLog,
+  cleanupLogs,
+  getRequestLog,
+  listRequestLogs,
+  logsDiskInfo,
+} from "../usage/logger.js";
+import {
+  captureJsonResponse,
+  ensureStreamUsage,
+  parseBodyMeta,
+  safeCloneBody,
+  teeAndCapture,
+} from "../usage/capture.js";
+import { collectRequestHeaders } from "../usage/client-meta.js";
+import { computeUsageStats } from "../usage/stats.js";
+
+type Variables = {
+  apiKeyId: string | null;
+  apiKeyAlias: string | null;
+};
 
 export function createApp() {
-  const app = new Hono();
+  const app = new Hono<{ Variables: Variables }>();
   app.use("*", cors());
 
   // Admin auth — only when ADMIN_TOKEN is configured
@@ -59,12 +80,12 @@ export function createApp() {
     const proxy = getProxyInfo();
     return c.json({
       adminTokenRequired: Boolean(config.adminToken),
-      adminTokenHint: config.adminToken
-        ? "server_has_admin_token"
-        : "admin_open",
+      adminTokenHint: config.adminToken ? "server_has_admin_token" : "admin_open",
       proxy: proxy.proxy,
       proxySource: proxy.source,
       proxyConfigured: settings.proxyUrl,
+      logRetentionDays: settings.logRetentionDays,
+      logEnabled: settings.logEnabled,
       xaiBaseUrl: config.xai.baseUrl,
     });
   });
@@ -75,11 +96,27 @@ export function createApp() {
   });
 
   app.patch("/api/admin/settings", async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { proxyUrl?: string };
-    const settings = await saveSettings({
-      proxyUrl: body.proxyUrl ?? "",
-    });
-    const runtime = await setProxyOverride(settings.proxyUrl);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      proxyUrl?: string;
+      logRetentionDays?: number;
+      logEnabled?: boolean;
+    };
+    const patch: {
+      proxyUrl?: string;
+      logRetentionDays?: number;
+      logEnabled?: boolean;
+    } = {};
+    if (body.proxyUrl !== undefined) patch.proxyUrl = body.proxyUrl;
+    if (body.logRetentionDays !== undefined) patch.logRetentionDays = body.logRetentionDays;
+    if (body.logEnabled !== undefined) patch.logEnabled = body.logEnabled;
+    const settings = await saveSettings(patch);
+    let runtime = getProxyInfo();
+    if (body.proxyUrl !== undefined) {
+      runtime = await setProxyOverride(settings.proxyUrl);
+    }
+    if (body.logRetentionDays !== undefined) {
+      await cleanupLogs({ retentionDays: settings.logRetentionDays });
+    }
     return c.json({ settings, runtime });
   });
 
@@ -260,6 +297,57 @@ export function createApp() {
     return c.json({ ok: true });
   });
 
+  // ---- Logs & Usage ----
+  app.get("/api/admin/logs", async (c) => {
+    const page = Number(c.req.query("page") ?? 1);
+    const limit = Number(c.req.query("limit") ?? 20);
+    const day = c.req.query("day") || undefined;
+    const model = c.req.query("model") || undefined;
+    const accountId = c.req.query("accountId") || undefined;
+    const apiKeyId = c.req.query("apiKeyId") || undefined;
+    const okRaw = c.req.query("ok");
+    const ok = okRaw === "true" ? true : okRaw === "false" ? false : undefined;
+    const result = await listRequestLogs({ page, limit, day, model, accountId, apiKeyId, ok });
+    // list without huge response bodies
+    const items = result.items.map((item) => ({
+      ...item,
+      request: undefined,
+      response: undefined,
+      hasRequest: item.request !== undefined,
+      hasResponse: item.response !== undefined,
+    }));
+    const disk = await logsDiskInfo();
+    return c.json({ ...result, items, disk });
+  });
+
+  app.get("/api/admin/logs/:id", async (c) => {
+    const log = await getRequestLog(c.req.param("id"));
+    if (!log) return c.json({ error: "not found" }, 404);
+    return c.json({ log });
+  });
+
+  app.delete("/api/admin/logs", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      all?: boolean;
+      beforeDay?: string;
+      retentionDays?: number;
+    };
+    const settings = await loadSettings();
+    const result = await cleanupLogs({
+      all: body.all === true,
+      beforeDay: body.beforeDay,
+      retentionDays: body.retentionDays ?? settings.logRetentionDays,
+    });
+    const disk = await logsDiskInfo();
+    return c.json({ ...result, disk });
+  });
+
+  app.get("/api/admin/usage", async (c) => {
+    const days = Number(c.req.query("days") ?? 7);
+    const stats = await computeUsageStats(days);
+    return c.json({ stats });
+  });
+
   // ---- Proxy ----
   app.post("/v1/responses", (c) => handleProxy(c, "responses"));
   app.post("/v1/chat/completions", (c) => handleProxy(c, "chat"));
@@ -277,7 +365,9 @@ export function createApp() {
   return app;
 }
 
-async function apiKeyMiddleware(c: Context, next: Next) {
+async function apiKeyMiddleware(c: Context<{ Variables: Variables }>, next: Next) {
+  c.set("apiKeyId", null);
+  c.set("apiKeyAlias", null);
   const keys = await listApiKeys();
   if (keys.length === 0) {
     await next();
@@ -290,24 +380,127 @@ async function apiKeyMiddleware(c: Context, next: Next) {
   if (!result.ok) {
     return c.json({ error: { message: result.reason, type: "auth_error" } }, 401);
   }
+  if (result.record) {
+    c.set("apiKeyId", result.record.id);
+    c.set("apiKeyAlias", result.record.alias || result.record.keyPrefix);
+  }
   await next();
 }
 
-async function handleProxy(c: Context, mode: ProxyMode) {
+async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode) {
+  const t0 = Date.now();
+  const path = mode === "responses" ? "/v1/responses" : "/v1/chat/completions";
+  const apiKeyId = c.get("apiKeyId");
+  const apiKeyAlias = c.get("apiKeyAlias");
+  let body: unknown = {};
   try {
-    const body = await c.req.json();
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400);
+  }
+
+  const meta = parseBodyMeta(body);
+  const reqClone = safeCloneBody(body);
+  const inbound = collectRequestHeaders((name) => c.req.header(name));
+  const settings = await loadSettings();
+  const logging = settings.logEnabled !== false;
+
+  const baseLog = {
+    mode,
+    path,
+    model: meta.model,
+    stream: meta.stream,
+    apiKeyId,
+    apiKeyAlias,
+    request: reqClone.value,
+    requestTruncated: reqClone.truncated,
+    reasoningEffort: meta.reasoningEffort,
+    headers: inbound.headers,
+    userAgent: inbound.userAgent,
+    client: inbound.client,
+  };
+
+  try {
     const preferred = c.req.header("x-account-id") ?? undefined;
-    const result = await proxyLLM({ mode, body, accountId: preferred });
+    // Inject stream_options.include_usage so SSE includes token usage (Apifox etc.)
+    const upstreamBody = ensureStreamUsage(mode, body);
+    const result = await proxyLLM({ mode, body: upstreamBody, accountId: preferred });
     const contentType = result.headers.get("content-type") ?? "application/json";
-    const headers = {
+    const headers: Record<string, string> = {
       "Content-Type": contentType,
       "x-account-id": result.accountId,
       "x-account-name": result.accountName,
     };
-    if (!result.body) return new Response(null, { status: result.status, headers });
-    return new Response(result.body, { status: result.status, headers });
+
+    if (!result.body) {
+      if (logging) {
+        void appendRequestLog({
+          ...baseLog,
+          accountId: result.accountId,
+          accountName: result.accountName,
+          status: result.status,
+          ok: result.status >= 200 && result.status < 300,
+          latencyMs: Date.now() - t0,
+        });
+      }
+      return new Response(null, { status: result.status, headers });
+    }
+
+    const isSse =
+      meta.stream ||
+      contentType.includes("text/event-stream") ||
+      contentType.includes("event-stream");
+
+    if (!logging) {
+      return new Response(result.body, { status: result.status, headers });
+    }
+
+    if (isSse) {
+      const clientBody = teeAndCapture(result.body, (captured) => {
+        void appendRequestLog({
+          ...baseLog,
+          stream: true,
+          accountId: result.accountId,
+          accountName: result.accountName,
+          status: result.status,
+          ok: result.status >= 200 && result.status < 300,
+          latencyMs: Date.now() - t0,
+          response: captured.response,
+          responseTruncated: captured.responseTruncated,
+          usage: captured.usage,
+          error: captured.error,
+        });
+      });
+      return new Response(clientBody, { status: result.status, headers });
+    }
+
+    // Non-stream: buffer to extract usage, then return same bytes
+    const { bytes, result: captured } = await captureJsonResponse(result.body);
+    void appendRequestLog({
+      ...baseLog,
+      stream: false,
+      accountId: result.accountId,
+      accountName: result.accountName,
+      status: result.status,
+      ok: result.status >= 200 && result.status < 300,
+      latencyMs: Date.now() - t0,
+      response: captured.response,
+      responseTruncated: captured.responseTruncated,
+      usage: captured.usage,
+      error: captured.error,
+    });
+    return new Response(bytes, { status: result.status, headers });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    if (logging) {
+      void appendRequestLog({
+        ...baseLog,
+        status: 503,
+        ok: false,
+        latencyMs: Date.now() - t0,
+        error: msg,
+      });
+    }
     return c.json({ error: { message: msg, type: "proxy_error" } }, 503);
   }
 }
