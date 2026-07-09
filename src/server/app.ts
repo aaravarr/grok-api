@@ -20,14 +20,15 @@ import {
 import { getDeviceSession, pollDeviceLogin, startDeviceLogin } from "../account/oauth.js";
 import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
-import { proxyLLM, type ProxyMode } from "../client/xai.js";
+import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js";
+import { getAppliedProxy } from "../proxy.js";
 import { adminHtml } from "../web/admin.js";
 
 export function createApp() {
   const app = new Hono();
   app.use("*", cors());
 
-  // Admin auth
+  // Admin auth — only when ADMIN_TOKEN is configured
   app.use("/api/admin/*", async (c, next) => {
     if (!config.adminToken) {
       await next();
@@ -43,7 +44,22 @@ export function createApp() {
   app.use("/v1/*", apiKeyMiddleware);
 
   app.get("/", (c) => c.html(adminHtml()));
-  app.get("/health", (c) => c.json({ ok: true }));
+  app.get("/health", (c) =>
+    c.json({
+      ok: true,
+      proxy: getAppliedProxy() || null,
+      adminTokenRequired: Boolean(config.adminToken),
+    }),
+  );
+
+  /** Public meta for admin UI (no secrets) */
+  app.get("/api/meta", (c) =>
+    c.json({
+      adminTokenRequired: Boolean(config.adminToken),
+      proxy: getAppliedProxy() || null,
+      xaiBaseUrl: config.xai.baseUrl,
+    }),
+  );
 
   // ---- Accounts ----
   app.get("/api/admin/accounts", async (c) => {
@@ -226,17 +242,14 @@ export function createApp() {
   app.post("/v1/responses", (c) => handleProxy(c, "responses"));
   app.post("/v1/chat/completions", (c) => handleProxy(c, "chat"));
   app.get("/v1/models", async (c) => {
-    // try pass-through with current account token is optional; keep static + note
-    return c.json({
-      object: "list",
-      data: [
-        { id: "grok-4.5", object: "model", owned_by: "xai" },
-        { id: "grok-4.3", object: "model", owned_by: "xai" },
-        { id: "grok-4.20-0309-reasoning", object: "model", owned_by: "xai" },
-        { id: "grok-3", object: "model", owned_by: "xai" },
-        { id: "grok-3-mini", object: "model", owned_by: "xai" },
-      ],
-    });
+    try {
+      const preferred = c.req.header("x-account-id") ?? undefined;
+      const result = await fetchUpstreamModels(preferred);
+      return c.json(result.body, result.status as 200);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return c.json({ error: { message: msg, type: "proxy_error" } }, 503);
+    }
   });
 
   return app;

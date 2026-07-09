@@ -58,27 +58,37 @@ export function resolveProxyUrl(): string {
 }
 
 let applied = false;
+let appliedProxyUrl = "";
 
-/** Make global fetch use HTTP(S) proxy (Node undici does not use OS proxy by default). */
+/**
+ * Auto-detect outbound proxy:
+ * 1) HTTPS_PROXY / HTTP_PROXY / ALL_PROXY env
+ * 2) Windows system proxy (registry) when enabled
+ * Never hardcodes a host/port.
+ */
 export function applyProxy(): string {
-  if (applied) return resolveProxyUrl();
+  if (applied) return appliedProxyUrl;
   applied = true;
 
   const proxyUrl = resolveProxyUrl();
+  appliedProxyUrl = proxyUrl;
   if (!proxyUrl) {
-    console.log("[grok-api] proxy    → (none)  如需代理请设 HTTPS_PROXY 或开启系统代理");
+    console.log("[grok-api] proxy    → (none)  set HTTPS_PROXY or enable OS system proxy");
     return "";
   }
 
-  // Ensure child libs that read env also see it
   process.env.HTTPS_PROXY ||= proxyUrl;
   process.env.HTTP_PROXY ||= proxyUrl;
   process.env.https_proxy ||= proxyUrl;
   process.env.http_proxy ||= proxyUrl;
 
   setGlobalDispatcher(new ProxyAgent(proxyUrl));
-  console.log(`[grok-api] proxy    → ${proxyUrl}`);
+  console.log(`[grok-api] proxy    → ${proxyUrl} (auto)`);
   return proxyUrl;
+}
+
+export function getAppliedProxy(): string {
+  return appliedProxyUrl;
 }
 
 export function currentDispatcher() {

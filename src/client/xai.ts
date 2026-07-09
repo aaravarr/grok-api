@@ -2,6 +2,33 @@ import { config } from "../config.js";
 import { onProviderError, onSuccess, routeAccount } from "../account/router.js";
 import { advanceToNextActive } from "../account/store.js";
 
+export async function fetchUpstreamModels(preferredId?: string): Promise<{
+  status: number;
+  body: unknown;
+  accountId: string;
+  accountName: string;
+}> {
+  const routed = await routeAccount({
+    preferredId,
+    checkCredits: false,
+  });
+  const res = await fetch(`${config.xai.baseUrl}/models`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${routed.accessToken}`,
+      Accept: "application/json",
+      "User-Agent": "grok-api/1.0",
+    },
+  });
+  const body = await res.json().catch(async () => ({ error: await res.text() }));
+  return {
+    status: res.status,
+    body,
+    accountId: routed.account.id,
+    accountName: routed.account.name,
+  };
+}
+
 export type ProxyMode = "responses" | "chat";
 
 export interface ProxyRequest {
