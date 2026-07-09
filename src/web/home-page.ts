@@ -4,7 +4,7 @@ export function homePageHtml(): string {
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Grok API</title>
   <style>
     @font-face{font-family:"Geist";src:url("/static/fonts/Geist-Regular.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap}
@@ -38,23 +38,32 @@ export function homePageHtml(): string {
     }
     button,input{font:inherit} button{cursor:pointer}
     a{color:inherit;text-decoration:none}
-    .wrap{width:min(1120px,100%);margin:0 auto;padding:0 24px}
+    .wrap{
+      width:min(1120px,100%);
+      margin:0 auto;
+      padding-left:max(28px,env(safe-area-inset-left));
+      padding-right:max(28px,env(safe-area-inset-right));
+      box-sizing:border-box;
+    }
 
     /* nav */
     .nav{
       position:sticky;top:0;z-index:40;height:64px;
-      display:flex;align-items:center;justify-content:space-between;
+      display:flex;align-items:center;justify-content:center;
       border-bottom:1px solid transparent;
       background:rgba(255,255,255,.84);backdrop-filter:saturate(180%) blur(12px);
       transition:border-color .2s var(--ease),box-shadow .2s var(--ease);
+      padding-top:env(safe-area-inset-top);
     }
+    .nav > .wrap{height:100%}
     .nav.scrolled{border-color:var(--line);box-shadow:0 1px 0 rgba(0,0,0,.02)}
-    .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.03em}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.03em;min-width:0}
+    .brand span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .mark{
       width:22px;height:22px;border-radius:6px;background:var(--ink);
       display:grid;place-items:center;flex-shrink:0;
     }
-    .nav-right{display:flex;align-items:center;gap:8px}
+    .nav-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
     .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
     .seg button{border:0;background:transparent;height:30px;padding:0 11px;color:var(--body);font-size:13px;font-weight:500}
     .seg button:hover{background:var(--soft)}
@@ -166,13 +175,37 @@ export function homePageHtml(): string {
     .foot a{color:var(--mute)}
     .foot a:hover{color:var(--ink)}
     @media (max-width:900px){
-      .wrap{padding:0 16px}
+      .wrap{
+        padding-left:max(22px,env(safe-area-inset-left));
+        padding-right:max(22px,env(safe-area-inset-right));
+      }
       .hero{grid-template-columns:1fr;gap:28px;min-height:auto;padding:28px 0 40px}
-      .hero h1{max-width:none;font-size:34px}
+      .hero h1{max-width:none;font-size:32px;line-height:1.12}
+      .hero .lead{font-size:15px;max-width:none}
+      .hero-cta{flex-direction:column;align-items:stretch}
+      .hero-cta .btn{width:100%}
       .bento{grid-template-columns:1fr}
       .tile.wide{grid-column:auto;grid-row:auto;min-height:200px}
       .section{padding:48px 0}
-      .nav{padding:0 4px;height:56px}
+      .nav{height:auto;min-height:56px}
+      .nav-right{gap:6px}
+      .nav-right .btn-ghost{display:none}
+      .nav-right .btn{height:32px;padding:0 12px;font-size:13px}
+      .ex-head{flex-direction:column;align-items:stretch}
+      .ex-tools{width:100%;justify-content:space-between}
+      .ex-card pre{font-size:11.5px;overflow-x:auto}
+      .foot{padding-bottom:max(40px,env(safe-area-inset-bottom))}
+    }
+    @media (max-width:480px){
+      .wrap{
+        padding-left:max(20px,env(safe-area-inset-left));
+        padding-right:max(20px,env(safe-area-inset-right));
+      }
+      .hero h1{font-size:28px}
+      .hero-note{font-size:11px;word-break:break-word}
+      .term-body{font-size:11.5px;padding:14px}
+      .section h2{font-size:24px}
+      .tile{padding:18px}
     }
     @media (prefers-reduced-motion:reduce){
       html{scroll-behavior:auto}

@@ -27,10 +27,10 @@ ${styles()}
 <body>
   <div class="app" id="appRoot">
     <aside class="side" id="side">
-      <div class="brand">
+      <a class="brand" href="/" title="Home">
         <div class="brand-mark" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1L14.5 13H1.5L8 1Z" fill="white"/></svg></div>
         <span>Grok API</span>
-      </div>
+      </a>
       <nav>
         <div class="nav-group">
           <div class="nav-label" data-i18n="navOps">Operate</div>
@@ -1060,7 +1060,7 @@ ${styles()}
           '<div><div class="name">' + esc(a.name) + (cur ? ' <span class="badge current">' + esc(t("current")) + "</span>" : "") +
           (a.donorUserId ? ' <span class="badge" title="donor">' + esc("contrib") + "</span>" : "") +
           '</div><div class="mono">' + esc(a.id) + (a.donorUserId ? " · " + esc(a.donorUserId) : "") + "</div>" +
-          (a.lastError ? '<div style="color:var(--error);font-size:12px;margin-top:4px">' + esc(a.lastError) + "</div>" : "") +
+          (a.lastError ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(a.lastError) + "</div>" : "") +
           "</div>" +
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
           "<div>" + creditCell(a) + "</div>" +
@@ -1755,7 +1755,7 @@ ${styles()}
       tbody.innerHTML = slice.map((a) => {
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(a.name) + '</div><div class="mono">' + esc(a.id) + "</div>" +
-          (a.lastError ? '<div style="color:var(--error);font-size:12px;margin-top:4px">' + esc(a.lastError) + "</div>" : "") +
+          (a.lastError ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(a.lastError) + "</div>" : "") +
           "</div>" +
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
           "<div>" + creditCell(a) + "</div>" +
