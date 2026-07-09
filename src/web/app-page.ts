@@ -17,7 +17,7 @@ export function appPageHtml(page: AppPage | string): string {
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Grok API</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
@@ -57,11 +57,13 @@ ${styles()}
       <div class="side-foot" id="sideFoot">–</div>
     </aside>
 
+    <div class="side-scrim" id="sideScrim" aria-hidden="true"></div>
+
     <div class="main-wrap">
       <header class="topbar">
-        <div style="display:flex;align-items:center;gap:8px;min-width:0">
-          <button class="btn btn-secondary btn-sm side-toggle" type="button" id="btnSide">☰</button>
-          <div>
+        <div class="topbar-left">
+          <button class="btn btn-secondary btn-sm side-toggle" type="button" id="btnSide" aria-label="Menu">☰</button>
+          <div class="topbar-titles">
             <span class="page-title" id="pageTitle">Overview</span>
             <span class="page-sub" id="pageSub"></span>
           </div>
@@ -802,7 +804,7 @@ ${styles()}
       const m = VIEW_META[name];
       $("pageTitle").textContent = t(m.titleKey);
       $("pageSub").textContent = t(m.subKey);
-      $("side").classList.remove("open");
+      closeSide();
       if (name === "usage" || name === "overview") {
         if (lastStats) {
           if (name === "usage") paintCharts(lastStats);
@@ -2076,7 +2078,22 @@ ${styles()}
       const name = (history.state && history.state.view) || nameForPath(location.pathname);
       setView(name);
     });
-    $("btnSide").onclick = () => $("side").classList.toggle("open");
+    function openSide() {
+      $("side").classList.add("open");
+      if ($("sideScrim")) $("sideScrim").classList.add("show");
+      document.body.style.overflow = "hidden";
+    }
+    function closeSide() {
+      $("side").classList.remove("open");
+      if ($("sideScrim")) $("sideScrim").classList.remove("show");
+      document.body.style.overflow = "";
+    }
+    function toggleSide() {
+      if ($("side").classList.contains("open")) closeSide();
+      else openSide();
+    }
+    $("btnSide").onclick = toggleSide;
+    if ($("sideScrim")) $("sideScrim").onclick = closeSide;
 
     $("langSeg").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-lang]");
