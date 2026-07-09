@@ -93,6 +93,17 @@ export function styles(): string {
 
     .msg{display:none;margin:12px 16px 0;padding:10px 12px;border-radius:8px;border:1px solid var(--hairline);background:var(--canvas-soft);color:var(--body);white-space:pre-wrap;word-break:break-word;font-size:13px}
     .msg.show{display:block}.msg.ok{background:var(--success-bg);border-color:#b7e4c7;color:var(--success)}.msg.err{background:var(--error-bg);border-color:#f0b8bb;color:var(--error)}
+    .toast{
+      display:none;position:fixed;top:calc(var(--top) + 14px);left:50%;z-index:45;
+      min-width:260px;max-width:min(440px,calc(100vw - 32px));
+      padding:12px 16px;border-radius:10px;border:1px solid var(--hairline);background:#fff;
+      box-shadow:0 10px 30px rgba(0,0,0,.12);font-size:13px;line-height:1.45;color:var(--body);
+      white-space:pre-wrap;word-break:break-word;pointer-events:none;
+      opacity:0;transform:translate(-50%,-8px);transition:opacity .18s var(--ease),transform .18s var(--ease);
+    }
+    .toast.show{display:block;opacity:1;transform:translate(-50%,0);pointer-events:auto}
+    .toast.ok{background:var(--success-bg);border-color:#b7e4c7;color:var(--success)}
+    .toast.err{background:var(--error-bg);border-color:#f0b8bb;color:var(--error)}
     .codebox{display:none;margin:12px 16px 0;padding:16px;border-radius:8px;border:1px dashed var(--hairline-strong);background:var(--canvas-soft)}
     .codebox.show{display:block}.codebox .label{color:var(--mute);font-size:12px;margin-bottom:8px}
     .codebox .code{font-family:var(--mono);font-size:28px;font-weight:500;letter-spacing:.14em}

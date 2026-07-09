@@ -341,7 +341,6 @@ ${styles()}
                 </div>
               </div>
             </div>
-            <div id="msgContrib" class="msg"></div>
           </div>
 
           <div class="mine-stats">
@@ -477,6 +476,8 @@ ${styles()}
       </main>
     </div>
   </div>
+
+  <div id="msgContrib" class="toast" role="status" aria-live="polite"></div>
 
   <div class="modal-mask" id="keyModal">
     <div class="modal" role="dialog">
@@ -773,17 +774,26 @@ ${styles()}
     function pathFor(name) {
       return PAGE_HREF[name] || "/overview";
     }
-    function go(name) {
+    function nameForPath(pathname) {
+      const entry = Object.entries(PAGE_HREF).find(([, href]) => href === pathname);
+      return entry ? entry[0] : "overview";
+    }
+    function go(name, opts) {
       if (!VIEW_META[name]) name = "overview";
       if (VIEW_META[name].admin && !isAdmin()) name = "overview";
       const href = pathFor(name);
-      if (location.pathname === href) return;
-      location.href = href;
+      const replace = opts && opts.replace;
+      if (location.pathname !== href) {
+        if (replace) history.replaceState({ view: name }, "", href);
+        else history.pushState({ view: name }, "", href);
+      }
+      setView(name);
     }
     function setView(name) {
       if (!VIEW_META[name]) name = "overview";
       if (VIEW_META[name].admin && !isAdmin()) name = "overview";
       view = name;
+      document.title = t(VIEW_META[name].titleKey) + " · Grok API";
       document.querySelectorAll(".nav-item").forEach((el) => {
         const href = el.getAttribute("href");
         el.classList.toggle("on", href === pathFor(name));
@@ -919,8 +929,23 @@ ${styles()}
       return sessionToken ? { Authorization: "Bearer " + sessionToken } : {};
     }
     function jsonHeaders() { return { "Content-Type": "application/json", ...headers() }; }
-    function showMsg(el, text, type) { if (!el) return; el.textContent = text; el.className = "msg show" + (type ? " " + type : ""); }
-    function hideMsg(el) { if (!el) return; el.className = "msg"; el.textContent = ""; }
+    function showMsg(el, text, type) {
+      if (!el) return;
+      el.textContent = text;
+      const isToast = el.classList.contains("toast") || el.id === "msgContrib";
+      el.className = (isToast ? "toast show" : "msg show") + (type ? " " + type : "");
+      if (el._hideTimer) clearTimeout(el._hideTimer);
+      if (isToast) {
+        el._hideTimer = setTimeout(() => hideMsg(el), type === "err" ? 5200 : 3200);
+      }
+    }
+    function hideMsg(el) {
+      if (!el) return;
+      if (el._hideTimer) { clearTimeout(el._hideTimer); el._hideTimer = null; }
+      const isToast = el.classList.contains("toast") || el.id === "msgContrib";
+      el.className = isToast ? "toast" : "msg";
+      el.textContent = "";
+    }
     function esc(s) {
       return String(s ?? "")
         .replace(/&/g, "&amp;")
@@ -2033,9 +2058,23 @@ ${styles()}
       await loadKeys();
     }
 
-    // navigation (sidebar is real <a href>; shortcuts use go)
+    // navigation: client-side SPA routing (no full reload)
+    document.querySelectorAll("a.nav-item[data-view]").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        go(el.getAttribute("data-view"));
+      });
+    });
     document.querySelectorAll("[data-goto]").forEach((el) => {
-      el.addEventListener("click", () => go(el.getAttribute("data-goto")));
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        go(el.getAttribute("data-goto"));
+      });
+    });
+    window.addEventListener("popstate", () => {
+      const name = (history.state && history.state.view) || nameForPath(location.pathname);
+      setView(name);
     });
     $("btnSide").onclick = () => $("side").classList.toggle("open");
 
@@ -2235,10 +2274,12 @@ ${styles()}
       }
       // non-admin visiting admin-only page
       if (VIEW_META[PAGE]?.admin && !isAdmin()) {
-        location.href = "/overview";
+        go("overview", { replace: true });
+        await loadAll();
         return;
       }
       view = PAGE;
+      history.replaceState({ view: PAGE }, "", pathFor(PAGE));
       applyI18n();
       applyRoleNav();
       await loadAll();
