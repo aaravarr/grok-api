@@ -260,6 +260,7 @@ ${styles()}
               <span class="mono" id="logDisk">–</span>
               <div class="spacer"></div>
               <button class="btn btn-secondary btn-sm" type="button" id="btnLogRefresh" data-i18n="refresh">Refresh</button>
+              <button class="btn btn-secondary btn-sm" type="button" id="btnLogStrip" data-admin-only data-i18n="stripLogs">Strip bodies</button>
               <button class="btn btn-danger btn-sm" type="button" id="btnLogClear" data-admin-only data-i18n="clearLogs">Clear logs</button>
             </div>
             <div id="msgLogs" class="msg"></div>
@@ -448,6 +449,8 @@ ${styles()}
         chartReq:"请求数", chartTok:"总 Token", chartIn:"输入(未缓存)", chartOut:"输出", chartCache:"缓存输入", chartReason:"推理",
         unrouted:"未路由(失败)", noKeyLabel:"无 Key", noModel:"无模型",
         clearLogs:"清理日志", clearLogsConfirm:"确定清理全部请求日志？", logsCleared:"日志已清理",
+        stripLogs:"精简正文", stripLogsConfirm:"将从历史日志中删除请求/响应正文（保留元数据与 Token），是否继续？",
+        logsStripped:(n,b)=>"已精简 "+n+" 条 · 释放约 "+b,
         logDetail:"请求详情", allDays:"全部日期", noLogs:"暂无请求日志",
         colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟",
         routing:"路由", modeAuto:"自动", modeManual:"手动",
@@ -515,6 +518,8 @@ ${styles()}
         chartReq:"Requests", chartTok:"Total", chartIn:"Input (uncached)", chartOut:"Output", chartCache:"Cached input", chartReason:"Reasoning",
         unrouted:"Unrouted (failed)", noKeyLabel:"No key", noModel:"No model",
         clearLogs:"Clear logs", clearLogsConfirm:"Clear ALL request logs?", logsCleared:"Logs cleared",
+        stripLogs:"Strip bodies", stripLogsConfirm:"Remove request/response bodies from historical logs (keep metadata + tokens). Continue?",
+        logsStripped:(n,b)=>"Stripped "+n+" rows · saved ~"+b,
         logDetail:"Request detail", allDays:"All days", noLogs:"No request logs yet",
         colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency",
         routing:"Routing", modeAuto:"Auto", modeManual:"Manual",
@@ -1745,6 +1750,22 @@ ${styles()}
     if ($("logDay")) $("logDay").onchange = () => { logPage = 1; loadLogs(); };
     if ($("logOk")) $("logOk").onchange = () => { logPage = 1; loadLogs(); };
     if ($("btnLogRefresh")) $("btnLogRefresh").onclick = () => loadLogs();
+    if ($("btnLogStrip")) $("btnLogStrip").onclick = async () => {
+      if (!confirm(t("stripLogsConfirm"))) return;
+      try {
+        $("btnLogStrip").disabled = true;
+        const res = await fetch("/api/admin/logs/strip-bodies", {
+          method: "POST", headers: jsonHeaders(),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        const saved = Math.max(0, (data.bytesBefore || 0) - (data.bytesAfter || 0));
+        showMsg($("msgLogs"), t("logsStripped", data.stripped || 0, fmtBytes(saved)), "ok");
+        logPage = 1;
+        await loadLogs();
+      } catch (e) { showMsg($("msgLogs"), e.message, "err"); }
+      finally { if ($("btnLogStrip")) $("btnLogStrip").disabled = false; }
+    };
     if ($("btnLogClear")) $("btnLogClear").onclick = async () => {
       if (!confirm(t("clearLogsConfirm"))) return;
       try {

@@ -33,6 +33,7 @@ import {
   getRequestLog,
   listRequestLogs,
   logsDiskInfo,
+  stripLogBodies,
 } from "../usage/logger.js";
 import {
   captureJsonResponse,
@@ -629,6 +630,13 @@ export function createApp() {
       beforeDay: body.beforeDay,
       retentionDays: body.retentionDays ?? settings.logRetentionDays,
     });
+    const disk = await logsDiskInfo();
+    return c.json({ ...result, disk });
+  });
+
+  /** Strip request/response bodies from historical log files (keep metadata + usage). */
+  app.post("/api/admin/logs/strip-bodies", async (c) => {
+    const result = await stripLogBodies();
     const disk = await logsDiskInfo();
     return c.json({ ...result, disk });
   });
