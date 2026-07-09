@@ -53,14 +53,21 @@ function fromWindowsRegistry(): string {
   }
 }
 
-export type ProxySource = "settings" | "env" | "system" | "none";
+export type ProxySource = "settings" | "direct" | "env" | "system" | "none";
 
 let appliedProxyUrl = "";
 let appliedSource: ProxySource = "none";
 let configuredOverride = "";
 
+function isDirect(v: string): boolean {
+  const s = v.trim().toLowerCase();
+  return s === "direct" || s === "none" || s === "off" || s === "false";
+}
+
 export function resolveProxyUrl(override?: string): { url: string; source: ProxySource } {
   const manual = (override ?? configuredOverride).trim();
+  // Explicit direct: skip env/system auto-detect
+  if (manual && isDirect(manual)) return { url: "", source: "direct" };
   if (manual) return { url: normalizeProxyUrl(manual), source: "settings" };
   const env = fromEnv();
   if (env) return { url: env, source: "env" };
@@ -101,7 +108,12 @@ export async function applyProxy(): Promise<string> {
   return url;
 }
 
-/** Runtime update (from admin UI). Empty string = clear override and re-auto-detect. */
+/**
+ * Runtime update (from admin UI).
+ * - empty string → clear override, re-auto-detect env/system
+ * - "direct" → force no proxy (ignore env/system)
+ * - otherwise → use that URL
+ */
 export async function setProxyOverride(proxyUrl: string): Promise<{
   proxy: string | null;
   source: ProxySource;
