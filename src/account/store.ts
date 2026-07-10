@@ -614,9 +614,12 @@ export type LeaderboardEntry = {
   count: number;
   /** Public (shared-pool) seats */
   publicCount: number;
-  /** Private seats */
+  /** Private / restricted seats */
   privateCount: number;
+  /** Active among all seats (total board) */
   activeCount: number;
+  /** Active among public seats only (public board) */
+  publicActiveCount: number;
   isMe: boolean;
 };
 
@@ -625,6 +628,7 @@ type DonorCounts = {
   publicCount: number;
   privateCount: number;
   activeCount: number;
+  publicActiveCount: number;
 };
 
 function rankEntries(
@@ -641,6 +645,7 @@ function rankEntries(
       publicCount: c.publicCount,
       privateCount: c.privateCount,
       activeCount: c.activeCount,
+      publicActiveCount: c.publicActiveCount,
     }))
     .filter((e) => (sortKey === "publicCount" ? e.publicCount > 0 : e.count > 0))
     .sort(
@@ -656,7 +661,10 @@ function rankEntries(
       count: e.count,
       publicCount: e.publicCount,
       privateCount: e.privateCount,
-      activeCount: e.activeCount,
+      // public board should show active within public seats only
+      activeCount:
+        sortKey === "publicCount" ? e.publicActiveCount : e.activeCount,
+      publicActiveCount: e.publicActiveCount,
       isMe: meUserId != null && e.userId === meUserId,
     }));
 }
@@ -697,11 +705,15 @@ export async function buildLeaderboard(
       publicCount: 0,
       privateCount: 0,
       activeCount: 0,
+      publicActiveCount: 0,
     };
     cur.count += 1;
     if (isPriv) cur.privateCount += 1;
     else cur.publicCount += 1;
-    if (a.status === "active") cur.activeCount += 1;
+    if (a.status === "active") {
+      cur.activeCount += 1;
+      if (!isPriv) cur.publicActiveCount += 1;
+    }
     counts.set(uid, cur);
   }
 
