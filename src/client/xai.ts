@@ -2,7 +2,10 @@ import { onProviderError, onSuccess, routeAccount } from "../account/router.js";
 import { advanceToNextActive } from "../account/store.js";
 import { getUpstreamBaseUrl } from "../settings.js";
 
-export async function fetchUpstreamModels(preferredId?: string): Promise<{
+export async function fetchUpstreamModels(
+  preferredId?: string,
+  callerUserId?: string | null,
+): Promise<{
   status: number;
   body: unknown;
   accountId: string;
@@ -11,6 +14,7 @@ export async function fetchUpstreamModels(preferredId?: string): Promise<{
   const routed = await routeAccount({
     preferredId,
     checkCredits: false,
+    callerUserId,
   });
   const base = await getUpstreamBaseUrl();
   const res = await fetch(`${base}/models`, {
@@ -36,6 +40,7 @@ export interface ProxyRequest {
   mode: ProxyMode;
   body: unknown;
   accountId?: string;
+  callerUserId?: string | null;
   maxRetries?: number;
 }
 
@@ -64,6 +69,7 @@ export async function proxyLLM(req: ProxyRequest): Promise<ProxyResponse> {
         preferredId: attempt === 0 ? req.accountId : undefined,
         checkCredits: true,
         forceAuto: attempt > 0,
+        callerUserId: req.callerUserId,
       });
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);

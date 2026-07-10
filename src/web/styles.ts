@@ -306,7 +306,7 @@ export function styles(): string {
       .dt-accounts{--dt-min:860px;--dt-cols:minmax(150px,1.4fr) 90px minmax(100px,1.1fr) 48px 130px 282px}
       .dt-users{--dt-min:820px;--dt-cols:minmax(130px,1.2fr) 80px 80px minmax(100px,1fr) 110px 240px}
       .dt-keys{--dt-min:760px;--dt-cols:minmax(120px,1.2fr) minmax(110px,1fr) 80px 130px 48px 192px}
-      .dt-contrib{--dt-min:780px;--dt-cols:minmax(150px,1.4fr) 90px minmax(100px,1.1fr) 56px 140px 184px}
+      .dt-contrib{--dt-min:880px;--dt-cols:minmax(130px,1.2fr) 80px minmax(90px,1fr) 48px 90px 110px 220px}
       .dt-logs{--dt-min:940px;--dt-cols:110px minmax(100px,1fr) minmax(100px,1fr) 68px minmax(110px,1.1fr) 68px minmax(90px,.9fr) minmax(90px,.9fr)}
       .dt-logs.no-account{--dt-min:820px;--dt-cols:110px minmax(100px,1fr) minmax(100px,1fr) 68px minmax(110px,1.1fr) 68px minmax(110px,1fr)}
       .toast{top:max(12px,calc(env(safe-area-inset-top) + 8px));left:16px;right:16px;width:auto;max-width:none;transform:translateY(-6px);min-width:0}
@@ -432,7 +432,7 @@ export function styles(): string {
     .rank-badge.top1{background:#fff6df;border-color:#f0d789;color:#9a6700}
     .rank-badge.top2{background:#f1f5f9;border-color:#cbd5e1;color:#475569}
     .rank-badge.top3{background:#fff1e8;border-color:#f0c2a0;color:#9a3412}
-    .dt-contrib{--dt-min:820px;--dt-cols:minmax(160px,1.6fr) 96px minmax(100px,1.2fr) 56px 140px 188px}
+    .dt-contrib{--dt-min:920px;--dt-cols:minmax(140px,1.4fr) 88px minmax(90px,1fr) 52px 100px 120px 220px}
     .dt-lb{--dt-min:440px;--dt-cols:72px minmax(120px,1.5fr) 100px 100px}
     .empty-cta{padding:48px 20px;text-align:center}
     .empty-cta h3{margin:0 0 6px;font-size:16px;font-weight:600}

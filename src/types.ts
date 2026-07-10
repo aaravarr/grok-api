@@ -35,6 +35,11 @@ export interface Account {
   credits?: CreditSnapshot;
   /** App user who contributed this xAI account (null/undefined = admin-managed pool) */
   donorUserId?: string | null;
+  /**
+   * When true, only the donor can route through this account.
+   * Default false = joins the public shared pool.
+   */
+  private?: boolean;
 }
 
 export interface ApiKeyRecord {

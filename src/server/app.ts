@@ -61,6 +61,7 @@ import {
   setUserPassword,
   setupAdmin,
   updateUser,
+  type RouteScope,
   type User,
 } from "../auth/users.js";
 
@@ -246,6 +247,55 @@ export function createApp() {
 
   // ---------- User self-service (/api/me/*) ----------
   app.use("/api/me/*", requireLogin);
+
+  app.get("/api/me/routing", async (c) => {
+    const user = c.get("user")!;
+    return c.json({
+      routeScope: user.routeScope ?? "public",
+      routeAccountId: user.routeAccountId ?? null,
+    });
+  });
+
+  app.patch("/api/me/routing", async (c) => {
+    const user = c.get("user")!;
+    const body = (await c.req.json().catch(() => ({}))) as {
+      routeScope?: RouteScope;
+      routeAccountId?: string | null;
+    };
+    const scope = body.routeScope;
+    if (scope !== undefined && scope !== "public" && scope !== "mine" && scope !== "account") {
+      return c.json({ error: "routeScope 须为 public | mine | account" }, 400);
+    }
+    let routeAccountId =
+      body.routeAccountId !== undefined
+        ? body.routeAccountId
+          ? String(body.routeAccountId)
+          : null
+        : undefined;
+    const nextScope = scope ?? user.routeScope ?? "public";
+    if (nextScope === "account") {
+      const pin = routeAccountId !== undefined ? routeAccountId : user.routeAccountId;
+      if (!pin) return c.json({ error: "指定账号模式需要 routeAccountId" }, 400);
+      const acc = await getAccount(pin);
+      if (!acc) return c.json({ error: "账号不存在" }, 404);
+      // own accounts always ok; others only if not private
+      if (acc.donorUserId !== user.id && acc.private === true) {
+        return c.json({ error: "无权指定该私有账号" }, 403);
+      }
+      routeAccountId = pin;
+    }
+    const updated = await updateUser(user.id, {
+      routeScope: scope,
+      routeAccountId: routeAccountId === undefined ? undefined : routeAccountId,
+    });
+    if (!updated) return c.json({ error: "not found" }, 404);
+    c.set("user", updated);
+    return c.json({
+      user: publicUser(updated),
+      routeScope: updated.routeScope,
+      routeAccountId: updated.routeAccountId,
+    });
+  });
 
   app.get("/api/me/keys", async (c) => {
     const user = c.get("user")!;
@@ -447,10 +497,15 @@ export function createApp() {
     const user = c.get("user")!;
     const acc = await getAccount(c.req.param("id"));
     if (!acc || acc.donorUserId !== user.id) return c.json({ error: "not found" }, 404);
-    const body = (await c.req.json().catch(() => ({}))) as { name?: string; note?: string };
-    const patch: { name?: string; note?: string } = {};
+    const body = (await c.req.json().catch(() => ({}))) as {
+      name?: string;
+      note?: string;
+      private?: boolean;
+    };
+    const patch: { name?: string; note?: string; private?: boolean } = {};
     if (body.name !== undefined) patch.name = body.name;
     if (body.note !== undefined) patch.note = body.note;
+    if (body.private !== undefined) patch.private = Boolean(body.private);
     const updated = await updateAccount(acc.id, patch);
     if (!updated) return c.json({ error: "not found" }, 404);
     return c.json({ account: publicAccount(updated) });
@@ -658,8 +713,19 @@ export function createApp() {
       name?: string;
       status?: "active" | "exhausted" | "expired" | "error";
       note?: string;
+      private?: boolean;
     };
-    const updated = await updateAccount(c.req.param("id"), body);
+    const patch: {
+      name?: string;
+      status?: "active" | "exhausted" | "expired" | "error";
+      note?: string;
+      private?: boolean;
+    } = {};
+    if (body.name !== undefined) patch.name = body.name;
+    if (body.status !== undefined) patch.status = body.status;
+    if (body.note !== undefined) patch.note = body.note;
+    if (body.private !== undefined) patch.private = Boolean(body.private);
+    const updated = await updateAccount(c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
     const routing = await getRouting();
     return c.json({ account: publicAccount(updated, routing.currentAccountId) });
@@ -832,7 +898,7 @@ export function createApp() {
   app.get("/v1/models", async (c) => {
     try {
       const preferred = c.req.header("x-account-id") ?? undefined;
-      const result = await fetchUpstreamModels(preferred);
+      const result = await fetchUpstreamModels(preferred, c.get("apiKeyUserId"));
       return c.json(result.body, result.status as 200);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -862,6 +928,8 @@ async function requireAdmin(c: Context<{ Variables: Variables }>, next: Next) {
       enabled: true,
       tokenQuota: null,
       tokenUsed: 0,
+      routeScope: "public",
+      routeAccountId: null,
       createdAt: 0,
       updatedAt: 0,
     });
@@ -966,7 +1034,12 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
   try {
     const preferred = c.req.header("x-account-id") ?? undefined;
     const upstreamBody = ensureStreamUsage(mode, body);
-    const result = await proxyLLM({ mode, body: upstreamBody, accountId: preferred });
+    const result = await proxyLLM({
+      mode,
+      body: upstreamBody,
+      accountId: preferred,
+      callerUserId: apiKeyUserId,
+    });
     const contentType = result.headers.get("content-type") ?? "application/json";
     const headers: Record<string, string> = {
       "Content-Type": contentType,

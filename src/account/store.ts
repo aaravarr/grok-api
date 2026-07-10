@@ -122,6 +122,7 @@ export async function addAccount(input: {
       updatedAt: t,
       useCount: 0,
       donorUserId: input.donorUserId ?? null,
+      private: false,
     };
     store.accounts.push(account);
     if (!store.routing.currentAccountId) {
@@ -145,6 +146,7 @@ export async function updateAccount(
       | "tokens"
       | "credits"
       | "donorUserId"
+      | "private"
     >
   >,
 ): Promise<Account | undefined> {
@@ -157,9 +159,59 @@ export async function updateAccount(
       ...patch,
       tokens: patch.tokens ?? cur.tokens,
       credits: patch.credits !== undefined ? patch.credits : cur.credits,
+      private: patch.private !== undefined ? Boolean(patch.private) : cur.private === true,
       updatedAt: now(),
     };
     return store.accounts[idx];
+  });
+}
+
+/** Whether caller may use this account for routing. */
+export function canUserUseAccount(
+  acc: Account,
+  callerUserId: string | null | undefined,
+): boolean {
+  if (acc.private === true) {
+    return Boolean(callerUserId && acc.donorUserId === callerUserId);
+  }
+  return true;
+}
+
+/**
+ * Accounts eligible for a caller's route scope.
+ * - public: admin-managed + non-private contrib (and caller's own private)
+ * - mine: only donated by caller
+ * - account: single id if allowed
+ */
+export function filterAccountsForCaller(
+  accounts: Account[],
+  opts: {
+    callerUserId?: string | null;
+    scope?: "public" | "mine" | "account";
+    accountId?: string | null;
+  },
+): Account[] {
+  const scope = opts.scope ?? "public";
+  const uid = opts.callerUserId ?? null;
+
+  if (scope === "account" && opts.accountId) {
+    const acc = accounts.find((a) => a.id === opts.accountId);
+    if (!acc) return [];
+    if (!canUserUseAccount(acc, uid)) return [];
+    return [acc];
+  }
+
+  if (scope === "mine") {
+    if (!uid) return [];
+    return accounts.filter((a) => a.donorUserId === uid);
+  }
+
+  // public pool: exclude others' private accounts
+  return accounts.filter((a) => {
+    if (a.private === true) {
+      return Boolean(uid && a.donorUserId === uid);
+    }
+    return true;
   });
 }
 
@@ -234,38 +286,49 @@ export async function setCurrentAccount(id: string | null): Promise<RoutingState
 }
 
 /** Advance RR cursor and set current to next active account (auto mode). */
-export async function advanceToNextActive(excludeId?: string): Promise<Account | undefined> {
+export async function advanceToNextActive(
+  excludeId?: string,
+  eligibleIds?: string[] | null,
+): Promise<Account | undefined> {
   return mutate((store) => {
-    const n = store.accounts.length;
+    const pool =
+      eligibleIds && eligibleIds.length > 0
+        ? store.accounts.filter((a) => eligibleIds.includes(a.id))
+        : store.accounts;
+    const n = pool.length;
     if (n === 0) {
-      store.routing.currentAccountId = null;
+      if (!eligibleIds) store.routing.currentAccountId = null;
       return undefined;
     }
-    const start = store.routing.cursor % n;
+    // cursor is over full store length historically; map into eligible pool
+    const start = Math.abs(store.routing.cursor) % n;
     for (let i = 0; i < n; i++) {
       const idx = (start + i) % n;
-      const acc = store.accounts[idx]!;
+      const acc = pool[idx]!;
       if (acc.status !== "active") continue;
       if (excludeId && acc.id === excludeId) continue;
-      store.routing.cursor = (idx + 1) % n;
+      store.routing.cursor = (store.routing.cursor + 1) % Math.max(1, store.accounts.length);
       store.routing.currentAccountId = acc.id;
       return acc;
     }
-    // fallback: any active including exclude
-    const any = store.accounts.find((a) => a.status === "active");
-    store.routing.currentAccountId = any?.id ?? null;
+    const any = pool.find((a) => a.status === "active");
+    if (any) store.routing.currentAccountId = any.id;
     return any;
   });
 }
 
-export async function ensureCurrentAccount(): Promise<Account | undefined> {
+export async function ensureCurrentAccount(
+  eligibleIds?: string[] | null,
+): Promise<Account | undefined> {
   const store = await loadStore();
   const curId = store.routing.currentAccountId;
   if (curId) {
     const acc = store.accounts.find((a) => a.id === curId);
-    if (acc && acc.status === "active") return acc;
+    if (acc && acc.status === "active") {
+      if (!eligibleIds || eligibleIds.includes(acc.id)) return acc;
+    }
   }
-  return advanceToNextActive();
+  return advanceToNextActive(undefined, eligibleIds);
 }
 
 // ---------- API Keys ----------
@@ -391,6 +454,7 @@ export function publicAccount(a: Account, currentId?: string | null) {
     hasRefresh: Boolean(a.tokens.refresh),
     isCurrent: currentId ? a.id === currentId : false,
     donorUserId: a.donorUserId ?? null,
+    private: a.private === true,
     credits: a.credits
       ? {
           creditUsagePercent: a.credits.creditUsagePercent,

@@ -12,6 +12,9 @@ import {
 
 export type UserRole = "admin" | "user";
 
+/** Per-user outbound routing preference for /v1 proxy */
+export type RouteScope = "public" | "mine" | "account";
+
 export interface User {
   id: string;
   username: string;
@@ -22,6 +25,14 @@ export interface User {
   tokenQuota: number | null;
   /** Accumulated totalTokens consumed */
   tokenUsed: number;
+  /**
+   * public = shared pool (admin + non-private contrib)
+   * mine = only accounts donated by this user
+   * account = pin to routeAccountId
+   */
+  routeScope: RouteScope;
+  /** Used when routeScope === "account" */
+  routeAccountId: string | null;
   createdAt: number;
   updatedAt: number;
   lastLoginAt?: number;
@@ -53,6 +64,11 @@ function emptyStore(): UsersStore {
   return { version: 1, users: [], sessions: [] };
 }
 
+function normalizeRouteScope(v: unknown): RouteScope {
+  if (v === "mine" || v === "account" || v === "public") return v;
+  return "public";
+}
+
 function normalizeUser(raw: Partial<User> & Pick<User, "id" | "username" | "passwordHash" | "role">): User {
   const quota =
     typeof raw.tokenQuota === "number" && Number.isFinite(raw.tokenQuota) && raw.tokenQuota >= 0
@@ -70,6 +86,11 @@ function normalizeUser(raw: Partial<User> & Pick<User, "id" | "username" | "pass
     enabled: raw.enabled !== false,
     tokenQuota: quota,
     tokenUsed: used,
+    routeScope: normalizeRouteScope(raw.routeScope),
+    routeAccountId:
+      typeof raw.routeAccountId === "string" && raw.routeAccountId.trim()
+        ? raw.routeAccountId.trim()
+        : null,
     createdAt: raw.createdAt ?? 0,
     updatedAt: raw.updatedAt ?? 0,
     lastLoginAt: raw.lastLoginAt,
@@ -123,6 +144,8 @@ export function publicUser(u: User) {
     tokenQuota,
     tokenUsed,
     tokenRemaining: tokenQuota == null ? null : Math.max(0, tokenQuota - tokenUsed),
+    routeScope: u.routeScope ?? "public",
+    routeAccountId: u.routeAccountId ?? null,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
     lastLoginAt: u.lastLoginAt,
@@ -188,6 +211,8 @@ export async function setupAdmin(input: {
       enabled: true,
       tokenQuota: null,
       tokenUsed: 0,
+      routeScope: "public",
+      routeAccountId: null,
       createdAt: t,
       updatedAt: t,
       lastLoginAt: t,
@@ -226,6 +251,8 @@ export async function registerUser(input: {
       enabled: true,
       tokenQuota: null,
       tokenUsed: 0,
+      routeScope: "public",
+      routeAccountId: null,
       createdAt: t,
       updatedAt: t,
       lastLoginAt: t,
@@ -304,7 +331,18 @@ export async function resolveSession(
 
 export async function updateUser(
   id: string,
-  patch: Partial<Pick<User, "enabled" | "role" | "passwordHash" | "tokenQuota" | "tokenUsed">>,
+  patch: Partial<
+    Pick<
+      User,
+      | "enabled"
+      | "role"
+      | "passwordHash"
+      | "tokenQuota"
+      | "tokenUsed"
+      | "routeScope"
+      | "routeAccountId"
+    >
+  >,
 ): Promise<User | undefined> {
   return mutate((store) => {
     const u = store.users.find((x) => x.id === id);
@@ -320,6 +358,13 @@ export async function updateUser(
     }
     if (patch.tokenUsed !== undefined) {
       u.tokenUsed = Math.max(0, Math.floor(Number(patch.tokenUsed)) || 0);
+    }
+    if (patch.routeScope !== undefined) u.routeScope = normalizeRouteScope(patch.routeScope);
+    if (patch.routeAccountId !== undefined) {
+      u.routeAccountId =
+        patch.routeAccountId == null || patch.routeAccountId === ""
+          ? null
+          : String(patch.routeAccountId);
     }
     u.updatedAt = now();
     return u;

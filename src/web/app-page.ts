@@ -352,6 +352,26 @@ ${styles()}
             <div class="stat"><div class="n" id="cRank">–</div><div class="l" data-i18n="statMyRank">My rank</div></div>
           </div>
 
+          <div class="panel mb">
+            <div class="panel-hd">
+              <strong data-i18n="routeTitle">API routing</strong>
+              <span class="mono" data-i18n="routeHint">Applies to your API keys</span>
+              <div class="spacer"></div>
+              <button class="btn btn-sm" type="button" id="btnSaveRoute" data-i18n="saveRoute">Save</button>
+            </div>
+            <div class="panel-bd">
+              <div class="settings-row">
+                <div class="seg" id="routeScopeSeg">
+                  <button type="button" data-rscope="public" class="on" data-i18n="routePublic">Public pool</button>
+                  <button type="button" data-rscope="mine" data-i18n="routeMine">My seats only</button>
+                  <button type="button" data-rscope="account" data-i18n="routeAccount">Pin account</button>
+                </div>
+                <select id="routeAccountSel" class="select" style="min-width:180px;display:none"></select>
+              </div>
+              <div class="hint" id="routeScopeHint" data-i18n="routePublicHint">Use admin + public contributed seats (others' private seats excluded).</div>
+            </div>
+          </div>
+
           <div class="panel">
             <div class="panel-hd">
               <strong data-i18n="mineTitle">My contributions</strong>
@@ -365,6 +385,7 @@ ${styles()}
                 <div data-i18n="colStatus">Status</div>
                 <div data-i18n="colCredits">Credits</div>
                 <div data-i18n="colUses">Uses</div>
+                <div data-i18n="colVisibility">Visibility</div>
                 <div data-i18n="colLastUsed">Last used</div>
                 <div data-i18n="colActions">Actions</div>
               </div>
@@ -632,6 +653,18 @@ ${styles()}
         statMine:"我的席位", statExhausted:"已耗尽", statMyRank:"我的排名",
         noContrib:"还没有贡献。点上方按钮绑定第一个账号。",
         contribOk:"贡献成功", contribRankUnranked:"未上榜",
+        withdrawContrib:"撤回",
+        withdrawContribConfirm:(n)=>"确定撤回贡献「"+n+"」？将从共享池移除该账号。",
+        withdrawContribOk:"已撤回贡献",
+        routeTitle:"API 路由", routeHint:"对你的 API 密钥生效", saveRoute:"保存路由",
+        routePublic:"公共号池", routeMine:"仅自己号池", routeAccount:"指定账号",
+        routePublicHint:"使用管理员账号 + 公开贡献席位（他人私有号除外）。",
+        routeMineHint:"只使用你贡献的账号。没有可用席位时请求会失败。",
+        routeAccountHint:"固定走下方选中的账号（须有权使用）。",
+        routeSaved:"路由偏好已保存",
+        colVisibility:"可见性", visPublic:"公共", visPrivate:"仅自己",
+        setPrivate:"仅自己", setPublic:"公开",
+        privateOk:"已设为仅自己可用", publicOk:"已设为公共池可用",
         lbKicker:"公开排行", lbTitle:"贡献者排行榜",
         lbSub:"按贡献的 SuperGrok 席位数量排序。管理员账号已排除，榜单只反映社区贡献。",
         lbCta:"立即贡献", lbYourRank:"你的排名", lbBoost:"提升排名",
@@ -724,6 +757,18 @@ ${styles()}
         statMine:"My seats", statExhausted:"Exhausted", statMyRank:"My rank",
         noContrib:"No contributions yet. Click above to link your first account.",
         contribOk:"Contribution added", contribRankUnranked:"Unranked",
+        withdrawContrib:"Withdraw",
+        withdrawContribConfirm:(n)=>"Withdraw contribution \""+n+"\"? It will be removed from the shared pool.",
+        withdrawContribOk:"Contribution withdrawn",
+        routeTitle:"API routing", routeHint:"Applies to your API keys", saveRoute:"Save routing",
+        routePublic:"Public pool", routeMine:"My seats only", routeAccount:"Pin account",
+        routePublicHint:"Admin seats + public contributions (others' private seats excluded).",
+        routeMineHint:"Only accounts you contributed. Requests fail if none are available.",
+        routeAccountHint:"Always use the selected account (must be allowed for you).",
+        routeSaved:"Routing preference saved",
+        colVisibility:"Visibility", visPublic:"Public", visPrivate:"Private",
+        setPrivate:"Private", setPublic:"Public",
+        privateOk:"Now private to you", publicOk:"Now available in public pool",
         lbKicker:"Public ranking", lbTitle:"Contributor leaderboard",
         lbSub:"Ranked by SuperGrok seats contributed. Admin accounts are excluded so the board stays community-first.",
         lbCta:"Contribute now", lbYourRank:"Your rank", lbBoost:"Boost rank",
@@ -810,7 +855,7 @@ ${styles()}
         }
       }
       if (name === "users" && isAdmin()) loadUsers();
-      if (name === "contribute") { loadMyAccounts(); loadLeaderboardLite(); }
+      if (name === "contribute") { loadMyAccounts(); loadMyRouting(); loadLeaderboardLite(); }
       if (name === "leaderboard") loadLeaderboard();
     }
 
@@ -1763,6 +1808,7 @@ ${styles()}
       const slice = myAccounts.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((a) => {
         const err = a.lastError ? shortErr(a.lastError) : "";
+        const isPriv = a.private === true;
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(a.name) + '</div><div class="mono">' + esc(a.id) + "</div>" +
           (err ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
@@ -1770,10 +1816,13 @@ ${styles()}
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
           "<div>" + creditCell(a) + "</div>" +
           '<div class="mono">' + a.useCount + "</div>" +
+          '<div><span class="badge ' + (isPriv ? "exhausted" : "active") + '">' + esc(isPriv ? t("visPrivate") : t("visPublic")) + "</span></div>" +
           '<div class="dt-time">' + fmtTime(a.lastUsedAt) + "</div>" +
           '<div class="dt-actions">' +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="c-credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>" +
-          '<button class="btn btn-danger btn-sm" type="button" data-act="c-del" data-id="' + esc(a.id) + '">' + esc(t("del")) + "</button>" +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="c-vis" data-id="' + esc(a.id) + '" data-priv="' + (isPriv ? "0" : "1") + '">' +
+          esc(isPriv ? t("setPublic") : t("setPrivate")) + "</button>" +
+          '<button class="btn btn-danger btn-sm" type="button" data-act="c-del" data-id="' + esc(a.id) + '" data-name="' + esc(a.name || a.id) + '">' + esc(t("withdrawContrib")) + "</button>" +
           "</div></div>";
       }).join("");
       tbody.querySelectorAll("button[data-act]").forEach((btn) => {
@@ -1781,9 +1830,11 @@ ${styles()}
           const id = btn.getAttribute("data-id");
           const act = btn.getAttribute("data-act");
           if (act === "c-credits") checkMyCredits(id);
-          if (act === "c-del") delMyAcc(id);
+          if (act === "c-vis") setMyAccPrivate(id, btn.getAttribute("data-priv") === "1");
+          if (act === "c-del") delMyAcc(id, btn.getAttribute("data-name") || id);
         });
       });
+      paintRouteAccountSelect();
     }
 
     async function loadMyAccounts() {
@@ -1942,10 +1993,91 @@ ${styles()}
       } catch (e) { showMsg($("msgContrib"), e.message, "err"); }
     }
 
-    async function delMyAcc(id) {
-      if (!confirm(id + " ?")) return;
-      await fetch("/api/me/accounts/" + id, { method: "DELETE", headers: headers() });
-      await Promise.all([loadMyAccounts(), loadLeaderboardLite()]);
+    async function setMyAccPrivate(id, priv) {
+      try {
+        const res = await fetch("/api/me/accounts/" + encodeURIComponent(id), {
+          method: "PATCH", headers: jsonHeaders(),
+          body: JSON.stringify({ private: !!priv }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        showMsg($("msgContrib"), priv ? t("privateOk") : t("publicOk"), "ok");
+        await loadMyAccounts();
+      } catch (e) { showMsg($("msgContrib"), e.message || String(e), "err"); }
+    }
+
+    let routeScope = "public";
+
+    function paintRouteScopeUI() {
+      if (!$("routeScopeSeg")) return;
+      $("routeScopeSeg").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.rscope === routeScope));
+      if ($("routeAccountSel")) $("routeAccountSel").style.display = routeScope === "account" ? "" : "none";
+      if ($("routeScopeHint")) {
+        $("routeScopeHint").textContent =
+          routeScope === "mine" ? t("routeMineHint") :
+          routeScope === "account" ? t("routeAccountHint") : t("routePublicHint");
+      }
+    }
+
+    function paintRouteAccountSelect() {
+      const sel = $("routeAccountSel");
+      if (!sel) return;
+      const cur = sel.value || (currentUser && currentUser.routeAccountId) || "";
+      sel.innerHTML = myAccounts.map((a) =>
+        '<option value="' + esc(a.id) + '"' + (a.id === cur ? " selected" : "") + ">" +
+        esc(a.name) + (a.private ? " · " + t("visPrivate") : "") + "</option>"
+      ).join("") || '<option value="">–</option>';
+    }
+
+    async function loadMyRouting() {
+      try {
+        const res = await fetch("/api/me/routing", { headers: headers() });
+        if (!res.ok) return;
+        const data = await res.json();
+        routeScope = data.routeScope || "public";
+        if (currentUser) {
+          currentUser.routeScope = routeScope;
+          currentUser.routeAccountId = data.routeAccountId || null;
+        }
+        paintRouteScopeUI();
+        paintRouteAccountSelect();
+        if ($("routeAccountSel") && data.routeAccountId) $("routeAccountSel").value = data.routeAccountId;
+      } catch {}
+    }
+
+    async function saveMyRouting() {
+      try {
+        const body = { routeScope };
+        if (routeScope === "account") {
+          body.routeAccountId = ($("routeAccountSel") && $("routeAccountSel").value) || null;
+        }
+        const res = await fetch("/api/me/routing", {
+          method: "PATCH", headers: jsonHeaders(),
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        if (data.user) currentUser = data.user;
+        routeScope = data.routeScope || routeScope;
+        paintRouteScopeUI();
+        showMsg($("msgContrib"), t("routeSaved"), "ok");
+      } catch (e) { showMsg($("msgContrib"), e.message || String(e), "err"); }
+    }
+
+    async function delMyAcc(id, name) {
+      if (!confirm(t("withdrawContribConfirm", name || id))) return;
+      try {
+        const res = await fetch("/api/me/accounts/" + encodeURIComponent(id), {
+          method: "DELETE",
+          headers: headers(),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        showMsg($("msgContrib"), t("withdrawContribOk"), "ok");
+        await Promise.all([loadMyAccounts(), loadLeaderboardLite(), loadLeaderboard().catch(() => {})]);
+      } catch (e) {
+        showMsg($("msgContrib"), e.message || String(e), "err");
+      }
     }
 
     async function addOAuth() {
@@ -2259,7 +2391,14 @@ ${styles()}
     if ($("btnAdd")) $("btnAdd").onclick = addOAuth;
     if ($("btnContribAdd")) $("btnContribAdd").onclick = startContribute;
     if ($("btnContribStart")) $("btnContribStart").onclick = startContribute;
-    if ($("btnContribRefresh")) $("btnContribRefresh").onclick = () => { hideMsg($("msgContrib")); loadMyAccounts(); loadLeaderboardLite(); };
+    if ($("btnContribRefresh")) $("btnContribRefresh").onclick = () => { hideMsg($("msgContrib")); loadMyAccounts(); loadMyRouting(); loadLeaderboardLite(); };
+    if ($("routeScopeSeg")) $("routeScopeSeg").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-rscope]");
+      if (!b) return;
+      routeScope = b.dataset.rscope || "public";
+      paintRouteScopeUI();
+    });
+    if ($("btnSaveRoute")) $("btnSaveRoute").onclick = () => saveMyRouting();
     if ($("btnLbRefresh")) $("btnLbRefresh").onclick = () => loadLeaderboard();
     if ($("btnContribCopy")) $("btnContribCopy").onclick = async () => {
       const code = $("contribUserCode")?.textContent || "";
