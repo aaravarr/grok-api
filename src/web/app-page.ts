@@ -671,16 +671,19 @@ ${styles()}
                   <div class="endpoint-field">
                     <label class="field-label" data-i18n="upstreamTitle">LLM upstream</label>
                     <input id="upstreamUrl" class="input block" placeholder="https://api.x.ai/v1" />
+                    <div class="hint-active mono" id="upstreamActive">–</div>
                     <div class="hint" id="upstreamHint" data-i18n="upstreamHint">Empty = api.x.ai/v1</div>
                   </div>
                   <div class="endpoint-field">
                     <label class="field-label" data-i18n="oauthBaseTitle">OAuth base</label>
                     <input id="oauthBaseUrl" class="input block" placeholder="https://auth.x.ai" />
+                    <div class="hint-active mono" id="oauthBaseActive">–</div>
                     <div class="hint" id="oauthBaseHint" data-i18n="oauthBaseHint">Empty = auth.x.ai</div>
                   </div>
                   <div class="endpoint-field">
                     <label class="field-label" data-i18n="billingBaseTitle">Billing base</label>
                     <input id="billingBaseUrl" class="input block" placeholder="https://cli-chat-proxy.grok.com" />
+                    <div class="hint-active mono" id="billingBaseActive">–</div>
                     <div class="hint" id="billingBaseHint" data-i18n="billingBaseHint">Empty = cli-chat-proxy.grok.com</div>
                   </div>
                 </div>
@@ -706,6 +709,7 @@ ${styles()}
                     <input id="proxyUrl" class="input grow" placeholder="http://127.0.0.1:7890" />
                   </div>
                 </div>
+                <div class="hint-active mono" id="proxyActive">–</div>
                 <div class="hint" id="proxyHint"></div>
               </div>
             </div>
@@ -985,6 +989,8 @@ ${styles()}
         billingBaseTitle:"额度基址",
         billingBaseHint:"留空 = cli-chat-proxy.grok.com · 跳板如 https://xai.ahao1.tech",
         billingBaseActive:(u)=>"生效 "+u,
+        proxyActive:(url)=>"生效 "+(url||"直连"),
+        proxyHintSrc:(src)=>"来源："+src,
         proxySub:"仅影响 Node 出站（浏览器授权页不走这里）",
         logEnabledSub:"写入请求日志到磁盘", logBodiesSub:"体积大，仅调试时开启",
         logBodiesOnErrorSub:"HTTP/业务失败时仍保存响应体（默认开）",
@@ -1165,6 +1171,8 @@ ${styles()}
         billingBaseTitle:"Billing base",
         billingBaseHint:"Empty = cli-chat-proxy.grok.com · jump e.g. https://xai.ahao1.tech",
         billingBaseActive:(u)=>"Active "+u,
+        proxyActive:(url)=>"Active "+(url||"direct"),
+        proxyHintSrc:(src)=>"Source: "+src,
         proxySub:"Node outbound only (browser authorize page is separate)",
         logEnabledSub:"Write request rows to disk", logBodiesSub:"Large; debug only",
         logBodiesOnErrorSub:"Always keep response body on HTTP/business failure (default on)",
@@ -1475,7 +1483,8 @@ ${styles()}
       if (proxyMode === "custom" && !$("proxyUrl").matches(":focus")) $("proxyUrl").value = meta.proxyConfigured || "";
       const srcMap = I18N[lang].src || {};
       const src = srcMap[meta.proxySource] || meta.proxySource;
-      if ($("proxyHint")) $("proxyHint").textContent = t("proxyHintAuto", src, meta.proxy || "");
+      if ($("proxyActive")) $("proxyActive").textContent = t("proxyActive", meta.proxy || "");
+      if ($("proxyHint")) $("proxyHint").textContent = t("proxyHintSrc", src);
       if ($("logEnabled")) $("logEnabled").checked = meta.logEnabled !== false;
       if ($("logBodies")) $("logBodies").checked = meta.logBodies === true;
       if ($("logBodiesOnError")) $("logBodiesOnError").checked = meta.logBodiesOnError !== false;
@@ -1490,18 +1499,21 @@ ${styles()}
       if ($("billingBaseUrl") && !$("billingBaseUrl").matches(":focus")) {
         $("billingBaseUrl").value = meta.billingBaseUrlConfigured || "";
       }
-      if ($("upstreamHint")) {
-        const active = meta.xaiBaseUrl || "https://api.x.ai/v1";
-        $("upstreamHint").textContent = t("upstreamActive", active) + " · " + t("upstreamHint");
+      if ($("upstreamActive")) {
+        $("upstreamActive").textContent = t("upstreamActive", meta.xaiBaseUrl || "https://api.x.ai/v1");
       }
-      if ($("oauthBaseHint")) {
-        const active = meta.oauthBaseUrl || "https://auth.x.ai";
-        $("oauthBaseHint").textContent = t("oauthBaseActive", active) + " · " + t("oauthBaseHint");
+      if ($("upstreamHint")) $("upstreamHint").textContent = t("upstreamHint");
+      if ($("oauthBaseActive")) {
+        $("oauthBaseActive").textContent = t("oauthBaseActive", meta.oauthBaseUrl || "https://auth.x.ai");
       }
-      if ($("billingBaseHint")) {
-        const active = meta.billingBaseUrl || "https://cli-chat-proxy.grok.com";
-        $("billingBaseHint").textContent = t("billingBaseActive", active) + " · " + t("billingBaseHint");
+      if ($("oauthBaseHint")) $("oauthBaseHint").textContent = t("oauthBaseHint");
+      if ($("billingBaseActive")) {
+        $("billingBaseActive").textContent = t(
+          "billingBaseActive",
+          meta.billingBaseUrl || "https://cli-chat-proxy.grok.com",
+        );
       }
+      if ($("billingBaseHint")) $("billingBaseHint").textContent = t("billingBaseHint");
     }
 
     function headers() {

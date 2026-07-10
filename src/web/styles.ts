@@ -347,7 +347,11 @@ export function styles(): string {
     .callout strong{color:var(--ink);font-weight:500}
     .callout code{font-family:var(--mono);font-size:11px;background:#fff;border:1px solid var(--hairline);border-radius:4px;padding:1px 5px}
     .settings-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-    .settings-row .hint{width:100%;font-size:12px;color:var(--mute);margin-top:2px}
+    .hint,.hint-active{font-size:11px;line-height:1.45;color:#a3a3a3;margin-top:2px;word-break:break-word}
+    .hint-active{margin-top:6px;word-break:break-all}
+    .settings-row .hint,.settings-row .hint-active{width:100%}
+    .settings-row .hint-active{margin-top:8px}
+    .settings-row .hint{margin-top:2px}
     .settings-stack{display:grid;gap:14px;width:100%;max-width:none}
     .settings-card{
       border:1px solid var(--hairline);border-radius:var(--radius-lg);background:#fff;
@@ -365,6 +369,8 @@ export function styles(): string {
     .endpoint-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
     .endpoint-field{display:grid;gap:6px;min-width:0}
     .endpoint-field .input{width:100%}
+    .endpoint-field .hint-active{margin-top:6px}
+    .endpoint-field .hint{margin-top:2px}
     @media(max-width:1100px){.endpoint-grid{grid-template-columns:1fr}}
     .toggle-list{display:grid;gap:8px}
     .toggle-row{
@@ -376,7 +382,7 @@ export function styles(): string {
     .toggle-row input[type=checkbox]{width:16px;height:16px;margin:2px 0 0;accent-color:var(--ink);flex-shrink:0}
     .toggle-row span{display:flex;flex-direction:column;gap:2px;min-width:0}
     .toggle-row strong{font-size:13px;font-weight:500;color:var(--ink)}
-    .toggle-row em{font-style:normal;font-size:12px;color:var(--mute);line-height:1.4}
+    .toggle-row em{font-style:normal;font-size:11px;color:#a3a3a3;line-height:1.4}
     @media(max-width:900px){.settings-split{grid-template-columns:1fr}}
     .curl-pre{margin:0;padding:14px;font-family:var(--mono);font-size:12px;line-height:1.65;color:var(--ink);overflow-x:auto;white-space:pre-wrap;word-break:break-all;background:var(--canvas-soft);border:1px solid var(--hairline);border-radius:10px;min-height:88px}
     .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-top:1px solid var(--hairline);background:#fff;font-size:12px;color:var(--mute)}
