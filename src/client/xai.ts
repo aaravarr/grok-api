@@ -1,5 +1,6 @@
 import { onProviderError, onSuccess, routeAccount } from "../account/router.js";
 import { advanceToNextActive } from "../account/store.js";
+import { outboundFetch } from "../proxy.js";
 import { getUpstreamBaseUrl } from "../settings.js";
 
 export async function fetchUpstreamModels(
@@ -17,7 +18,7 @@ export async function fetchUpstreamModels(
     callerUserId,
   });
   const base = await getUpstreamBaseUrl();
-  const res = await fetch(`${base}/models`, {
+  const res = await outboundFetch(`${base}/models`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${routed.accessToken}`,
@@ -79,7 +80,7 @@ export async function proxyLLM(req: ProxyRequest): Promise<ProxyResponse> {
     if (tried.has(routed.account.id)) break;
     tried.add(routed.account.id);
 
-    const res = await fetch(endpoint(base, req.mode), {
+    const res = await outboundFetch(endpoint(base, req.mode), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${routed.accessToken}`,

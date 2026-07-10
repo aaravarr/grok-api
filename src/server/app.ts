@@ -4,6 +4,8 @@ import { cors } from "hono/cors";
 import { config } from "../config.js";
 import {
   buildLeaderboard,
+  canUserUseAccount,
+  sanitizeAllowedUserIds,
   createApiKey,
   deleteAccount,
   deleteApiKey,
@@ -25,7 +27,13 @@ import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
 import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js";
 import { getProxyInfo, setProxyOverride } from "../proxy.js";
-import { loadSettings, resolveUpstreamBaseUrl, saveSettings } from "../settings.js";
+import {
+  loadSettings,
+  resolveBillingBaseUrl,
+  resolveOauthBaseUrl,
+  resolveUpstreamBaseUrl,
+  saveSettings,
+} from "../settings.js";
 import { authPageHtml } from "../web/auth-page.js";
 import { appPageHtml } from "../web/app-page.js";
 import { homePageHtml } from "../web/home-page.js";
@@ -177,6 +185,10 @@ export function createApp() {
       allowRegisterSetting: settings.allowRegister,
       xaiBaseUrl: resolveUpstreamBaseUrl(settings.upstreamBaseUrl),
       upstreamBaseUrlConfigured: settings.upstreamBaseUrl || "",
+      oauthBaseUrl: resolveOauthBaseUrl(settings.oauthBaseUrl),
+      oauthBaseUrlConfigured: settings.oauthBaseUrl || "",
+      billingBaseUrl: resolveBillingBaseUrl(settings.billingBaseUrl),
+      billingBaseUrlConfigured: settings.billingBaseUrl || "",
       legacyAdminToken: Boolean(config.adminToken),
     });
   });
@@ -278,9 +290,8 @@ export function createApp() {
       if (!pin) return c.json({ error: "指定账号模式需要 routeAccountId" }, 400);
       const acc = await getAccount(pin);
       if (!acc) return c.json({ error: "账号不存在" }, 404);
-      // own accounts always ok; others only if not private
-      if (acc.donorUserId !== user.id && acc.private === true) {
-        return c.json({ error: "无权指定该私有账号" }, 403);
+      if (!canUserUseAccount(acc, user.id)) {
+        return c.json({ error: "无权指定该账号（私有或白名单限制）" }, 403);
       }
       routeAccountId = pin;
     }
@@ -425,8 +436,39 @@ export function createApp() {
   app.get("/api/me/accounts", async (c) => {
     const user = c.get("user")!;
     const accounts = await listAccountsByDonor(user.id);
+    const users = await listUsers();
+    const enabledById = new Map(
+      users.filter((u) => u.enabled !== false).map((u) => [u.id, u] as const),
+    );
     return c.json({
-      accounts: accounts.map((a) => publicAccount(a)),
+      accounts: accounts.map((a) => {
+        const pub = publicAccount(a);
+        // Donor always has access; list only enabled extra members (+ self as donor)
+        const members: Array<{ id: string; username: string; role: string; isDonor: boolean }> =
+          [];
+        members.push({
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          isDonor: true,
+        });
+        for (const id of a.allowedUserIds || []) {
+          if (id === user.id) continue;
+          const u = enabledById.get(id);
+          if (!u) continue; // only show available (enabled) users
+          members.push({
+            id: u.id,
+            username: u.username,
+            role: u.role,
+            isDonor: false,
+          });
+        }
+        return {
+          ...pub,
+          members,
+          memberCount: members.length,
+        };
+      }),
       stats: {
         total: accounts.length,
         active: accounts.filter((a) => a.status === "active").length,
@@ -519,14 +561,80 @@ export function createApp() {
       name?: string;
       note?: string;
       private?: boolean;
+      /** Donor may only REMOVE existing extra members — never add new ones */
+      revokeUserIds?: string[];
+      /** Alias: set remaining extras (must be subset of current allowlist) */
+      allowedUserIds?: string[] | null;
     };
-    const patch: { name?: string; note?: string; private?: boolean } = {};
+    const patch: {
+      name?: string;
+      note?: string;
+      private?: boolean;
+      allowedUserIds?: string[] | null;
+    } = {};
     if (body.name !== undefined) patch.name = body.name;
     if (body.note !== undefined) patch.note = body.note;
     if (body.private !== undefined) patch.private = Boolean(body.private);
+
+    const currentExtras = Array.isArray(acc.allowedUserIds) ? [...acc.allowedUserIds] : [];
+
+    if (Array.isArray(body.revokeUserIds) && body.revokeUserIds.length) {
+      const revoke = new Set(
+        body.revokeUserIds
+          .map((x) => (typeof x === "string" ? x.trim() : ""))
+          .filter(Boolean),
+      );
+      // cannot revoke self/donor
+      revoke.delete(user.id);
+      const next = currentExtras.filter((id) => !revoke.has(id));
+      patch.allowedUserIds = sanitizeAllowedUserIds(next, user.id);
+    } else if (body.allowedUserIds !== undefined) {
+      // donor may only shrink the set (subset of current); empty/null clears extras
+      if (body.allowedUserIds === null) {
+        patch.allowedUserIds = null;
+      } else if (Array.isArray(body.allowedUserIds)) {
+        const requested = [
+          ...new Set(
+            body.allowedUserIds
+              .map((x) => (typeof x === "string" ? x.trim() : ""))
+              .filter(Boolean),
+          ),
+        ];
+        const currentSet = new Set(currentExtras);
+        const illegal = requested.filter((id) => !currentSet.has(id) && id !== user.id);
+        if (illegal.length) {
+          return c.json(
+            { error: "贡献者不能添加新用户，只能从现有名单中移除。请联系管理员添加成员。" },
+            400,
+          );
+        }
+        const next = requested.filter((id) => currentSet.has(id));
+        patch.allowedUserIds = sanitizeAllowedUserIds(next, user.id);
+      } else {
+        return c.json({ error: "allowedUserIds 须为数组或 null" }, 400);
+      }
+    }
+
     const updated = await updateAccount(acc.id, patch);
     if (!updated) return c.json({ error: "not found" }, 404);
-    return c.json({ account: publicAccount(updated) });
+
+    // rebuild members list for donor UI
+    const users = await listUsers();
+    const enabledById = new Map(
+      users.filter((u) => u.enabled !== false).map((u) => [u.id, u] as const),
+    );
+    const members: Array<{ id: string; username: string; role: string; isDonor: boolean }> = [
+      { id: user.id, username: user.username, role: user.role, isDonor: true },
+    ];
+    for (const id of updated.allowedUserIds || []) {
+      if (id === user.id) continue;
+      const u = enabledById.get(id);
+      if (!u) continue;
+      members.push({ id: u.id, username: u.username, role: u.role, isDonor: false });
+    }
+    return c.json({
+      account: { ...publicAccount(updated), members, memberCount: members.length },
+    });
   });
 
   app.delete("/api/me/accounts/:id", async (c) => {
@@ -560,6 +668,8 @@ export function createApp() {
     const body = (await c.req.json().catch(() => ({}))) as {
       proxyUrl?: string;
       upstreamBaseUrl?: string;
+      oauthBaseUrl?: string;
+      billingBaseUrl?: string;
       logRetentionDays?: number;
       logEnabled?: boolean;
       logBodies?: boolean;
@@ -568,6 +678,8 @@ export function createApp() {
     const patch: {
       proxyUrl?: string;
       upstreamBaseUrl?: string;
+      oauthBaseUrl?: string;
+      billingBaseUrl?: string;
       logRetentionDays?: number;
       logEnabled?: boolean;
       logBodies?: boolean;
@@ -575,6 +687,8 @@ export function createApp() {
     } = {};
     if (body.proxyUrl !== undefined) patch.proxyUrl = body.proxyUrl;
     if (body.upstreamBaseUrl !== undefined) patch.upstreamBaseUrl = body.upstreamBaseUrl;
+    if (body.oauthBaseUrl !== undefined) patch.oauthBaseUrl = body.oauthBaseUrl;
+    if (body.billingBaseUrl !== undefined) patch.billingBaseUrl = body.billingBaseUrl;
     if (body.logRetentionDays !== undefined) patch.logRetentionDays = body.logRetentionDays;
     if (body.logEnabled !== undefined) patch.logEnabled = body.logEnabled;
     if (body.logBodies !== undefined) patch.logBodies = body.logBodies;
@@ -592,6 +706,8 @@ export function createApp() {
         settings,
         runtime,
         xaiBaseUrl: resolveUpstreamBaseUrl(settings.upstreamBaseUrl),
+        oauthBaseUrl: resolveOauthBaseUrl(settings.oauthBaseUrl),
+        billingBaseUrl: resolveBillingBaseUrl(settings.billingBaseUrl),
       });
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
@@ -664,8 +780,33 @@ export function createApp() {
   app.get("/api/admin/accounts", async (c) => {
     const accounts = await listAccounts();
     const routing = await getRouting();
+    const users = await listUsers();
+    const nameById = new Map(users.map((u) => [u.id, u.username] as const));
     return c.json({
-      accounts: accounts.map((a) => publicAccount(a, routing.currentAccountId)),
+      accounts: accounts.map((a) => {
+        const pub = publicAccount(a, routing.currentAccountId);
+        const donorUsername = a.donorUserId
+          ? nameById.get(a.donorUserId) || null
+          : null;
+        const allowedUsernames = (a.allowedUserIds || [])
+          .map((id) => nameById.get(id) || id)
+          .filter(Boolean);
+        // display: donor always first among effective members
+        const memberLabels: string[] = [];
+        if (donorUsername) memberLabels.push(donorUsername + " (donor)");
+        else if (a.donorUserId) memberLabels.push(a.donorUserId.slice(0, 8) + " (donor)");
+        for (const name of allowedUsernames) {
+          if (donorUsername && name === donorUsername) continue;
+          memberLabels.push(name);
+        }
+        return {
+          ...pub,
+          donorUsername,
+          allowedUsernames,
+          memberLabels,
+        };
+      }),
+      users: users.map((u) => ({ id: u.id, username: u.username, role: u.role, enabled: u.enabled })),
       routing,
       stats: {
         total: accounts.length,
@@ -681,11 +822,38 @@ export function createApp() {
     const body = (await c.req.json().catch(() => ({}))) as {
       name?: string;
       openBrowser?: boolean;
+      donorUserId?: string | null;
+      private?: boolean;
+      allowedUserIds?: string[] | null;
     };
     try {
+      let donorUserId: string | null = null;
+      if (body.donorUserId) {
+        const donor = await getUser(String(body.donorUserId));
+        if (!donor) return c.json({ error: "贡献者不存在" }, 400);
+        donorUserId = donor.id;
+      }
+      let allowedUserIds: string[] | null = null;
+      if (Array.isArray(body.allowedUserIds)) {
+        const ids = [
+          ...new Set(
+            body.allowedUserIds
+              .map((x) => (typeof x === "string" ? x.trim() : ""))
+              .filter(Boolean),
+          ),
+        ];
+        for (const id of ids) {
+          const u = await getUser(id);
+          if (!u) return c.json({ error: `指定用户不存在: ${id}` }, 400);
+        }
+        allowedUserIds = ids.length ? ids : null;
+      }
       const session = await startDeviceLogin({
         name: body.name,
         openBrowser: body.openBrowser !== false,
+        donorUserId,
+        private: body.private === true,
+        allowedUserIds,
       });
       return c.json({
         mode: "device_code",
@@ -732,17 +900,56 @@ export function createApp() {
       status?: "active" | "exhausted" | "expired" | "error";
       note?: string;
       private?: boolean;
+      donorUserId?: string | null;
+      allowedUserIds?: string[] | null;
     };
     const patch: {
       name?: string;
       status?: "active" | "exhausted" | "expired" | "error";
       note?: string;
       private?: boolean;
+      donorUserId?: string | null;
+      allowedUserIds?: string[] | null;
     } = {};
     if (body.name !== undefined) patch.name = body.name;
     if (body.status !== undefined) patch.status = body.status;
     if (body.note !== undefined) patch.note = body.note;
     if (body.private !== undefined) patch.private = Boolean(body.private);
+    if (body.donorUserId !== undefined) {
+      if (body.donorUserId === null || body.donorUserId === "") {
+        patch.donorUserId = null;
+      } else {
+        const donor = await getUser(String(body.donorUserId));
+        if (!donor) return c.json({ error: "贡献者不存在" }, 400);
+        patch.donorUserId = donor.id;
+      }
+    }
+    if (body.allowedUserIds !== undefined) {
+      if (body.allowedUserIds === null) {
+        patch.allowedUserIds = null;
+      } else if (Array.isArray(body.allowedUserIds)) {
+        const ids = [
+          ...new Set(
+            body.allowedUserIds
+              .map((x) => (typeof x === "string" ? x.trim() : ""))
+              .filter(Boolean),
+          ),
+        ];
+        for (const id of ids) {
+          const u = await getUser(id);
+          if (!u) return c.json({ error: `指定用户不存在: ${id}` }, 400);
+        }
+        // donor always allowed; strip from stored extras
+        const cur = await getAccount(c.req.param("id"));
+        const donorId =
+          patch.donorUserId !== undefined
+            ? patch.donorUserId
+            : cur?.donorUserId ?? null;
+        patch.allowedUserIds = sanitizeAllowedUserIds(ids, donorId);
+      } else {
+        return c.json({ error: "allowedUserIds 须为字符串数组或 null" }, 400);
+      }
+    }
     const updated = await updateAccount(c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
     const routing = await getRouting();

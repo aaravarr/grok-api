@@ -1,5 +1,7 @@
 import open from "open";
 import { config } from "../config.js";
+import { outboundFetch } from "../proxy.js";
+import { getOAuthEndpoints } from "../settings.js";
 import type { TokenResponse } from "../types.js";
 import { now, randomId, sleep } from "../utils.js";
 import { addAccount } from "./store.js";
@@ -29,6 +31,8 @@ export interface DeviceSession {
   error?: string;
   createdAt: number;
   donorUserId?: string | null;
+  private?: boolean;
+  allowedUserIds?: string[] | null;
 }
 
 interface DeviceCodeResponse {
@@ -59,7 +63,8 @@ function positiveSecondsToMs(value: unknown, defaultMs: number): number {
 }
 
 async function requestDeviceCode(): Promise<DeviceCodeResponse> {
-  const res = await fetch(config.oauth.deviceAuthorizationUrl, {
+  const ep = await getOAuthEndpoints();
+  const res = await outboundFetch(ep.deviceAuthorizationUrl, {
     method: "POST",
     headers: authHeaders(),
     body: new URLSearchParams({
@@ -80,7 +85,8 @@ async function requestDeviceCode(): Promise<DeviceCodeResponse> {
 }
 
 async function pollOnce(deviceCode: string): Promise<TokenResponse | { pending: true; slowDown?: boolean }> {
-  const res = await fetch(config.oauth.tokenUrl, {
+  const ep = await getOAuthEndpoints();
+  const res = await outboundFetch(ep.tokenUrl, {
     method: "POST",
     headers: authHeaders(),
     body: new URLSearchParams({
@@ -147,6 +153,8 @@ function startPolling(sessionId: string): void {
           refresh: tokens.refresh_token ?? "",
           expires: now() + (tokens.expires_in ?? 3600) * 1000,
           donorUserId: current.donorUserId ?? null,
+          private: current.private === true,
+          allowedUserIds: current.allowedUserIds ?? null,
         });
 
         current.status = "success";
@@ -179,6 +187,8 @@ export async function startDeviceLogin(opts?: {
   name?: string;
   openBrowser?: boolean;
   donorUserId?: string | null;
+  private?: boolean;
+  allowedUserIds?: string[] | null;
 }): Promise<{
   sessionId: string;
   userCode: string;
@@ -205,6 +215,8 @@ export async function startDeviceLogin(opts?: {
     status: "pending",
     createdAt: now(),
     donorUserId: opts?.donorUserId ?? null,
+    private: opts?.private === true,
+    allowedUserIds: opts?.allowedUserIds ?? null,
   };
   sessions.set(session.id, session);
   startPolling(session.id);
@@ -251,7 +263,8 @@ export async function pollDeviceLogin(sessionId: string): Promise<OAuthResult> {
 export async function refreshTokens(
   refreshToken: string,
 ): Promise<{ access: string; refresh: string; expires: number }> {
-  const res = await fetch(config.oauth.tokenUrl, {
+  const ep = await getOAuthEndpoints();
+  const res = await outboundFetch(ep.tokenUrl, {
     method: "POST",
     headers: authHeaders(),
     body: new URLSearchParams({

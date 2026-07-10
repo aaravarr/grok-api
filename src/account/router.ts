@@ -9,6 +9,9 @@ import {
   filterAccountsForCaller,
   getAccount,
   getRouting,
+  hasAllowedUsers,
+  isPublicPoolAccount,
+  isUserAllowedOnAccount,
   listAccounts,
   markStatus,
   markUsed,
@@ -56,20 +59,25 @@ export async function routeAccount(opts?: {
     scope: opts?.preferredId ? "public" : scope,
     accountId: opts?.preferredId ? null : pinnedId,
   });
-  // preferred header: still must pass private/ownership checks
+  // preferred header: still must pass private/ownership/allowlist checks
   if (opts?.preferredId) {
     const pref = all.find((a) => a.id === opts.preferredId);
     if (!pref) throw new Error(`account not found: ${opts.preferredId}`);
     if (!canUserUseAccount(pref, callerUserId)) {
-      throw new Error("无权使用该账号（私有或不可见）");
+      throw new Error("无权使用该账号（私有、白名单限制或不可见）");
     }
-    // public pool must never land on private seats
-    if (scope === "public" && pref.private === true) {
-      throw new Error("公共号池不能使用私有账号，请改用「仅自己号池」或「指定账号」");
+    // public pool: only shared seats, or seats where caller is allowlisted
+    if (scope === "public" && !isPublicPoolAccount(pref) && !isUserAllowedOnAccount(pref, callerUserId)) {
+      throw new Error("公共号池不能使用私有/限定账号，请改用「仅自己号池」或「指定账号」");
     }
-    // if user scoped to mine, preferred must be theirs
-    if (scope === "mine" && pref.donorUserId !== callerUserId) {
-      throw new Error("当前路由模式为「仅自己号池」，不能指定其他账号");
+    // mine: own donations or seats allowlisted for caller
+    if (scope === "mine") {
+      const mine = pref.donorUserId === callerUserId;
+      const allowlisted =
+        hasAllowedUsers(pref) && isUserAllowedOnAccount(pref, callerUserId);
+      if (!mine && !allowlisted) {
+        throw new Error("当前路由模式为「仅自己号池」，不能指定其他账号");
+      }
     }
     return useAccount(opts.preferredId, checkCredits);
   }
@@ -93,8 +101,8 @@ export async function routeAccount(opts?: {
   // Manual global mode: stick to selected only if public + still eligible
   if (routing.mode === "manual" && routing.currentAccountId && !opts?.forceAuto) {
     const cur = all.find((a) => a.id === routing.currentAccountId);
-    if (cur && cur.private === true) {
-      // private cannot be global current — fall through to public auto
+    if (cur && !isPublicPoolAccount(cur)) {
+      // private / allowlist seats cannot be global current — fall through to public auto
     } else if (eligibleIds.includes(routing.currentAccountId)) {
       return useAccount(routing.currentAccountId, checkCredits);
     }
@@ -207,8 +215,8 @@ export async function onProviderError(
 export async function switchAccount(accountId: string): Promise<Account> {
   const acc = await getAccount(accountId);
   if (!acc) throw new Error(`account not found: ${accountId}`);
-  if (acc.private === true) {
-    throw new Error("不能将私有贡献账号设为公共池当前账号");
+  if (!isPublicPoolAccount(acc)) {
+    throw new Error("不能将私有/限定账号设为公共池当前账号");
   }
   await setCurrentAccount(accountId);
   try {

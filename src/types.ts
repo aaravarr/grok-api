@@ -38,8 +38,14 @@ export interface Account {
   /**
    * When true, only the donor can route through this account.
    * Default false = joins the public shared pool.
+   * Ignored when allowedUserIds is non-empty (allowlist wins).
    */
   private?: boolean;
+  /**
+   * When non-empty, only these app user ids may route through this account.
+   * Also excludes the seat from the public shared pool.
+   */
+  allowedUserIds?: string[] | null;
 }
 
 export interface ApiKeyRecord {

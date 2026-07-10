@@ -46,11 +46,8 @@ ${styles()}
           <a class="nav-item ${page==='leaderboard'?'on':''}" href="/leaderboard" data-view="leaderboard"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M5 8H3a2 2 0 0 0 2 2h0"/><path d="M19 8h2a2 2 0 0 1-2 2h0"/></svg></span><span data-i18n="navLeaderboard">Leaderboard</span></a>
         </div>
         <div class="nav-group">
-          <div class="nav-label" data-i18n="navAnalyze">Analyze</div>
+          <div class="nav-label" data-i18n="navSystem">System</div>
           <a class="nav-item ${page==='usage'?'on':''}" href="/usage" data-view="usage"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16v-5"/><path d="M12 16V8"/><path d="M17 16v-9"/></svg></span><span data-i18n="navUsage">Usage</span></a>
-        </div>
-        <div class="nav-group">
-          <div class="nav-label" data-i18n="navOps2">Ops</div>
           <a class="nav-item ${page==='logs'?'on':''}" href="/logs" data-view="logs"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg></span><span data-i18n="navLogs">Logs</span></a>
           <a class="nav-item ${page==='settings'?'on':''}" href="/settings" data-view="settings" data-admin-only><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span><span data-i18n="navSettings">Settings</span></a>
         </div>
@@ -137,14 +134,35 @@ ${styles()}
         <section class="view ${page==='accounts'?'on':''}" id="view-accounts">
           <div class="panel">
             <div class="routing-bar">
-              <span class="mono" data-i18n="routing">Routing</span>
-              <div class="seg" id="modeSeg">
-                <button type="button" data-mode="auto" class="on" data-i18n="modeAuto">Auto</button>
-                <button type="button" data-mode="manual" data-i18n="modeManual">Manual</button>
+              <div class="routing-left">
+                <span class="bar-label" data-i18n="routing">Routing</span>
+                <div class="seg" id="modeSeg">
+                  <button type="button" data-mode="auto" class="on" data-i18n="modeAuto">Auto</button>
+                  <button type="button" data-mode="manual" data-i18n="modeManual">Manual</button>
+                </div>
+                <span class="mono current-pill" id="currentLabel">Current: –</span>
               </div>
-              <span class="mono" id="currentLabel">Current: –</span>
-              <div class="spacer" style="flex:1"></div>
-              <input id="accName" class="input" data-i18n-placeholder="accNamePh" />
+            </div>
+            <div class="add-bar">
+              <div class="add-fields">
+                <div class="add-field">
+                  <label class="field-label" data-i18n="accNamePh">Note (optional)</label>
+                  <input id="accName" class="input" data-i18n-placeholder="accNamePh" />
+                </div>
+                <div class="add-field">
+                  <label class="field-label" data-i18n="accDonorLabel">Donor</label>
+                  <select id="accDonor" class="select">
+                    <option value="" data-i18n="accDonorNone">No donor</option>
+                  </select>
+                </div>
+                <div class="add-field">
+                  <label class="field-label" data-i18n="colVisibility">Visibility</label>
+                  <select id="accPrivate" class="select">
+                    <option value="public" data-i18n="visPublic">Public</option>
+                    <option value="private" data-i18n="visPrivate">Private</option>
+                  </select>
+                </div>
+              </div>
               <button class="btn" id="btnAdd" type="button" data-i18n="addAccount">Add account</button>
             </div>
             <div id="codeBox" class="codebox">
@@ -163,10 +181,11 @@ ${styles()}
                 <option value="expired">expired</option>
                 <option value="error">error</option>
               </select>
-              <select id="accFilterVis" class="select" style="min-width:110px">
+              <select id="accFilterVis" class="select" style="min-width:130px">
                 <option value="" data-i18n="filterAllVis">All visibility</option>
-                <option value="public" data-i18n="visPublic">Public</option>
-                <option value="private" data-i18n="visPrivate">Private</option>
+                <option value="public" data-i18n="visPublic">Public pool</option>
+                <option value="private" data-i18n="visPrivate">Donor only</option>
+                <option value="restricted" data-i18n="visRestricted">Named members</option>
               </select>
             </div>
             <div class="dt dt-accounts">
@@ -174,6 +193,8 @@ ${styles()}
                 <div data-i18n="colAccount">Account</div>
                 <div data-i18n="colStatus">Status</div>
                 <div data-i18n="colVisibility">Visibility</div>
+                <div data-i18n="colDonor">Donor</div>
+                <div data-i18n="colAllowed">Allowed users</div>
                 <div data-i18n="colCredits">Credits</div>
                 <div data-i18n="colUses">Uses</div>
                 <div data-i18n="colLastUsed">Last used</div>
@@ -436,10 +457,11 @@ ${styles()}
                 <option value="expired">expired</option>
                 <option value="error">error</option>
               </select>
-              <select id="contribFilterVis" class="select" style="min-width:110px">
+              <select id="contribFilterVis" class="select" style="min-width:130px">
                 <option value="" data-i18n="filterAllVis">All visibility</option>
-                <option value="public" data-i18n="visPublic">Public</option>
-                <option value="private" data-i18n="visPrivate">Private</option>
+                <option value="public" data-i18n="visPublic">Public pool</option>
+                <option value="private" data-i18n="visPrivate">Donor only</option>
+                <option value="restricted" data-i18n="visRestricted">Named members</option>
               </select>
             </div>
             <div class="dt dt-contrib">
@@ -449,6 +471,7 @@ ${styles()}
                 <div data-i18n="colCredits">Credits</div>
                 <div data-i18n="colUses">Uses</div>
                 <div data-i18n="colVisibility">Visibility</div>
+                <div data-i18n="colMembers">Members</div>
                 <div data-i18n="colLastUsed">Last used</div>
                 <div data-i18n="colActions">Actions</div>
               </div>
@@ -463,61 +486,130 @@ ${styles()}
           <div class="contrib-hero" style="background:radial-gradient(120% 140% at 100% 0%,#f3e8ff 0%,#fff 48%,#eef6ff 100%)">
             <div class="contrib-kicker" data-i18n="lbKicker">Public ranking</div>
             <h1 data-i18n="lbTitle">Contributor leaderboard</h1>
-            <p data-i18n="lbSub">Ranked by number of SuperGrok seats contributed. Admin accounts are excluded so the board stays community-first.</p>
+            <p data-i18n="lbSub">Two boards: total seats (public + private) and public-only seats. Admins are excluded.</p>
             <div class="contrib-cta-row">
               <button class="btn" type="button" data-goto="contribute" data-i18n="lbCta">Contribute now</button>
               <span class="mono" id="lbSummary" style="color:var(--mute)">–</span>
             </div>
           </div>
 
-          <div class="rank-me" id="lbMeCard">
-            <div>
-              <div class="mono" style="font-size:12px;color:var(--mute);margin-bottom:4px" data-i18n="lbYourRank">Your rank</div>
-              <div class="big" id="lbMeRank">–</div>
-              <div class="meta" id="lbMeMeta">–</div>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-              <span class="pill" id="lbMeCount">0</span>
-              <button class="btn btn-secondary btn-sm" type="button" data-goto="contribute" data-i18n="lbBoost">Boost rank</button>
-            </div>
-          </div>
-
-          <div class="podium" id="lbPodium"></div>
-
-          <div class="panel">
-            <div class="panel-hd">
-              <strong data-i18n="lbTable">Full ranking</strong>
-              <div class="spacer"></div>
-              <button class="btn btn-secondary btn-sm" type="button" id="btnLbRefresh" data-i18n="refresh">Refresh</button>
-            </div>
-            <div class="dt dt-lb">
-              <div class="dt-head">
-                <div data-i18n="colRank">Rank</div>
-                <div data-i18n="colUser">User</div>
-                <div data-i18n="colSeats">Seats</div>
-                <div data-i18n="colActive">Active</div>
+          <div class="lb-boards">
+            <div class="lb-board">
+              <div class="lb-board-hd">
+                <strong data-i18n="lbTotalTitle">Total board</strong>
+                <span class="mono" data-i18n="lbTotalHint">Public + private</span>
               </div>
-              <div class="dt-body" id="tbodyLb"><div class="dt-empty">…</div></div>
+              <div class="rank-me" id="lbMeCard">
+                <div>
+                  <div class="mono" style="font-size:12px;color:var(--mute);margin-bottom:4px" data-i18n="lbYourRank">Your rank</div>
+                  <div class="big" id="lbMeRank">–</div>
+                  <div class="meta" id="lbMeMeta">–</div>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                  <span class="pill" id="lbMeCount">0</span>
+                  <button class="btn btn-secondary btn-sm" type="button" data-goto="contribute" data-i18n="lbBoost">Boost rank</button>
+                </div>
+              </div>
+              <div class="podium" id="lbPodium"></div>
+              <div class="panel">
+                <div class="panel-hd">
+                  <strong data-i18n="lbTableTotal">Total ranking</strong>
+                  <div class="spacer"></div>
+                  <button class="btn btn-secondary btn-sm" type="button" id="btnLbRefresh" data-i18n="refresh">Refresh</button>
+                </div>
+                <div class="dt dt-lb">
+                  <div class="dt-head">
+                    <div data-i18n="colRank">Rank</div>
+                    <div data-i18n="colUser">User</div>
+                    <div data-i18n="colSeats">Total</div>
+                    <div data-i18n="colPublic">Public</div>
+                    <div data-i18n="colPrivate">Private</div>
+                    <div data-i18n="colActive">Active</div>
+                  </div>
+                  <div class="dt-body" id="tbodyLb"><div class="dt-empty">…</div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lb-board">
+              <div class="lb-board-hd">
+                <strong data-i18n="lbPublicTitle">Public board</strong>
+                <span class="mono" data-i18n="lbPublicHint">Shared pool only</span>
+              </div>
+              <div class="rank-me" id="lbPubMeCard">
+                <div>
+                  <div class="mono" style="font-size:12px;color:var(--mute);margin-bottom:4px" data-i18n="lbYourRank">Your rank</div>
+                  <div class="big" id="lbPubMeRank">–</div>
+                  <div class="meta" id="lbPubMeMeta">–</div>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                  <span class="pill" id="lbPubMeCount">0</span>
+                </div>
+              </div>
+              <div class="podium" id="lbPubPodium"></div>
+              <div class="panel">
+                <div class="panel-hd">
+                  <strong data-i18n="lbTablePublic">Public ranking</strong>
+                  <div class="spacer"></div>
+                </div>
+                <div class="dt dt-lb-pub">
+                  <div class="dt-head">
+                    <div data-i18n="colRank">Rank</div>
+                    <div data-i18n="colUser">User</div>
+                    <div data-i18n="colPublic">Public</div>
+                    <div data-i18n="colActive">Active</div>
+                  </div>
+                  <div class="dt-body" id="tbodyLbPub"><div class="dt-empty">…</div></div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
         <!-- SETTINGS -->
         <section class="view ${page==='settings'?'on':''}" id="view-settings">
-          <div class="panel">
-            <div class="panel-bd" style="display:grid;gap:18px">
-              <div class="callout" id="adminExplain"></div>
-              <div>
-                <div style="font-weight:500;margin-bottom:8px" data-i18n="upstreamTitle">xAI upstream</div>
-                <div class="settings-row">
-                  <input id="upstreamUrl" class="input grow" placeholder="https://api.x.ai/v1" style="min-width:220px;flex:1" />
-                  <button class="btn" type="button" id="btnSaveUpstream" data-i18n="saveUpstream">Save</button>
+          <div class="settings-stack">
+            <div class="callout" id="adminExplain"></div>
+
+            <div class="settings-card">
+              <div class="settings-card-hd">
+                <div>
+                  <div class="settings-card-title" data-i18n="endpointsTitle">Outbound endpoints</div>
+                  <div class="settings-card-sub" data-i18n="endpointsSub">LLM / OAuth / Billing — point to official hosts or a jump proxy</div>
                 </div>
-                <div class="hint" id="upstreamHint" data-i18n="upstreamHint">Empty = default api.x.ai/v1. Can point to a Vercel/OpenAI-compatible reverse proxy (auto-appends /v1).</div>
+                <button class="btn" type="button" id="btnSaveUpstream" data-i18n="saveEndpoints">Save endpoints</button>
               </div>
-              <div>
-                <div style="font-weight:500;margin-bottom:8px" data-i18n="proxyTitle">Outbound proxy</div>
-                <div class="settings-row">
+              <div class="settings-card-bd">
+                <div class="endpoint-grid">
+                  <div class="endpoint-field">
+                    <label class="field-label" data-i18n="upstreamTitle">LLM upstream</label>
+                    <input id="upstreamUrl" class="input block" placeholder="https://api.x.ai/v1" />
+                    <div class="hint" id="upstreamHint" data-i18n="upstreamHint">Empty = api.x.ai/v1</div>
+                  </div>
+                  <div class="endpoint-field">
+                    <label class="field-label" data-i18n="oauthBaseTitle">OAuth base</label>
+                    <input id="oauthBaseUrl" class="input block" placeholder="https://auth.x.ai" />
+                    <div class="hint" id="oauthBaseHint" data-i18n="oauthBaseHint">Empty = auth.x.ai</div>
+                  </div>
+                  <div class="endpoint-field">
+                    <label class="field-label" data-i18n="billingBaseTitle">Billing base</label>
+                    <input id="billingBaseUrl" class="input block" placeholder="https://cli-chat-proxy.grok.com" />
+                    <div class="hint" id="billingBaseHint" data-i18n="billingBaseHint">Empty = cli-chat-proxy.grok.com</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-hd">
+                <div>
+                  <div class="settings-card-title" data-i18n="proxyTitle">Outbound proxy</div>
+                  <div class="settings-card-sub" data-i18n="proxySub">Optional local HTTP proxy for Node outbound (not the browser)</div>
+                </div>
+                <button class="btn" type="button" id="btnSaveProxy" data-i18n="saveProxy">Save</button>
+              </div>
+              <div class="settings-card-bd">
+                <div class="settings-row tight">
                   <div class="seg" id="proxyModeSeg">
                     <button type="button" data-pmode="auto" class="on" data-i18n="proxyAuto">Auto</button>
                     <button type="button" data-pmode="direct" data-i18n="proxyDirect">Direct</button>
@@ -526,34 +618,65 @@ ${styles()}
                   <div id="proxyCustomWrap">
                     <input id="proxyUrl" class="input grow" placeholder="http://127.0.0.1:7890" />
                   </div>
-                  <button class="btn" type="button" id="btnSaveProxy" data-i18n="saveProxy">Save</button>
                 </div>
                 <div class="hint" id="proxyHint"></div>
               </div>
-              <div>
-                <div style="font-weight:500;margin-bottom:8px" data-i18n="logSettings">Request log settings</div>
-                <div class="settings-row">
-                  <label class="mono" style="display:flex;align-items:center;gap:6px">
-                    <input type="checkbox" id="logEnabled" /> <span data-i18n="logEnabled">Enable logging</span>
-                  </label>
-                  <label class="mono" style="display:flex;align-items:center;gap:6px">
-                    <input type="checkbox" id="logBodies" /> <span data-i18n="logBodies">Store request/response bodies</span>
-                  </label>
-                  <label class="mono" style="display:flex;align-items:center;gap:6px">
-                    <span data-i18n="logRetention">Retention (days)</span>
-                    <input id="logRetention" class="input" type="number" min="1" max="365" style="min-width:80px;width:80px" />
-                  </label>
+            </div>
+
+            <div class="settings-split">
+              <div class="settings-card">
+                <div class="settings-card-hd">
+                  <div>
+                    <div class="settings-card-title" data-i18n="logSettings">Request logs</div>
+                    <div class="settings-card-sub" data-i18n="logHint">Metadata by default; bodies only when debugging</div>
+                  </div>
                   <button class="btn" type="button" id="btnSaveLog" data-i18n="saveLog">Save</button>
                 </div>
-                <div class="hint" data-i18n="logHint">Default: metadata + tokens only. Bodies are large — enable only when debugging.</div>
+                <div class="settings-card-bd">
+                  <div class="toggle-list">
+                    <label class="toggle-row">
+                      <input type="checkbox" id="logEnabled" />
+                      <span>
+                        <strong data-i18n="logEnabled">Enable logging</strong>
+                        <em data-i18n="logEnabledSub">Write request rows to disk</em>
+                      </span>
+                    </label>
+                    <label class="toggle-row">
+                      <input type="checkbox" id="logBodies" />
+                      <span>
+                        <strong data-i18n="logBodies">Store bodies</strong>
+                        <em data-i18n="logBodiesSub">Large; enable only for debug</em>
+                      </span>
+                    </label>
+                    <div class="toggle-row static">
+                      <span>
+                        <strong data-i18n="logRetention">Retention (days)</strong>
+                        <em data-i18n="logRetentionSub">Auto-delete older logs</em>
+                      </span>
+                      <input id="logRetention" class="input" type="number" min="1" max="365" style="width:88px" />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div style="font-weight:500;margin-bottom:8px" data-i18n="userSettings">Users</div>
-                <div class="settings-row">
-                  <label class="mono" style="display:flex;align-items:center;gap:6px">
-                    <input type="checkbox" id="allowRegister" /> <span data-i18n="allowRegister">Allow registration</span>
-                  </label>
-                  <button class="btn" type="button" id="btnSaveReg" data-i18n="saveLog">Save</button>
+
+              <div class="settings-card">
+                <div class="settings-card-hd">
+                  <div>
+                    <div class="settings-card-title" data-i18n="userSettings">Registration</div>
+                    <div class="settings-card-sub" data-i18n="userSettingsSub">Control public self-signup</div>
+                  </div>
+                  <button class="btn" type="button" id="btnSaveReg" data-i18n="save">Save</button>
+                </div>
+                <div class="settings-card-bd">
+                  <div class="toggle-list">
+                    <label class="toggle-row">
+                      <input type="checkbox" id="allowRegister" />
+                      <span>
+                        <strong data-i18n="allowRegister">Allow registration</strong>
+                        <em data-i18n="allowRegisterSub">Users can create accounts after admin setup</em>
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -588,6 +711,78 @@ ${styles()}
       <div class="log-detail" id="logDetail"></div>
       <div class="row">
         <button class="btn btn-secondary" type="button" id="logClose" data-i18n="close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="myMembersModal">
+    <div class="modal" role="dialog">
+      <h3 id="myMembersTitle" data-i18n="membersTitle">Allowed members</h3>
+      <p id="myMembersSub" data-i18n="membersSub">Donor always has access. You can revoke extras; only admin can add users.</p>
+      <div class="member-vis" id="myMembersVisBar">
+        <span class="field-label" data-i18n="colVisibility">Visibility</span>
+        <div class="seg" id="myMembersVisSeg">
+          <button type="button" data-mvis="public" data-i18n="visPublic">Public pool</button>
+          <button type="button" data-mvis="private" data-i18n="visPrivate">Donor only</button>
+        </div>
+      </div>
+      <div class="member-list" id="myMembersBody"></div>
+      <div class="row">
+        <button class="btn btn-secondary" type="button" id="myMembersClose" data-i18n="close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="accModal">
+    <div class="modal modal-acc" role="dialog">
+      <div class="modal-hd">
+        <div>
+          <h3 id="accModalTitle" data-i18n="accEditTitle">Edit account</h3>
+          <p id="accModalSub" data-i18n="accEditSub">Visibility, donor and allowed users</p>
+        </div>
+      </div>
+      <div class="modal-grid">
+        <div class="field">
+          <label data-i18n="colAccount">Account</label>
+          <input id="accEditName" class="input block" />
+        </div>
+        <div class="field">
+          <label data-i18n="colVisibility">Visibility</label>
+          <select id="accEditPrivate" class="select block">
+            <option value="public" data-i18n="visPublic">Public</option>
+            <option value="private" data-i18n="visPrivate">Private</option>
+          </select>
+        </div>
+        <div class="field field-span">
+          <label data-i18n="accDonorLabel">Donor</label>
+          <select id="accEditDonor" class="select block">
+            <option value="" data-i18n="accDonorNone">No donor</option>
+          </select>
+        </div>
+        <div class="field field-span">
+          <div class="field-hd">
+            <label data-i18n="accAllowedLabel">Allowed users</label>
+            <button class="btn btn-secondary btn-sm" type="button" id="accEditAllowedClear" data-i18n="accAllowedClear">Clear all</button>
+          </div>
+          <div class="msel" id="accEditAllowed">
+            <button type="button" class="msel-btn" id="accEditAllowedBtn" aria-haspopup="listbox" aria-expanded="false">
+              <span class="msel-label" id="accEditAllowedMeta">–</span>
+              <svg class="msel-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="msel-panel" id="accEditAllowedPanel" hidden>
+              <div class="msel-search">
+                <input id="accEditAllowedQ" class="input block" type="search" autocomplete="off" data-i18n-placeholder="accAllowedSearch" placeholder="Search users…" />
+              </div>
+              <div class="msel-list" id="accEditAllowedList" role="listbox" aria-multiselectable="true"></div>
+              <div class="msel-empty" id="accEditAllowedEmpty" hidden></div>
+            </div>
+          </div>
+          <div class="hint" data-i18n="accAllowedHint">Searchable multi-select. Clear all removes restriction.</div>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn btn-secondary" type="button" id="accEditCancel" data-i18n="close">Close</button>
+        <button class="btn" type="button" id="accEditSubmit" data-i18n="save">Save</button>
       </div>
     </div>
   </div>
@@ -642,7 +837,7 @@ ${styles()}
         authRegTitle:"注册", authRegSub:"创建普通用户账号，可管理自己的密钥、日志与用量。",
         authToReg:"没有账号？注册", authToLogin:"已有账号？登录",
         authPassMismatch:"两次密码不一致",
-        navOps:"运营", navAnalyze:"分析", navOps2:"运维",
+        navOps:"运营", navAnalyze:"分析", navOps2:"运维", navSystem:"系统",
         navOverview:"总览", navAccounts:"账号", navKeys:"密钥", navUsers:"用户", navUsage:"用量", navLogs:"日志", navSettings:"设置",
         subOverview:"状态一览与快捷入口", subAccounts:"OAuth 池 · 路由与额度", subKeys:"客户端鉴权密钥",
         subUsers:"注册用户与角色", subUsage:"Token / 次数 / 模型分布", subLogs:"完整请求排查（低频）", subSettings:"代理与日志策略",
@@ -658,9 +853,22 @@ ${styles()}
         qaCurlTitle:"cURL 示例", qaCurl:"见首页", qaSettings:"代理与日志策略",
         adminExplain:"可选环境变量 <code>ADMIN_TOKEN</code> 可作为紧急管理员通道（Bearer）。日常请使用用户名密码登录。",
         adminExplainOpen:"请使用<strong>用户名密码</strong>登录。首次打开会引导创建管理员；账号池与代理仅管理员可配置。",
-        upstreamTitle:"xAI 上游地址", saveUpstream:"保存上游", upstreamSaved:"上游地址已更新",
-        upstreamHint:"留空=默认 api.x.ai/v1。可填 Vercel/国内反代域名（自动补 /v1）。OAuth 仍走 auth.x.ai。",
-        upstreamActive:(u)=>"当前生效："+u,
+        endpointsTitle:"出站端点", endpointsSub:"LLM / OAuth / 额度 — 可填官方地址或跳板域名",
+        upstreamTitle:"LLM 上游", saveUpstream:"保存上游", saveEndpoints:"保存端点",
+        upstreamSaved:"端点已更新",
+        upstreamHint:"留空 = api.x.ai/v1 · 跳板如 https://xai.ahao1.tech/v1",
+        upstreamActive:(u)=>"生效 "+u,
+        oauthBaseTitle:"OAuth 基址",
+        oauthBaseHint:"留空 = auth.x.ai · 跳板如 https://xai.ahao1.tech",
+        oauthBaseActive:(u)=>"生效 "+u,
+        billingBaseTitle:"额度基址",
+        billingBaseHint:"留空 = cli-chat-proxy.grok.com · 跳板如 https://xai.ahao1.tech",
+        billingBaseActive:(u)=>"生效 "+u,
+        proxySub:"仅影响 Node 出站（浏览器授权页不走这里）",
+        logEnabledSub:"写入请求日志到磁盘", logBodiesSub:"体积大，仅调试时开启",
+        logRetentionSub:"自动清理更早日志",
+        userSettingsSub:"控制是否开放公开注册",
+        allowRegisterSub:"管理员创建后，用户可自助注册",
         proxyTitle:"出站代理", proxyAuto:"自动", proxyDirect:"直连", proxyCustom:"自定义",
         proxyHintAuto:(src,url)=>"当前生效："+(url||"直连")+"（来源："+src+"）",
         saveProxy:"保存", proxySaved:"代理已更新",
@@ -680,9 +888,26 @@ ${styles()}
         colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟",
         routing:"路由", modeAuto:"自动", modeManual:"手动",
         accNamePh:"账号备注（可选）", addAccount:"添加账号",
+        accDonorNone:"无贡献者", accDonorLabel:"贡献者",
+        accAllowedLabel:"额外可用成员", accAllowedHint:"贡献者始终可用且不可取消；此处只配置额外成员。清空额外成员=仅贡献者（若为私有）或公共池规则",
+        accAllowedClear:"清除额外成员", accAllowedNone:"暂无用户",
+        accAllowedSearch:"搜索用户…", accAllowedEmptySearch:"无匹配用户",
+        accAllowedPicked:(n)=>n ? ("额外 "+n+" 人") : "无额外成员（贡献者始终可用）",
+        accAllowedPickedNames:(n,s)=>"额外 "+n+" 人："+s,
+        accAllowedDonorLocked:"贡献者（始终可用）",
+        accEdit:"编辑", accEditTitle:"编辑账号", accEditSub:"修改可见性、贡献者与限定用户",
+        accSaved:"账号已更新",
         deviceHint:"在浏览器打开验证页，输入以下 Device Code：",
         verifyUrl:"验证地址", waiting:"等待授权…",
         colAccount:"账号", colStatus:"状态", colCredits:"额度", colUses:"调用", colLastUsed:"上次使用", colActions:"操作",
+        colDonor:"贡献者", colAllowed:"可用成员", colMembers:"可用成员", colPublic:"公开", colPrivate:"私有",
+        visPublic:"公开池", visPrivate:"仅贡献者", visRestricted:"指定成员",
+        memberDonor:"贡献者（不可取消）", memberExtra:"额外成员",
+        membersTitle:"可用成员", membersSub:"你始终可用。可设公开/仅自己，或收回额外成员权限；不能自行添加用户（需管理员）。",
+        membersNone:"仅贡献者本人", membersCount:(n)=>n+" 人可用",
+        memberRevoke:"收回", memberRevokeOk:"已收回该用户权限",
+        memberRevokeConfirm:(n)=>"确定收回「"+n+"」的使用权限？",
+        memberDisabled:"已禁用/不可用",
         colAlias:"别名", colKey:"密钥", colExpires:"过期",
         keysTitle:"客户端密钥", keysHint:"Bearer gk_…",
         createKey:"创建密钥", create:"创建", close:"关闭",
@@ -727,19 +952,26 @@ ${styles()}
         routeMineHint:"只使用你贡献的账号。没有可用席位时请求会失败。",
         routeAccountHint:"固定走下方选中的账号（须有权使用）。",
         routeSaved:"路由偏好已保存",
-        colVisibility:"可见性", colOwner:"所属用户", visPublic:"公开", visPrivate:"私有",
-        setPrivate:"私有", setPublic:"公开",
-        privateOk:"已设为私有（不进公共池）", publicOk:"已设为公开（可进公共池）",
-        usePrivateBlocked:"私有贡献账号不能设为公共池当前账号",
+        colVisibility:"可见性", colOwner:"所属用户",
+        setPrivate:"仅自己", setPublic:"公开池",
+        privateOk:"已设为仅贡献者可用（不进公共池）", publicOk:"已设为公开池（无额外限定时）",
+        usePrivateBlocked:"仅贡献者/指定成员账号不能设为公共池当前账号",
+        visHintPublic:"进入公共轮询池",
+        visHintPrivate:"仅贡献者本人可用",
+        visHintRestricted:"仅名单内成员可用（含贡献者）",
         filterSearch:"搜索…", filterAllStatus:"全部状态", filterAllRole:"全部角色", filterAllVis:"全部可见性",
         editKey:"编辑", editKeyTitle:"编辑密钥", editKeySub:"修改别名、有效期或备注。不会重新生成密钥。",
         keyUpdated:"密钥已更新", save:"保存", never:"永不过期",
         lbKicker:"公开排行", lbTitle:"贡献者排行榜",
-        lbSub:"按贡献的 SuperGrok 席位数量排序。管理员账号已排除，榜单只反映社区贡献。",
+        lbSub:"两个榜：总贡献（公开+私有）与公开贡献。管理员已排除。",
         lbCta:"立即贡献", lbYourRank:"你的排名", lbBoost:"提升排名",
         lbTable:"完整榜单", lbEmpty:"还没有贡献者。成为第一名？",
-        lbSeats:(n)=>n+" 个席位", lbSummary:(c,d)=>c+" 位贡献者 · 共 "+d+" 个席位",
+        lbSeats:(n)=>n+" 个席位",
+        lbSummary:(c,d,p,v)=>c+" 位贡献者 · 共 "+d+" 席（公开 "+p+" / 私有 "+v+"）",
         lbUnranked:"尚未上榜 — 贡献一个账号即可入榜",
+        lbTotalTitle:"总贡献榜", lbTotalHint:"公开 + 私有",
+        lbPublicTitle:"公开贡献榜", lbPublicHint:"仅共享池",
+        lbTableTotal:"总贡献排名", lbTablePublic:"公开贡献排名",
         colRank:"名次", colSeats:"席位", colActive:"可用",
         copyCode:"复制代码",
       },
@@ -752,7 +984,7 @@ ${styles()}
         authRegTitle:"Register", authRegSub:"Create a user account to manage your own API keys, logs and usage.",
         authToReg:"No account? Register", authToLogin:"Have an account? Sign in",
         authPassMismatch:"Passwords do not match",
-        navOps:"Operate", navAnalyze:"Analyze", navOps2:"Ops",
+        navOps:"Operate", navAnalyze:"Analyze", navOps2:"Ops", navSystem:"System",
         navOverview:"Overview", navAccounts:"Accounts", navKeys:"API Keys", navUsers:"Users", navUsage:"Usage", navLogs:"Logs", navSettings:"Settings",
         subOverview:"Status & shortcuts", subAccounts:"OAuth pool · routing & credits", subKeys:"Client auth keys",
         subUsers:"Registered users & roles", subUsage:"Tokens / calls / models", subLogs:"Full request debug (rare)", subSettings:"Proxy & log policy",
@@ -768,9 +1000,22 @@ ${styles()}
         qaCurlTitle:"cURL", qaCurl:"On homepage", qaSettings:"Proxy & log policy",
         adminExplain:"Optional env <code>ADMIN_TOKEN</code> is an emergency admin Bearer. Prefer username/password login.",
         adminExplainOpen:"Sign in with username/password. First visit creates the admin. Account pool & proxy are admin-only.",
-        upstreamTitle:"xAI upstream", saveUpstream:"Save upstream", upstreamSaved:"Upstream updated",
-        upstreamHint:"Empty = api.x.ai/v1. Point to a Vercel/OpenAI-compatible reverse proxy (/v1 auto-appended). OAuth still uses auth.x.ai.",
-        upstreamActive:(u)=>"Active: "+u,
+        endpointsTitle:"Outbound endpoints", endpointsSub:"LLM / OAuth / Billing — official hosts or a jump proxy",
+        upstreamTitle:"LLM upstream", saveUpstream:"Save upstream", saveEndpoints:"Save endpoints",
+        upstreamSaved:"Endpoints updated",
+        upstreamHint:"Empty = api.x.ai/v1 · jump e.g. https://xai.ahao1.tech/v1",
+        upstreamActive:(u)=>"Active "+u,
+        oauthBaseTitle:"OAuth base",
+        oauthBaseHint:"Empty = auth.x.ai · jump e.g. https://xai.ahao1.tech",
+        oauthBaseActive:(u)=>"Active "+u,
+        billingBaseTitle:"Billing base",
+        billingBaseHint:"Empty = cli-chat-proxy.grok.com · jump e.g. https://xai.ahao1.tech",
+        billingBaseActive:(u)=>"Active "+u,
+        proxySub:"Node outbound only (browser authorize page is separate)",
+        logEnabledSub:"Write request rows to disk", logBodiesSub:"Large; debug only",
+        logRetentionSub:"Auto-delete older logs",
+        userSettingsSub:"Control public self-signup",
+        allowRegisterSub:"Users can register after admin setup",
         proxyTitle:"Outbound proxy", proxyAuto:"Auto", proxyDirect:"Direct", proxyCustom:"Custom",
         proxyHintAuto:(src,url)=>"Active: "+(url||"direct")+" (source: "+src+")",
         saveProxy:"Save", proxySaved:"Proxy updated",
@@ -790,9 +1035,26 @@ ${styles()}
         colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency",
         routing:"Routing", modeAuto:"Auto", modeManual:"Manual",
         accNamePh:"Account note (optional)", addAccount:"Add account",
+        accDonorNone:"No donor", accDonorLabel:"Donor",
+        accAllowedLabel:"Extra members", accAllowedHint:"Donor always has access and cannot be removed. Clear extras only.",
+        accAllowedClear:"Clear extras", accAllowedNone:"No users",
+        accAllowedSearch:"Search users…", accAllowedEmptySearch:"No matches",
+        accAllowedPicked:(n)=>n ? (n+" extra") : "No extras (donor always allowed)",
+        accAllowedPickedNames:(n,s)=>n+" extra: "+s,
+        accAllowedDonorLocked:"Donor (always allowed)",
+        accEdit:"Edit", accEditTitle:"Edit account", accEditSub:"Visibility, donor and allowed users",
+        accSaved:"Account updated",
         deviceHint:"Enter this Device Code on the verification page:",
         verifyUrl:"URL", waiting:"Waiting for auth…",
         colAccount:"Account", colStatus:"Status", colCredits:"Credits", colUses:"Uses", colLastUsed:"Last used", colActions:"Actions",
+        colDonor:"Donor", colAllowed:"Members", colMembers:"Members", colPublic:"Public", colPrivate:"Private",
+        visPublic:"Public pool", visPrivate:"Donor only", visRestricted:"Named members",
+        memberDonor:"Donor (always)", memberExtra:"Extra member",
+        membersTitle:"Allowed members", membersSub:"You always have access. Set public/donor-only, or revoke extras. Adding users requires an admin.",
+        membersNone:"Donor only", membersCount:(n)=>n+" members",
+        memberRevoke:"Revoke", memberRevokeOk:"Access revoked",
+        memberRevokeConfirm:(n)=>"Revoke access for ["+n+"]?",
+        memberDisabled:"Disabled / unavailable",
         colAlias:"Alias", colKey:"Key", colExpires:"Expires",
         keysTitle:"Client keys", keysHint:"Bearer gk_…",
         createKey:"Create key", create:"Create", close:"Close",
@@ -837,19 +1099,26 @@ ${styles()}
         routeMineHint:"Only accounts you contributed. Requests fail if none are available.",
         routeAccountHint:"Always use the selected account (must be allowed for you).",
         routeSaved:"Routing preference saved",
-        colVisibility:"Visibility", colOwner:"Owner", visPublic:"Public", visPrivate:"Private",
-        setPrivate:"Private", setPublic:"Public",
-        privateOk:"Now private (excluded from public pool)", publicOk:"Now public (joins public pool)",
-        usePrivateBlocked:"Private contributed accounts cannot be set as the public-pool current seat",
+        colVisibility:"Visibility", colOwner:"Owner",
+        setPrivate:"Donor only", setPublic:"Public pool",
+        privateOk:"Donor only (excluded from public pool)", publicOk:"Public pool (when no extra members)",
+        usePrivateBlocked:"Donor-only / named-member seats cannot be the public-pool current seat",
+        visHintPublic:"Joins public round-robin",
+        visHintPrivate:"Only the donor can use it",
+        visHintRestricted:"Only listed members (incl. donor)",
         filterSearch:"Search…", filterAllStatus:"All status", filterAllRole:"All roles", filterAllVis:"All visibility",
         editKey:"Edit", editKeyTitle:"Edit API key", editKeySub:"Update alias, validity, or note. The secret is not rotated.",
         keyUpdated:"API key updated", save:"Save", never:"never",
         lbKicker:"Public ranking", lbTitle:"Contributor leaderboard",
-        lbSub:"Ranked by SuperGrok seats contributed. Admin accounts are excluded so the board stays community-first.",
+        lbSub:"Two boards: total seats (public + private) and public-only seats. Admins are excluded.",
         lbCta:"Contribute now", lbYourRank:"Your rank", lbBoost:"Boost rank",
         lbTable:"Full ranking", lbEmpty:"No contributors yet. Be the first?",
-        lbSeats:(n)=>n+" seats", lbSummary:(c,d)=>c+" contributors · "+d+" seats",
+        lbSeats:(n)=>n+" seats",
+        lbSummary:(c,d,p,v)=>c+" contributors · "+d+" seats (public "+p+" / private "+v+")",
         lbUnranked:"Not ranked yet — contribute one account to join",
+        lbTotalTitle:"Total board", lbTotalHint:"Public + private",
+        lbPublicTitle:"Public board", lbPublicHint:"Shared pool only",
+        lbTableTotal:"Total ranking", lbTablePublic:"Public ranking",
         colRank:"Rank", colSeats:"Seats", colActive:"Active",
         copyCode:"Copy code",
       }
@@ -863,12 +1132,14 @@ ${styles()}
     let meta = { needsSetup: false, allowRegister: true, proxy: null, proxySource: "none", proxyConfigured: "", logRetentionDays: 7, logEnabled: true, logBodies: false, allowRegisterSetting: true, xaiBaseUrl: "https://api.x.ai/v1", upstreamBaseUrlConfigured: "" };
     let pollTimer = null;
     let allUsers = [];
+    let accountUsers = [];
     let curlEp = "chat";
     let proxyMode = "auto";
     let allAccounts = [];
     let myAccounts = [];
     let allKeys = [];
     let accPage = 1;
+    let accEditId = null;
     let contribPage = 1;
     let contribPollTimer = null;
     let leaderboardData = null;
@@ -998,16 +1269,7 @@ ${styles()}
       renderKeys();
       renderMyAccounts();
       if (leaderboardData) {
-        paintPodium(leaderboardData.entries || []);
-        paintLbTable(leaderboardData.entries || []);
-        if (leaderboardData.me) {
-          if ($("lbMeRank")) $("lbMeRank").textContent = "#" + leaderboardData.me.rank;
-          if ($("lbMeMeta")) $("lbMeMeta").textContent = leaderboardData.me.username + " · " + t("lbSeats", leaderboardData.me.count);
-          if ($("lbMeCount")) $("lbMeCount").textContent = t("lbSeats", leaderboardData.me.count);
-        } else if ($("lbMeMeta")) {
-          $("lbMeMeta").textContent = t("lbUnranked");
-        }
-        if ($("lbSummary")) $("lbSummary").textContent = t("lbSummary", leaderboardData.totalContributors || 0, leaderboardData.totalDonated || 0);
+        paintLeaderboard(leaderboardData);
       }
     }
 
@@ -1041,9 +1303,23 @@ ${styles()}
       if ($("upstreamUrl") && !$("upstreamUrl").matches(":focus")) {
         $("upstreamUrl").value = meta.upstreamBaseUrlConfigured || "";
       }
+      if ($("oauthBaseUrl") && !$("oauthBaseUrl").matches(":focus")) {
+        $("oauthBaseUrl").value = meta.oauthBaseUrlConfigured || "";
+      }
+      if ($("billingBaseUrl") && !$("billingBaseUrl").matches(":focus")) {
+        $("billingBaseUrl").value = meta.billingBaseUrlConfigured || "";
+      }
       if ($("upstreamHint")) {
         const active = meta.xaiBaseUrl || "https://api.x.ai/v1";
         $("upstreamHint").textContent = t("upstreamActive", active) + " · " + t("upstreamHint");
+      }
+      if ($("oauthBaseHint")) {
+        const active = meta.oauthBaseUrl || "https://auth.x.ai";
+        $("oauthBaseHint").textContent = t("oauthBaseActive", active) + " · " + t("oauthBaseHint");
+      }
+      if ($("billingBaseHint")) {
+        const active = meta.billingBaseUrl || "https://cli-chat-proxy.grok.com";
+        $("billingBaseHint").textContent = t("billingBaseActive", active) + " · " + t("billingBaseHint");
       }
     }
 
@@ -1189,13 +1465,18 @@ ${styles()}
       return page;
     }
 
-    /** Custom dropdown UI for native <select class="select"> */
+    /** Custom dropdown UI for native <select class="select"> (skip multi-select) */
     function enhanceSelect(sel) {
       if (!sel || sel.tagName !== "SELECT" || sel.dataset.cselect === "1") return;
+      if (sel.multiple) return;
       sel.dataset.cselect = "1";
       sel.classList.add("select-native");
       const wrap = document.createElement("div");
-      wrap.className = "cselect" + (sel.classList.contains("grow") || sel.style.width === "100%" ? " block" : "");
+      const full =
+        sel.classList.contains("grow") ||
+        sel.classList.contains("block") ||
+        sel.style.width === "100%";
+      wrap.className = "cselect" + (full ? " block" : "");
       if (sel.style.minWidth) wrap.style.minWidth = sel.style.minWidth;
       if (sel.style.width && sel.style.width !== "100%") wrap.style.width = sel.style.width;
       if (sel.style.maxWidth) wrap.style.maxWidth = sel.style.maxWidth;
@@ -1311,16 +1592,293 @@ ${styles()}
       return String(hay || "").toLowerCase().includes(q);
     }
 
+    function accIsRestricted(a) {
+      return Array.isArray(a.allowedUserIds) && a.allowedUserIds.length > 0;
+    }
+    /** Effective visibility: restricted > private > public */
+    function accVisKey(a) {
+      if (accIsRestricted(a)) return "restricted";
+      if (a.private === true) return "private";
+      return "public";
+    }
+    function accIsPrivate(a) {
+      return accVisKey(a) !== "public";
+    }
+    function accVisLabel(a) {
+      const k = accVisKey(a);
+      if (k === "restricted") return t("visRestricted");
+      if (k === "private") return t("visPrivate");
+      return t("visPublic");
+    }
+    function accVisHint(a) {
+      const k = accVisKey(a);
+      if (k === "restricted") return t("visHintRestricted");
+      if (k === "private") return t("visHintPrivate");
+      return t("visHintPublic");
+    }
+    function accVisBadgeClass(a) {
+      const k = accVisKey(a);
+      if (k === "restricted") return "exhausted";
+      if (k === "private") return "expired";
+      return "active";
+    }
+    function accDonorLabel(a) {
+      if (a.donorUsername) return a.donorUsername;
+      if (a.donorUserId) return a.donorUserId.slice(0, 8);
+      return "–";
+    }
+    function accAllowedLabel(a) {
+      if (Array.isArray(a.memberLabels) && a.memberLabels.length) {
+        return a.memberLabels.join(", ");
+      }
+      const parts = [];
+      if (a.donorUsername) parts.push(a.donorUsername + " (donor)");
+      else if (a.donorUserId) parts.push(String(a.donorUserId).slice(0, 8) + " (donor)");
+      if (Array.isArray(a.allowedUsernames) && a.allowedUsernames.length) {
+        for (const n of a.allowedUsernames) {
+          if (a.donorUsername && n === a.donorUsername) continue;
+          parts.push(n);
+        }
+      } else if (Array.isArray(a.allowedUserIds) && a.allowedUserIds.length) {
+        for (const id of a.allowedUserIds) {
+          if (a.donorUserId && id === a.donorUserId) continue;
+          parts.push(String(id).slice(0, 6));
+        }
+      }
+      return parts.length ? parts.join(", ") : "–";
+    }
+    function myMembersLabel(a) {
+      if (Array.isArray(a.members) && a.members.length) {
+        return a.members.map((m) => m.username + (m.isDonor ? " ★" : "")).join(", ");
+      }
+      return t("membersNone");
+    }
+    function fillUserSelect(sel, opts) {
+      if (!sel) return;
+      const keep = opts && opts.keepValue !== false;
+      const prev = keep ? sel.value : "";
+      const withEmpty = !(opts && opts.noEmpty);
+      const emptyLabel = (opts && opts.emptyLabel) || t("accDonorNone");
+      const users = accountUsers.length ? accountUsers : allUsers;
+      sel.innerHTML = (withEmpty ? '<option value="">' + esc(emptyLabel) + "</option>" : "") +
+        users.map((u) => '<option value="' + esc(u.id) + '">' + esc(u.username) + (u.role === "admin" ? " (admin)" : "") + "</option>").join("");
+      if (keep && prev) sel.value = prev;
+      if (sel._cselectRefresh) sel._cselectRefresh();
+    }
+    let allowedSelected = new Set();
+    let allowedFilterQ = "";
+    let allowedDonorId = null;
+
+    function allowedUsersSource() {
+      return accountUsers.length ? accountUsers : allUsers;
+    }
+    function userLabel(u) {
+      return (u.username || u.id) + (u.role === "admin" ? " (admin)" : "");
+    }
+    function positionAllowedPanel() {
+      const btn = $("accEditAllowedBtn");
+      const panel = $("accEditAllowedPanel");
+      if (!btn || !panel || panel.hidden) return;
+      // re-parent to body so modal overflow / stacking never clips the menu
+      if (panel.parentElement !== document.body) {
+        document.body.appendChild(panel);
+      }
+      const r = btn.getBoundingClientRect();
+      const gap = 4;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const width = Math.min(Math.max(r.width, 240), vw - 24);
+      let left = r.left;
+      if (left + width > vw - 12) left = Math.max(12, vw - 12 - width);
+      if (left < 12) left = 12;
+      const spaceBelow = vh - r.bottom - gap - 12;
+      const spaceAbove = r.top - gap - 12;
+      const preferBelow = spaceBelow >= 180 || spaceBelow >= spaceAbove;
+      const maxH = Math.min(320, Math.max(160, preferBelow ? spaceBelow : spaceAbove));
+      panel.style.position = "fixed";
+      panel.style.zIndex = "400";
+      panel.style.width = width + "px";
+      panel.style.maxHeight = maxH + "px";
+      panel.style.left = left + "px";
+      panel.style.right = "auto";
+      if (preferBelow) {
+        panel.style.top = (r.bottom + gap) + "px";
+        panel.style.bottom = "auto";
+      } else {
+        panel.style.top = "auto";
+        panel.style.bottom = (vh - r.top + gap) + "px";
+      }
+      const list = $("accEditAllowedList");
+      if (list) {
+        list.style.maxHeight = Math.max(100, maxH - 56) + "px";
+        list.style.overflowY = "auto";
+      }
+    }
+    function closeAllowedPanel() {
+      const root = $("accEditAllowed");
+      const panel = $("accEditAllowedPanel");
+      const btn = $("accEditAllowedBtn");
+      if (panel) {
+        panel.hidden = true;
+        panel.style.top = "";
+        panel.style.bottom = "";
+        panel.style.left = "";
+        panel.style.right = "";
+        panel.style.width = "";
+        panel.style.maxHeight = "";
+        // put panel back under msel for clean DOM when closed
+        if (root && panel.parentElement !== root) root.appendChild(panel);
+      }
+      if (root) root.classList.remove("open");
+      if (btn) btn.setAttribute("aria-expanded", "false");
+      window.removeEventListener("resize", positionAllowedPanel);
+      window.removeEventListener("scroll", positionAllowedPanel, true);
+    }
+    function openAllowedPanel() {
+      const root = $("accEditAllowed");
+      const panel = $("accEditAllowedPanel");
+      const btn = $("accEditAllowedBtn");
+      if (!panel) return;
+      panel.hidden = false;
+      if (root) root.classList.add("open");
+      if (btn) btn.setAttribute("aria-expanded", "true");
+      if ($("accEditAllowedQ")) {
+        $("accEditAllowedQ").value = allowedFilterQ;
+      }
+      renderAllowedList();
+      positionAllowedPanel();
+      window.addEventListener("resize", positionAllowedPanel);
+      window.addEventListener("scroll", positionAllowedPanel, true);
+      setTimeout(() => { try { if ($("accEditAllowedQ")) $("accEditAllowedQ").focus(); } catch {} }, 0);
+    }
+    function toggleAllowedPanel() {
+      const panel = $("accEditAllowedPanel");
+      if (!panel || panel.hidden) openAllowedPanel();
+      else closeAllowedPanel();
+    }
+    function fillAllowedSelect(_box, selectedIds, donorId) {
+      allowedDonorId = donorId || null;
+      // donor is always allowed — never stored / toggled as extra
+      allowedSelected = new Set(
+        (selectedIds || []).filter((id) => id && id !== allowedDonorId),
+      );
+      allowedFilterQ = "";
+      if ($("accEditAllowedQ")) $("accEditAllowedQ").value = "";
+      closeAllowedPanel();
+      renderAllowedList();
+      syncAllowedCount();
+    }
+    function renderAllowedList() {
+      const list = $("accEditAllowedList");
+      const empty = $("accEditAllowedEmpty");
+      if (!list) return;
+      const users = allowedUsersSource();
+      const q = allowedFilterQ.trim().toLowerCase();
+      // extras only — donor shown as locked row at top when present
+      const extras = users.filter((u) => u.id !== allowedDonorId);
+      const filtered = q
+        ? extras.filter((u) => matchQ(u.username, q) || matchQ(u.id, q))
+        : extras;
+      const donor = allowedDonorId
+        ? users.find((u) => u.id === allowedDonorId)
+        : null;
+      const donorRow = donor
+        ? '<div class="msel-opt locked on" title="' + esc(t("accAllowedDonorLocked")) + '">' +
+          '<input type="checkbox" checked disabled />' +
+          '<span class="msel-name">' + esc(userLabel(donor)) +
+          ' <span class="msel-tag">' + esc(t("accAllowedDonorLocked")) + "</span></span>" +
+          "</div>"
+        : (allowedDonorId
+          ? '<div class="msel-opt locked on">' +
+            '<input type="checkbox" checked disabled />' +
+            '<span class="msel-name">' + esc(String(allowedDonorId).slice(0, 8)) +
+            ' <span class="msel-tag">' + esc(t("accAllowedDonorLocked")) + "</span></span>" +
+            "</div>"
+          : "");
+
+      if (!users.length && !allowedDonorId) {
+        list.innerHTML = "";
+        if (empty) {
+          empty.hidden = false;
+          empty.textContent = t("accAllowedNone");
+        }
+        return;
+      }
+      if (!filtered.length && !donorRow) {
+        list.innerHTML = "";
+        if (empty) {
+          empty.hidden = false;
+          empty.textContent = t("accAllowedEmptySearch");
+        }
+        return;
+      }
+      if (empty) empty.hidden = true;
+      const MAX_SHOW = 200;
+      const slice = filtered.slice(0, MAX_SHOW);
+      list.innerHTML = donorRow + slice.map((u) => {
+        const on = allowedSelected.has(u.id);
+        return '<label class="msel-opt' + (on ? " on" : "") + '">' +
+          '<input type="checkbox" value="' + esc(u.id) + '"' + (on ? " checked" : "") + " />" +
+          '<span class="msel-name">' + esc(userLabel(u)) + "</span>" +
+          "</label>";
+      }).join("") +
+        (filtered.length > MAX_SHOW
+          ? '<div class="msel-more">' + esc("…" + (filtered.length - MAX_SHOW)) + "</div>"
+          : "");
+      list.querySelectorAll('input[type="checkbox"]:not([disabled])').forEach((cb) => {
+        cb.addEventListener("change", () => {
+          const id = cb.value;
+          if (!id || id === allowedDonorId) return;
+          if (cb.checked) allowedSelected.add(id);
+          else allowedSelected.delete(id);
+          const lab = cb.closest(".msel-opt");
+          if (lab) lab.classList.toggle("on", cb.checked);
+          syncAllowedCount();
+        });
+      });
+      if ($("accEditAllowedPanel") && !$("accEditAllowedPanel").hidden) {
+        requestAnimationFrame(positionAllowedPanel);
+      }
+    }
+    function getAllowedSelectedIds() {
+      // extras only; backend always grants donor separately
+      return [...allowedSelected].filter((id) => id && id !== allowedDonorId);
+    }
+    function clearAllowedSelection() {
+      allowedSelected = new Set();
+      renderAllowedList();
+      syncAllowedCount();
+    }
+    function syncAllowedCount() {
+      const hint = $("accEditAllowedMeta");
+      if (!hint) return;
+      const ids = getAllowedSelectedIds();
+      const n = ids.length;
+      if (!n) {
+        hint.textContent = t("accAllowedPicked", 0);
+        return;
+      }
+      const users = allowedUsersSource();
+      const names = ids
+        .map((id) => {
+          const u = users.find((x) => x.id === id);
+          return u ? u.username : id.slice(0, 6);
+        })
+        .slice(0, 3);
+      const extra = n > 3 ? " +" + (n - 3) : "";
+      hint.textContent = t("accAllowedPickedNames", n, names.join(", ") + extra);
+    }
+
     function filteredAccounts() {
       const q = (($("accFilterQ") && $("accFilterQ").value) || "").trim().toLowerCase();
       const st = ($("accFilterSt") && $("accFilterSt").value) || "";
       const vis = ($("accFilterVis") && $("accFilterVis").value) || "";
       return allAccounts.filter((a) => {
         if (st && a.status !== st) return false;
-        if (vis === "private" && a.private !== true) return false;
-        if (vis === "public" && a.private === true) return false;
+        if (vis && accVisKey(a) !== vis) return false;
         if (!q) return true;
-        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.donorUserId, q) || matchQ(a.lastError, q);
+        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.donorUserId, q) ||
+          matchQ(a.donorUsername, q) || matchQ(accAllowedLabel(a), q) || matchQ(a.lastError, q);
       });
     }
 
@@ -1339,11 +1897,11 @@ ${styles()}
       tbody.innerHTML = slice.map((a) => {
         const cur = a.isCurrent;
         const err = a.lastError ? shortErr(a.lastError) : "";
-        const isPriv = a.private === true;
+        const isPriv = accIsPrivate(a);
         const useDisabled = isPriv ? (" disabled title='" + esc(t("usePrivateBlocked")) + "'") : "";
         return '<div class="dt-row' + (cur ? " current" : "") + (isPriv ? " is-private" : "") + '">' +
           '<div><div class="name">' + esc(a.name) + '</div>' +
-          '<div class="mono">' + esc(a.id) + (a.donorUserId ? " · " + esc(a.donorUserId) : "") + "</div>" +
+          '<div class="mono">' + esc(a.id) + "</div>" +
           ((cur || a.donorUserId)
             ? '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">' +
               (cur ? '<span class="badge current">' + esc(t("current")) + "</span>" : "") +
@@ -1353,12 +1911,17 @@ ${styles()}
           (err ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
           "</div>" +
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
-          '<div><span class="badge ' + (isPriv ? "exhausted" : "active") + '">' + esc(isPriv ? t("visPrivate") : t("visPublic")) + "</span></div>" +
+          '<div title="' + esc(accVisHint(a)) + '"><span class="badge ' + accVisBadgeClass(a) + '">' + esc(accVisLabel(a)) + "</span></div>" +
+          '<div><div class="name">' + esc(accDonorLabel(a)) + '</div>' +
+          (a.donorUserId ? '<div class="mono" style="font-size:11px">' + esc(a.donorUserId.slice(0, 8)) + "</div>" : "") +
+          "</div>" +
+          '<div class="mono" style="font-size:12px;line-height:1.35;word-break:break-word">' + esc(accAllowedLabel(a)) + "</div>" +
           "<div>" + creditCell(a) + "</div>" +
           '<div class="mono">' + a.useCount + "</div>" +
           '<div class="dt-time">' + fmtTime(a.lastUsedAt) + "</div>" +
           '<div class="dt-actions">' +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="use" data-id="' + esc(a.id) + '"' + useDisabled + '>' + esc(t("use")) + "</button>" +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="edit" data-id="' + esc(a.id) + '">' + esc(t("accEdit")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="reset" data-id="' + esc(a.id) + '">' + esc(t("reset")) + "</button>" +
           '<button class="btn btn-danger btn-sm" type="button" data-act="del" data-id="' + esc(a.id) + '">' + esc(t("del")) + "</button>" +
@@ -1370,6 +1933,7 @@ ${styles()}
           const id = btn.getAttribute("data-id");
           const act = btn.getAttribute("data-act");
           if (act === "use") useAcc(id);
+          if (act === "edit") openAccEdit(id);
           if (act === "credits") checkCredits(id);
           if (act === "reset") resetAcc(id);
           if (act === "del") delAcc(id);
@@ -1887,9 +2451,68 @@ ${styles()}
       if ($("sTotal")) $("sTotal").textContent = data.stats.total;
       if ($("sActive")) $("sActive").textContent = data.stats.active;
       allAccounts = data.accounts || [];
+      accountUsers = data.users || accountUsers;
+      fillUserSelect($("accDonor"));
       const maxPage = Math.max(1, Math.ceil(allAccounts.length / PAGE_SIZE));
       if (accPage > maxPage) accPage = maxPage;
       renderAccounts();
+    }
+
+    function openAccEdit(id) {
+      const a = allAccounts.find((x) => x.id === id);
+      if (!a) return;
+      accEditId = id;
+      fillUserSelect($("accEditDonor"), { emptyLabel: t("accDonorNone") });
+      if ($("accEditName")) $("accEditName").value = a.name || "";
+      if ($("accEditPrivate")) $("accEditPrivate").value = a.private === true ? "private" : "public";
+      if ($("accEditDonor")) {
+        $("accEditDonor").value = a.donorUserId || "";
+        if ($("accEditDonor")._cselectRefresh) $("accEditDonor")._cselectRefresh();
+        if ($("accEditDonor").parentElement && $("accEditDonor").parentElement._cselectRefresh) {
+          $("accEditDonor").parentElement._cselectRefresh();
+        }
+      }
+      if ($("accEditPrivate") && $("accEditPrivate").parentElement && $("accEditPrivate").parentElement._cselectRefresh) {
+        $("accEditPrivate").parentElement._cselectRefresh();
+      }
+      // donor always locked; allowlist is extras only
+      fillAllowedSelect($("accEditAllowed"), a.allowedUserIds || [], a.donorUserId || null);
+      if ($("accModal")) $("accModal").classList.add("show");
+      applyI18n();
+      syncAllowedCount();
+    }
+
+    function closeAccEdit() {
+      accEditId = null;
+      closeAllowedPanel();
+      if ($("accModal")) $("accModal").classList.remove("show");
+    }
+
+    async function saveAccEdit() {
+      if (!accEditId) return;
+      try {
+        const donorId = ($("accEditDonor") && $("accEditDonor").value) || null;
+        // extras only; donor always granted by server and stripped from list
+        const allowed = getAllowedSelectedIds().filter((id) => id !== donorId);
+        const body = {
+          name: ($("accEditName") && $("accEditName").value.trim()) || undefined,
+          private: $("accEditPrivate") && $("accEditPrivate").value === "private",
+          donorUserId: donorId,
+          allowedUserIds: allowed,
+        };
+        const res = await fetch("/api/admin/accounts/" + accEditId, {
+          method: "PATCH",
+          headers: jsonHeaders(),
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        showMsg($("msg"), t("accSaved"), "ok");
+        closeAccEdit();
+        await loadAccounts();
+      } catch (e) {
+        showMsg($("msg"), e.message || String(e), "err");
+      }
     }
 
     async function loadKeys() {
@@ -2088,10 +2711,9 @@ ${styles()}
       const vis = ($("contribFilterVis") && $("contribFilterVis").value) || "";
       return myAccounts.filter((a) => {
         if (st && a.status !== st) return false;
-        if (vis === "private" && a.private !== true) return false;
-        if (vis === "public" && a.private === true) return false;
+        if (vis && accVisKey(a) !== vis) return false;
         if (!q) return true;
-        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.lastError, q);
+        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.lastError, q) || matchQ(myMembersLabel(a), q);
       });
     }
 
@@ -2116,7 +2738,8 @@ ${styles()}
       const slice = list.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((a) => {
         const err = a.lastError ? shortErr(a.lastError) : "";
-        const isPriv = a.private === true;
+        const membersTxt = myMembersLabel(a);
+        const mCount = Array.isArray(a.members) ? a.members.length : 1;
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(a.name) + '</div><div class="mono">' + esc(a.id) + "</div>" +
           (err ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
@@ -2124,12 +2747,15 @@ ${styles()}
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
           "<div>" + creditCell(a) + "</div>" +
           '<div class="mono">' + a.useCount + "</div>" +
-          '<div><span class="badge ' + (isPriv ? "exhausted" : "active") + '">' + esc(isPriv ? t("visPrivate") : t("visPublic")) + "</span></div>" +
+          '<div title="' + esc(accVisHint(a)) + '"><span class="badge ' + accVisBadgeClass(a) + '">' + esc(accVisLabel(a)) + "</span></div>" +
+          '<div class="members-cell" title="' + esc(membersTxt) + '">' +
+          '<div class="mono">' + esc(t("membersCount", mCount)) + "</div>" +
+          '<div class="members-preview">' + esc(membersTxt) + "</div>" +
+          "</div>" +
           '<div class="dt-time">' + fmtTime(a.lastUsedAt) + "</div>" +
           '<div class="dt-actions">' +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="c-members" data-id="' + esc(a.id) + '">' + esc(t("membersTitle")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="c-credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>" +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="c-vis" data-id="' + esc(a.id) + '" data-priv="' + (isPriv ? "0" : "1") + '">' +
-          esc(isPriv ? t("setPublic") : t("setPrivate")) + "</button>" +
           '<button class="btn btn-danger btn-sm" type="button" data-act="c-del" data-id="' + esc(a.id) + '" data-name="' + esc(a.name || a.id) + '">' + esc(t("withdrawContrib")) + "</button>" +
           "</div></div>";
       }).join("");
@@ -2138,11 +2764,104 @@ ${styles()}
           const id = btn.getAttribute("data-id");
           const act = btn.getAttribute("data-act");
           if (act === "c-credits") checkMyCredits(id);
-          if (act === "c-vis") setMyAccPrivate(id, btn.getAttribute("data-priv") === "1");
           if (act === "c-del") delMyAcc(id, btn.getAttribute("data-name") || id);
+          if (act === "c-members") openMyMembers(id);
         });
       });
       paintRouteAccountSelect();
+    }
+
+    let myMembersAccId = null;
+
+    function openMyMembers(id) {
+      const a = myAccounts.find((x) => x.id === id);
+      if (!a) return;
+      myMembersAccId = id;
+      paintMyMembersModal(a);
+      if ($("myMembersModal")) $("myMembersModal").classList.add("show");
+      applyI18n();
+    }
+    function paintMyMembersModal(a) {
+      const members = Array.isArray(a.members) ? a.members : [];
+      const body = $("myMembersBody");
+      const title = $("myMembersTitle");
+      if (title) title.textContent = t("membersTitle") + " · " + (a.name || a.id);
+      if ($("myMembersSub")) $("myMembersSub").textContent = t("membersSub");
+      // visibility: public vs private (named-members still can toggle private flag)
+      const visKey = a.private === true ? "private" : "public";
+      if ($("myMembersVisSeg")) {
+        $("myMembersVisSeg").querySelectorAll("button").forEach((b) => {
+          b.classList.toggle("on", b.getAttribute("data-mvis") === visKey);
+        });
+      }
+      if (body) {
+        if (!members.length) {
+          body.innerHTML = '<div class="allowed-empty">' + esc(t("membersNone")) + "</div>";
+        } else {
+          body.innerHTML = members.map((m) => {
+            return '<div class="member-row' + (m.isDonor ? " donor" : "") + '">' +
+              '<div class="member-main">' +
+              '<div class="name">' + esc(m.username) + "</div>" +
+              '<div class="mono">' + esc(m.id.slice(0, 10)) + (m.role === "admin" ? " · admin" : "") + "</div>" +
+              "</div>" +
+              (m.isDonor
+                ? '<span class="badge current">' + esc(t("memberDonor")) + "</span>"
+                : ('<button class="btn btn-danger btn-sm" type="button" data-revoke="' + esc(m.id) + '" data-name="' + esc(m.username) + '">' +
+                  esc(t("memberRevoke")) + "</button>")) +
+              "</div>";
+          }).join("");
+          body.querySelectorAll("button[data-revoke]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              revokeMyMember(btn.getAttribute("data-revoke"), btn.getAttribute("data-name") || "");
+            });
+          });
+        }
+      }
+    }
+    function closeMyMembers() {
+      myMembersAccId = null;
+      if ($("myMembersModal")) $("myMembersModal").classList.remove("show");
+    }
+    async function setMyMembersVis(priv) {
+      if (!myMembersAccId) return;
+      try {
+        const res = await fetch("/api/me/accounts/" + encodeURIComponent(myMembersAccId), {
+          method: "PATCH", headers: jsonHeaders(),
+          body: JSON.stringify({ private: !!priv }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        showMsg($("msgContrib"), priv ? t("privateOk") : t("publicOk"), "ok");
+        await loadMyAccounts();
+        const a = myAccounts.find((x) => x.id === myMembersAccId);
+        if (a) paintMyMembersModal(a);
+      } catch (e) {
+        showMsg($("msgContrib"), e.message || String(e), "err");
+      }
+    }
+    async function revokeMyMember(userId, name) {
+      if (!myMembersAccId || !userId) return;
+      if (!confirm(t("memberRevokeConfirm", name || userId))) return;
+      try {
+        const res = await fetch("/api/me/accounts/" + encodeURIComponent(myMembersAccId), {
+          method: "PATCH", headers: jsonHeaders(),
+          body: JSON.stringify({ revokeUserIds: [userId] }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        showMsg($("msgContrib"), t("memberRevokeOk"), "ok");
+        // merge response into list if present
+        if (data.account) {
+          const idx = myAccounts.findIndex((x) => x.id === myMembersAccId);
+          if (idx >= 0) myAccounts[idx] = { ...myAccounts[idx], ...data.account };
+        }
+        await loadMyAccounts();
+        const a = myAccounts.find((x) => x.id === myMembersAccId);
+        if (a) paintMyMembersModal(a);
+        else closeMyMembers();
+      } catch (e) {
+        showMsg($("msgContrib"), e.message || String(e), "err");
+      }
     }
 
     async function loadMyAccounts() {
@@ -2173,31 +2892,65 @@ ${styles()}
       } catch {}
     }
 
+    function paintLeaderboard(data) {
+      if (!data) return;
+      if ($("lbSummary")) {
+        $("lbSummary").textContent = t(
+          "lbSummary",
+          data.totalContributors || 0,
+          data.totalDonated || 0,
+          data.totalPublic || 0,
+          data.totalPrivate || 0,
+        );
+      }
+      // total board me
+      if (data.me) {
+        if ($("lbMeRank")) $("lbMeRank").textContent = "#" + data.me.rank;
+        if ($("lbMeMeta")) {
+          $("lbMeMeta").textContent =
+            data.me.username + " · " + t("lbSeats", data.me.count) +
+            " (" + t("colPublic") + " " + (data.me.publicCount || 0) +
+            " / " + t("colPrivate") + " " + (data.me.privateCount || 0) + ")";
+        }
+        if ($("lbMeCount")) $("lbMeCount").textContent = t("lbSeats", data.me.count);
+      } else {
+        if ($("lbMeRank")) $("lbMeRank").textContent = "–";
+        if ($("lbMeMeta")) $("lbMeMeta").textContent = t("lbUnranked");
+        if ($("lbMeCount")) $("lbMeCount").textContent = t("lbSeats", 0);
+      }
+      // public board me
+      if (data.publicMe) {
+        if ($("lbPubMeRank")) $("lbPubMeRank").textContent = "#" + data.publicMe.rank;
+        if ($("lbPubMeMeta")) {
+          $("lbPubMeMeta").textContent =
+            data.publicMe.username + " · " + t("colPublic") + " " + (data.publicMe.publicCount || 0);
+        }
+        if ($("lbPubMeCount")) $("lbPubMeCount").textContent = t("lbSeats", data.publicMe.publicCount || 0);
+      } else {
+        if ($("lbPubMeRank")) $("lbPubMeRank").textContent = "–";
+        if ($("lbPubMeMeta")) $("lbPubMeMeta").textContent = t("lbUnranked");
+        if ($("lbPubMeCount")) $("lbPubMeCount").textContent = t("lbSeats", 0);
+      }
+      if ($("cRank")) $("cRank").textContent = data.me ? ("#" + data.me.rank) : t("contribRankUnranked");
+      paintPodium($("lbPodium"), data.entries || [], "count");
+      paintPodium($("lbPubPodium"), data.publicEntries || [], "publicCount");
+      paintLbTable($("tbodyLb"), data.entries || [], "total");
+      paintLbTable($("tbodyLbPub"), data.publicEntries || [], "public");
+    }
+
     async function loadLeaderboard() {
       try {
         const res = await fetch("/api/leaderboard", { headers: headers() });
         if (!res.ok) return;
         const data = await res.json();
         leaderboardData = data;
-        if ($("lbSummary")) $("lbSummary").textContent = t("lbSummary", data.totalContributors || 0, data.totalDonated || 0);
-        if (data.me) {
-          if ($("lbMeRank")) $("lbMeRank").textContent = "#" + data.me.rank;
-          if ($("lbMeMeta")) $("lbMeMeta").textContent = data.me.username + " · " + t("lbSeats", data.me.count);
-          if ($("lbMeCount")) $("lbMeCount").textContent = t("lbSeats", data.me.count);
-        } else {
-          if ($("lbMeRank")) $("lbMeRank").textContent = "–";
-          if ($("lbMeMeta")) $("lbMeMeta").textContent = t("lbUnranked");
-          if ($("lbMeCount")) $("lbMeCount").textContent = t("lbSeats", 0);
-        }
-        if ($("cRank")) $("cRank").textContent = data.me ? ("#" + data.me.rank) : t("contribRankUnranked");
-        paintPodium(data.entries || []);
-        paintLbTable(data.entries || []);
+        paintLeaderboard(data);
       } catch {}
     }
 
-    function paintPodium(entries) {
-      const el = $("lbPodium");
+    function paintPodium(el, entries, scoreKey) {
       if (!el) return;
+      const key = scoreKey || "count";
       if (!entries.length) {
         el.innerHTML = '<div class="empty-cta" style="grid-column:1/-1"><h3>' + esc(t("lbEmpty")) + '</h3><button class="btn" type="button" data-goto="contribute">' + esc(t("lbCta")) + '</button></div>';
         el.querySelectorAll("[data-goto]").forEach((b) => b.addEventListener("click", () => go(b.getAttribute("data-goto"))));
@@ -2208,17 +2961,18 @@ ${styles()}
       const place = ["#2", "#1", "#3"];
       el.innerHTML = top.map((e, i) => {
         if (!e) return '<div class="pod ' + cls[i] + '" style="opacity:.35"><div class="place">' + place[i] + '</div><div class="uname">–</div><div class="cnt">0</div><div class="lbl">' + esc(t("colSeats")) + '</div></div>';
+        const score = key === "publicCount" ? (e.publicCount || 0) : e.count;
         return '<div class="pod ' + cls[i] + (e.isMe ? " me" : "") + '">' +
           '<div class="place">' + place[i] + '</div>' +
           '<div class="uname">' + esc(e.username) + (e.isMe ? ' · me' : '') + '</div>' +
-          '<div class="cnt">' + e.count + '</div>' +
-          '<div class="lbl">' + esc(t("colSeats")) + ' · ' + e.activeCount + ' ' + esc(t("statActive")).toLowerCase() + '</div>' +
+          '<div class="cnt">' + score + '</div>' +
+          '<div class="lbl">' + esc(key === "publicCount" ? t("colPublic") : t("colSeats")) +
+          ' · ' + e.activeCount + ' ' + esc(t("statActive")).toLowerCase() + '</div>' +
           '</div>';
       }).join("");
     }
 
-    function paintLbTable(entries) {
-      const tbody = $("tbodyLb");
+    function paintLbTable(tbody, entries, mode) {
       if (!tbody) return;
       if (!entries.length) {
         tbody.innerHTML = '<div class="dt-empty">' + esc(t("lbEmpty")) + "</div>";
@@ -2226,10 +2980,20 @@ ${styles()}
       }
       tbody.innerHTML = entries.map((e) => {
         const rb = e.rank === 1 ? "top1" : e.rank === 2 ? "top2" : e.rank === 3 ? "top3" : "";
+        if (mode === "public") {
+          return '<div class="dt-row' + (e.isMe ? " me lb-row" : "") + '">' +
+            '<div><span class="rank-badge ' + rb + '">#' + e.rank + "</span></div>" +
+            '<div><div class="name">' + esc(e.username) + (e.isMe ? ' <span class="badge current">me</span>' : "") + '</div></div>' +
+            '<div class="mono">' + (e.publicCount || 0) + "</div>" +
+            '<div class="mono">' + e.activeCount + "</div>" +
+            "</div>";
+        }
         return '<div class="dt-row' + (e.isMe ? " me lb-row" : "") + '">' +
           '<div><span class="rank-badge ' + rb + '">#' + e.rank + "</span></div>" +
           '<div><div class="name">' + esc(e.username) + (e.isMe ? ' <span class="badge current">me</span>' : "") + '</div></div>' +
           '<div class="mono">' + e.count + "</div>" +
+          '<div class="mono">' + (e.publicCount || 0) + "</div>" +
+          '<div class="mono">' + (e.privateCount || 0) + "</div>" +
           '<div class="mono">' + e.activeCount + "</div>" +
           "</div>";
       }).join("");
@@ -2333,7 +3097,7 @@ ${styles()}
       const cur = sel.value || (currentUser && currentUser.routeAccountId) || "";
       sel.innerHTML = myAccounts.map((a) =>
         '<option value="' + esc(a.id) + '"' + (a.id === cur ? " selected" : "") + ">" +
-        esc(a.name) + (a.private ? " · " + t("visPrivate") : "") + "</option>"
+        esc(a.name) + (accVisKey(a) !== "public" ? " · " + accVisLabel(a) : "") + "</option>"
       ).join("") || '<option value="">–</option>';
     }
 
@@ -2391,9 +3155,16 @@ ${styles()}
     async function addOAuth() {
       hideMsg($("msg")); stopPoll(); $("btnAdd").disabled = true; $("codeBox").classList.remove("show");
       try {
+        const donorUserId = ($("accDonor") && $("accDonor").value) || null;
+        const isPrivate = $("accPrivate") && $("accPrivate").value === "private";
         const res = await fetch("/api/admin/accounts/oauth", {
           method: "POST", headers: jsonHeaders(),
-          body: JSON.stringify({ name: $("accName").value || undefined, openBrowser: true }),
+          body: JSON.stringify({
+            name: $("accName").value || undefined,
+            openBrowser: true,
+            donorUserId: donorUserId || undefined,
+            private: isPrivate,
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
@@ -2411,7 +3182,10 @@ ${styles()}
             if (result.ok) {
               stopPoll(); $("codeBox").classList.remove("show");
               showMsg($("msg"), t("addOk") + ": " + (result.account?.name || result.account?.id), "ok");
-              $("accName").value = ""; $("btnAdd").disabled = false; await loadAccounts(); return;
+              $("accName").value = "";
+              if ($("accDonor")) $("accDonor").value = "";
+              if ($("accPrivate")) $("accPrivate").value = "public";
+              $("btnAdd").disabled = false; await loadAccounts(); return;
             }
             if (result.pending) { $("pollStatus").textContent = t("waiting") + " " + new Date().toLocaleTimeString(); return; }
             stopPoll(); $("btnAdd").disabled = false; showMsg($("msg"), result.error || "failed", "err");
@@ -2425,7 +3199,7 @@ ${styles()}
     async function useAcc(id) {
       try {
         const acc = allAccounts.find((a) => a.id === id);
-        if (acc && acc.private === true) throw new Error(t("usePrivateBlocked"));
+        if (acc && accIsPrivate(acc)) throw new Error(t("usePrivateBlocked"));
         const res = await fetch("/api/admin/routing/current", { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ accountId: id }) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
@@ -2639,12 +3413,20 @@ ${styles()}
       try {
         const res = await fetch("/api/admin/settings", {
           method: "PATCH", headers: jsonHeaders(),
-          body: JSON.stringify({ upstreamBaseUrl: $("upstreamUrl").value.trim() }),
+          body: JSON.stringify({
+            upstreamBaseUrl: ($("upstreamUrl") && $("upstreamUrl").value.trim()) || "",
+            oauthBaseUrl: ($("oauthBaseUrl") && $("oauthBaseUrl").value.trim()) || "",
+            billingBaseUrl: ($("billingBaseUrl") && $("billingBaseUrl").value.trim()) || "",
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
         meta.upstreamBaseUrlConfigured = data.settings.upstreamBaseUrl || "";
         meta.xaiBaseUrl = data.xaiBaseUrl || data.settings.upstreamBaseUrl || meta.xaiBaseUrl;
+        meta.oauthBaseUrlConfigured = data.settings.oauthBaseUrl || "";
+        meta.oauthBaseUrl = data.oauthBaseUrl || data.settings.oauthBaseUrl || meta.oauthBaseUrl;
+        meta.billingBaseUrlConfigured = data.settings.billingBaseUrl || "";
+        meta.billingBaseUrl = data.billingBaseUrl || data.settings.billingBaseUrl || meta.billingBaseUrl;
         paintProxyUI();
         showMsg($("msg"), t("upstreamSaved"), "ok");
       } catch (e) { showMsg($("msg"), e.message, "err"); }
@@ -2743,6 +3525,65 @@ ${styles()}
     };
 
     if ($("btnAdd")) $("btnAdd").onclick = addOAuth;
+    if ($("accEditCancel")) $("accEditCancel").onclick = closeAccEdit;
+    if ($("accEditSubmit")) $("accEditSubmit").onclick = saveAccEdit;
+    if ($("myMembersClose")) $("myMembersClose").onclick = closeMyMembers;
+    if ($("myMembersModal")) $("myMembersModal").addEventListener("click", (e) => {
+      if (e.target === $("myMembersModal")) closeMyMembers();
+    });
+    if ($("myMembersVisSeg")) {
+      $("myMembersVisSeg").addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-mvis]");
+        if (!b) return;
+        const v = b.getAttribute("data-mvis");
+        setMyMembersVis(v === "private");
+      });
+    }
+    if ($("accEditDonor")) {
+      $("accEditDonor").addEventListener("change", () => {
+        allowedDonorId = $("accEditDonor").value || null;
+        if (allowedDonorId) allowedSelected.delete(allowedDonorId);
+        renderAllowedList();
+        syncAllowedCount();
+      });
+    }
+    if ($("accEditAllowedClear")) $("accEditAllowedClear").onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearAllowedSelection();
+    };
+    if ($("accEditAllowedBtn")) $("accEditAllowedBtn").onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleAllowedPanel();
+    };
+    if ($("accEditAllowedQ")) {
+      $("accEditAllowedQ").addEventListener("input", () => {
+        allowedFilterQ = $("accEditAllowedQ").value || "";
+        renderAllowedList();
+      });
+      $("accEditAllowedQ").addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          closeAllowedPanel();
+        }
+      });
+    }
+    if (!window.__mselDocBound) {
+      window.__mselDocBound = true;
+      document.addEventListener("click", (e) => {
+        const root = $("accEditAllowed");
+        const panel = $("accEditAllowedPanel");
+        if (!root || !root.classList.contains("open")) return;
+        const t = e.target;
+        if (root.contains(t) || (panel && panel.contains(t))) return;
+        closeAllowedPanel();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeAllowedPanel();
+      });
+    }
+    if ($("accModal")) $("accModal").addEventListener("click", (e) => { if (e.target === $("accModal")) closeAccEdit(); });
     if ($("btnContribAdd")) $("btnContribAdd").onclick = startContribute;
     if ($("btnContribStart")) $("btnContribStart").onclick = startContribute;
     if ($("btnContribRefresh")) $("btnContribRefresh").onclick = () => { hideMsg($("msgContrib")); loadMyAccounts(); loadMyRouting(); loadLeaderboardLite(); };

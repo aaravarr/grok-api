@@ -1,9 +1,9 @@
+import { outboundFetch } from "../proxy.js";
+import { getBillingUrl } from "../settings.js";
 import type { CreditSnapshot } from "../types.js";
 import { now } from "../utils.js";
 import { getAccount, setCredits } from "./store.js";
 import { getValidAccessToken } from "./token.js";
-
-const BILLING_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
 const CACHE_TTL_MS = 60_000;
 
 export interface BillingConfig {
@@ -54,7 +54,8 @@ export async function fetchAccountCredits(
   }
 
   const access = await getValidAccessToken(accountId);
-  const res = await fetch(BILLING_URL, {
+  const billingUrl = await getBillingUrl();
+  const res = await outboundFetch(billingUrl, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${access}`,

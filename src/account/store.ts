@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
+import { getUser } from "../auth/users.js";
 import { config } from "../config.js";
 import { atomicWriteJson } from "../fs-atomic.js";
 import type {
@@ -91,20 +92,50 @@ export async function listAccountsByDonor(userId: string): Promise<Account[]> {
   return (await loadStore()).accounts.filter((a) => a.donorUserId === userId);
 }
 
+function slugUsername(raw: string): string {
+  const s = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+  return s || "user";
+}
+
+function normalizeAllowedUserIds(v: unknown): string[] | null {
+  if (v == null) return null;
+  if (!Array.isArray(v)) return null;
+  const ids = [
+    ...new Set(
+      v
+        .map((x) => (typeof x === "string" ? x.trim() : ""))
+        .filter(Boolean),
+    ),
+  ];
+  return ids.length ? ids : null;
+}
+
 export async function addAccount(input: {
   name?: string;
   access: string;
   refresh: string;
   expires: number;
   donorUserId?: string | null;
+  private?: boolean;
+  allowedUserIds?: string[] | null;
 }): Promise<Account> {
+  let donorSlug = "";
+  if (input.donorUserId) {
+    const donor = await getUser(input.donorUserId);
+    donorSlug = slugUsername(donor?.username || input.donorUserId.slice(0, 6));
+  }
   return mutate((store) => {
     const t = now();
     let name = input.name?.trim() || "";
     if (!name) {
       if (input.donorUserId) {
         const n = store.accounts.filter((a) => a.donorUserId === input.donorUserId).length + 1;
-        name = `contrib-${n}`;
+        name = `contrib-${donorSlug || "user"}-${n}`;
       } else {
         name = `account-${store.accounts.length + 1}`;
       }
@@ -122,10 +153,14 @@ export async function addAccount(input: {
       updatedAt: t,
       useCount: 0,
       donorUserId: input.donorUserId ?? null,
-      private: false,
+      private: input.private === true,
+      allowedUserIds: sanitizeAllowedUserIds(
+        input.allowedUserIds,
+        input.donorUserId ?? null,
+      ),
     };
     store.accounts.push(account);
-    if (!store.routing.currentAccountId) {
+    if (!store.routing.currentAccountId && isPublicPoolAccount(account)) {
       store.routing.currentAccountId = account.id;
     }
     return account;
@@ -147,6 +182,7 @@ export async function updateAccount(
       | "credits"
       | "donorUserId"
       | "private"
+      | "allowedUserIds"
     >
   >,
 ): Promise<Account | undefined> {
@@ -154,7 +190,7 @@ export async function updateAccount(
     const idx = store.accounts.findIndex((a) => a.id === id);
     if (idx < 0) return undefined;
     const cur = store.accounts[idx]!;
-    store.accounts[idx] = {
+    const next: Account = {
       ...cur,
       ...patch,
       tokens: patch.tokens ?? cur.tokens,
@@ -162,30 +198,77 @@ export async function updateAccount(
       private: patch.private !== undefined ? Boolean(patch.private) : cur.private === true,
       updatedAt: now(),
     };
+    if (patch.donorUserId !== undefined) {
+      next.donorUserId = patch.donorUserId || null;
+    }
+    if (patch.allowedUserIds !== undefined) {
+      const donorId =
+        patch.donorUserId !== undefined
+          ? patch.donorUserId || null
+          : cur.donorUserId ?? null;
+      next.allowedUserIds = sanitizeAllowedUserIds(patch.allowedUserIds, donorId);
+    } else if (patch.donorUserId !== undefined && next.allowedUserIds) {
+      // donor changed — drop new donor from extra allowlist if present
+      next.allowedUserIds = sanitizeAllowedUserIds(
+        next.allowedUserIds,
+        next.donorUserId ?? null,
+      );
+    }
+    store.accounts[idx] = next;
     return store.accounts[idx];
   });
 }
 
-/** Whether caller may use this account for routing. */
+/** Non-empty allowlist of *extra* users who may use this seat (donor always can). */
+export function hasAllowedUsers(acc: Account): boolean {
+  return Array.isArray(acc.allowedUserIds) && acc.allowedUserIds.length > 0;
+}
+
+/** Whether caller is the account donor/contributor. */
+export function isAccountDonor(
+  acc: Account,
+  callerUserId: string | null | undefined,
+): boolean {
+  return Boolean(callerUserId && acc.donorUserId && acc.donorUserId === callerUserId);
+}
+
+/** Whether caller is on the account allowlist (extra members, not including donor rule). */
+export function isUserAllowedOnAccount(
+  acc: Account,
+  callerUserId: string | null | undefined,
+): boolean {
+  if (!hasAllowedUsers(acc) || !callerUserId) return false;
+  return acc.allowedUserIds!.includes(callerUserId);
+}
+
+/**
+ * Whether caller may use this account for routing.
+ * - Donor always can (cannot be revoked via allowlist).
+ * - Allowlist seats: only listed users (+ donor).
+ * - Private without allowlist: donor only.
+ * - Public without allowlist: anyone.
+ */
 export function canUserUseAccount(
   acc: Account,
   callerUserId: string | null | undefined,
 ): boolean {
-  if (acc.private === true) {
-    return Boolean(callerUserId && acc.donorUserId === callerUserId);
+  if (isAccountDonor(acc, callerUserId)) return true;
+  if (hasAllowedUsers(acc)) {
+    return isUserAllowedOnAccount(acc, callerUserId);
   }
+  if (acc.private === true) return false;
   return true;
 }
 
-/** Shared/public pool only — never includes private seats. */
+/** Shared/public pool only — never private or allowlist-restricted seats. */
 export function isPublicPoolAccount(acc: Account): boolean {
-  return acc.private !== true;
+  return acc.private !== true && !hasAllowedUsers(acc);
 }
 
 /**
  * Accounts eligible for a caller's route scope.
- * - public: ONLY non-private seats (admin-managed + public contrib). Private never joins public RR.
- * - mine: only donated by caller (including private)
+ * - public: shared seats + allowlisted seats + own donations
+ * - mine: donated by caller, or caller is on allowedUserIds
  * - account: single id if allowed
  */
 export function filterAccountsForCaller(
@@ -208,11 +291,31 @@ export function filterAccountsForCaller(
 
   if (scope === "mine") {
     if (!uid) return [];
-    return accounts.filter((a) => a.donorUserId === uid);
+    return accounts.filter(
+      (a) => a.donorUserId === uid || isUserAllowedOnAccount(a, uid),
+    );
   }
 
-  // public pool: strictly non-private only
-  return accounts.filter((a) => isPublicPoolAccount(a));
+  // public shared seats + seats where caller is an extra allowlisted member
+  // (donor private/allowlist seats stay under mine/account scope)
+  return accounts.filter(
+    (a) => isPublicPoolAccount(a) || isUserAllowedOnAccount(a, uid),
+  );
+}
+
+/**
+ * Normalize allowlist: unique ids, drop empty, never store donor as "extra"
+ * (donor access is always granted separately).
+ */
+export function sanitizeAllowedUserIds(
+  ids: string[] | null | undefined,
+  donorUserId?: string | null,
+): string[] | null {
+  const cleaned = normalizeAllowedUserIds(ids);
+  if (!cleaned) return null;
+  if (!donorUserId) return cleaned;
+  const withoutDonor = cleaned.filter((id) => id !== donorUserId);
+  return withoutDonor.length ? withoutDonor : null;
 }
 
 export async function deleteAccount(id: string): Promise<boolean> {
@@ -223,7 +326,7 @@ export async function deleteAccount(id: string): Promise<boolean> {
     if (store.routing.currentAccountId === id) {
       // global current must stay on a public active seat
       store.routing.currentAccountId =
-        store.accounts.find((a) => a.status === "active" && a.private !== true)?.id ?? null;
+        store.accounts.find((a) => a.status === "active" && isPublicPoolAccount(a))?.id ?? null;
     }
     if (store.routing.cursor >= store.accounts.length) store.routing.cursor = 0;
     return true;
@@ -281,9 +384,9 @@ export async function setCurrentAccount(id: string | null): Promise<RoutingState
     if (id) {
       const acc = store.accounts.find((a) => a.id === id);
       if (!acc) throw new Error(`account not found: ${id}`);
-      // Global admin routing is the public pool — private seats cannot be selected
-      if (acc.private === true) {
-        throw new Error("不能将私有贡献账号设为公共池当前账号，请改用公开账号");
+      // Global admin routing is the public pool — restricted seats cannot be selected
+      if (!isPublicPoolAccount(acc)) {
+        throw new Error("不能将私有/限定账号设为公共池当前账号，请改用公开账号");
       }
     }
     store.routing.currentAccountId = id;
@@ -298,11 +401,11 @@ export async function advanceToNextActive(
   eligibleIds?: string[] | null,
 ): Promise<Account | undefined> {
   return mutate((store) => {
-    // Default (no eligibleIds) = public pool only — never rotate onto private seats
+    // Default (no eligibleIds) = public pool only — never rotate onto private/allowlist seats
     const pool =
       eligibleIds && eligibleIds.length > 0
         ? store.accounts.filter((a) => eligibleIds.includes(a.id))
-        : store.accounts.filter((a) => a.private !== true);
+        : store.accounts.filter((a) => isPublicPoolAccount(a));
     const n = pool.length;
     if (n === 0) {
       if (!eligibleIds) store.routing.currentAccountId = null;
@@ -317,11 +420,11 @@ export async function advanceToNextActive(
       if (excludeId && acc.id === excludeId) continue;
       store.routing.cursor = (store.routing.cursor + 1) % Math.max(1, store.accounts.length);
       // only write global current when selecting a public seat
-      if (acc.private !== true) store.routing.currentAccountId = acc.id;
+      if (isPublicPoolAccount(acc)) store.routing.currentAccountId = acc.id;
       return acc;
     }
     const any = pool.find((a) => a.status === "active");
-    if (any && any.private !== true) store.routing.currentAccountId = any.id;
+    if (any && isPublicPoolAccount(any)) store.routing.currentAccountId = any.id;
     return any;
   });
 }
@@ -334,10 +437,10 @@ export async function ensureCurrentAccount(
   if (curId) {
     const acc = store.accounts.find((a) => a.id === curId);
     if (acc && acc.status === "active") {
-      // stale: current points at private seat — skip for public/default routing
+      // stale: current points at restricted seat — skip for public/default routing
       const inEligible = eligibleIds
         ? eligibleIds.includes(acc.id)
-        : acc.private !== true;
+        : isPublicPoolAccount(acc);
       if (inEligible) return acc;
     }
   }
@@ -468,6 +571,7 @@ export function publicAccount(a: Account, currentId?: string | null) {
     isCurrent: currentId ? a.id === currentId : false,
     donorUserId: a.donorUserId ?? null,
     private: a.private === true,
+    allowedUserIds: hasAllowedUsers(a) ? [...(a.allowedUserIds || [])] : [],
     credits: a.credits
       ? {
           creditUsagePercent: a.credits.creditUsagePercent,
@@ -506,58 +610,118 @@ export type LeaderboardEntry = {
   rank: number;
   userId: string;
   username: string;
+  /** Total contributed seats */
   count: number;
+  /** Public (shared-pool) seats */
+  publicCount: number;
+  /** Private seats */
+  privateCount: number;
   activeCount: number;
   isMe: boolean;
 };
+
+type DonorCounts = {
+  count: number;
+  publicCount: number;
+  privateCount: number;
+  activeCount: number;
+};
+
+function rankEntries(
+  counts: Map<string, DonorCounts>,
+  meUserId: string | null,
+  usernameById: Map<string, string>,
+  sortKey: "count" | "publicCount",
+): LeaderboardEntry[] {
+  return [...counts.entries()]
+    .map(([userId, c]) => ({
+      userId,
+      username: usernameById.get(userId) ?? userId.slice(0, 6),
+      count: c.count,
+      publicCount: c.publicCount,
+      privateCount: c.privateCount,
+      activeCount: c.activeCount,
+    }))
+    .filter((e) => (sortKey === "publicCount" ? e.publicCount > 0 : e.count > 0))
+    .sort(
+      (a, b) =>
+        b[sortKey] - a[sortKey] ||
+        b.count - a.count ||
+        a.username.localeCompare(b.username),
+    )
+    .map((e, i) => ({
+      rank: i + 1,
+      userId: e.userId,
+      username: e.username,
+      count: e.count,
+      publicCount: e.publicCount,
+      privateCount: e.privateCount,
+      activeCount: e.activeCount,
+      isMe: meUserId != null && e.userId === meUserId,
+    }));
+}
 
 export async function buildLeaderboard(
   meUserId: string | null,
   adminUserIds: Set<string>,
   usernameById: Map<string, string>,
 ): Promise<{
+  /** Total contribution board (public + private seats) */
   entries: LeaderboardEntry[];
   me: LeaderboardEntry | null;
   totalContributors: number;
   totalDonated: number;
+  totalPublic: number;
+  totalPrivate: number;
+  /** Public-only contribution board */
+  publicEntries: LeaderboardEntry[];
+  publicMe: LeaderboardEntry | null;
+  publicContributors: number;
+  publicDonated: number;
 }> {
   const accounts = await listAccounts();
-  const counts = new Map<string, { count: number; activeCount: number }>();
+  const counts = new Map<string, DonorCounts>();
   let totalDonated = 0;
+  let totalPublic = 0;
+  let totalPrivate = 0;
 
   for (const a of accounts) {
     const uid = a.donorUserId;
     if (!uid || adminUserIds.has(uid)) continue;
     totalDonated += 1;
-    const cur = counts.get(uid) ?? { count: 0, activeCount: 0 };
+    const isPriv = a.private === true || hasAllowedUsers(a);
+    if (isPriv) totalPrivate += 1;
+    else totalPublic += 1;
+    const cur = counts.get(uid) ?? {
+      count: 0,
+      publicCount: 0,
+      privateCount: 0,
+      activeCount: 0,
+    };
     cur.count += 1;
+    if (isPriv) cur.privateCount += 1;
+    else cur.publicCount += 1;
     if (a.status === "active") cur.activeCount += 1;
     counts.set(uid, cur);
   }
 
-  const sorted = [...counts.entries()]
-    .map(([userId, c]) => ({
-      userId,
-      username: usernameById.get(userId) ?? userId.slice(0, 6),
-      count: c.count,
-      activeCount: c.activeCount,
-    }))
-    .sort((a, b) => b.count - a.count || a.username.localeCompare(b.username));
-
-  const entries: LeaderboardEntry[] = sorted.map((e, i) => ({
-    rank: i + 1,
-    userId: e.userId,
-    username: e.username,
-    count: e.count,
-    activeCount: e.activeCount,
-    isMe: meUserId != null && e.userId === meUserId,
-  }));
-
+  const entries = rankEntries(counts, meUserId, usernameById, "count");
+  const publicEntries = rankEntries(counts, meUserId, usernameById, "publicCount");
   const me = meUserId ? entries.find((e) => e.userId === meUserId) ?? null : null;
+  const publicMe = meUserId
+    ? publicEntries.find((e) => e.userId === meUserId) ?? null
+    : null;
+
   return {
     entries,
     me,
     totalContributors: entries.length,
     totalDonated,
+    totalPublic,
+    totalPrivate,
+    publicEntries,
+    publicMe,
+    publicContributors: publicEntries.length,
+    publicDonated: totalPublic,
   };
 }

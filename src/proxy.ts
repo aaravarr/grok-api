@@ -1,5 +1,13 @@
 import { execSync } from "node:child_process";
-import { Agent, ProxyAgent, setGlobalDispatcher, getGlobalDispatcher } from "undici";
+import {
+  Agent,
+  ProxyAgent,
+  fetch as undiciFetch,
+  setGlobalDispatcher,
+  getGlobalDispatcher,
+  type Dispatcher,
+  type RequestInit as UndiciRequestInit,
+} from "undici";
 import { loadSettings } from "./settings.js";
 
 function normalizeProxyUrl(raw: string): string {
@@ -103,7 +111,9 @@ export async function applyProxy(): Promise<string> {
   if (url) {
     console.log(`[grok-api] proxy    → ${url} (${source})`);
   } else {
-    console.log("[grok-api] proxy    → (none)");
+    console.log(
+      "[grok-api] proxy    → (none) — OAuth/billing to auth.x.ai & cli-chat-proxy.grok.com may fail without a proxy",
+    );
   }
   return url;
 }
@@ -148,6 +158,42 @@ export function getProxyInfo(): {
   };
 }
 
-export function currentDispatcher() {
+export function currentDispatcher(): Dispatcher {
   return getGlobalDispatcher();
+}
+
+/**
+ * All outbound calls to xAI / Grok hosts MUST use this helper so they always
+ * go through the installed ProxyAgent (or direct Agent when configured).
+ * Prefer this over bare global fetch for external traffic.
+ */
+export function outboundFetch(
+  input: string | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const dispatcher = getGlobalDispatcher();
+  const next: UndiciRequestInit = {
+    ...(init as UndiciRequestInit | undefined),
+    dispatcher,
+  };
+  // undici fetch returns undici.Response; compatible enough for our usage
+  return undiciFetch(input, next) as unknown as Promise<Response>;
+}
+
+/** Hosts that typically need the outbound proxy in restricted networks. */
+export function isXaiHost(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return (
+      h === "api.x.ai" ||
+      h.endsWith(".x.ai") ||
+      h === "auth.x.ai" ||
+      h === "accounts.x.ai" ||
+      h === "cli-chat-proxy.grok.com" ||
+      h.endsWith(".grok.com") ||
+      h === "management-api.x.ai"
+    );
+  } catch {
+    return false;
+  }
 }
