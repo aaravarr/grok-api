@@ -1340,7 +1340,7 @@ ${styles()}
         const cur = a.isCurrent;
         const err = a.lastError ? shortErr(a.lastError) : "";
         const isPriv = a.private === true;
-        const useDisabled = isPriv ? " disabled title=\"" + esc(t("usePrivateBlocked")) + "\"" : "";
+        const useDisabled = isPriv ? (" disabled title='" + esc(t("usePrivateBlocked")) + "'") : "";
         return '<div class="dt-row' + (cur ? " current" : "") + (isPriv ? " is-private" : "") + '">' +
           '<div><div class="name">' + esc(a.name) + '</div>' +
           '<div class="mono">' + esc(a.id) + (a.donorUserId ? " · " + esc(a.donorUserId) : "") + "</div>" +
