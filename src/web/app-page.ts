@@ -163,11 +163,17 @@ ${styles()}
                 <option value="expired">expired</option>
                 <option value="error">error</option>
               </select>
+              <select id="accFilterVis" class="select" style="min-width:110px">
+                <option value="" data-i18n="filterAllVis">All visibility</option>
+                <option value="public" data-i18n="visPublic">Public</option>
+                <option value="private" data-i18n="visPrivate">Private</option>
+              </select>
             </div>
             <div class="dt dt-accounts">
               <div class="dt-head">
                 <div data-i18n="colAccount">Account</div>
                 <div data-i18n="colStatus">Status</div>
+                <div data-i18n="colVisibility">Visibility</div>
                 <div data-i18n="colCredits">Credits</div>
                 <div data-i18n="colUses">Uses</div>
                 <div data-i18n="colLastUsed">Last used</div>
@@ -693,6 +699,7 @@ ${styles()}
         switchOk:"已切换（仅检查该账号额度）", addOk:"账号添加成功", keyCreated:"密钥已创建",
         statAccounts:"账号", statActive:"可用", statReqs:"请求(7d)", statKeys:"密钥",
         pageOf:(c,t,n)=>"第 "+c+" / "+t+" 页 · 共 "+n+" 条", prev:"上一页", next:"下一页",
+        goPage:"跳转", pageJumpPh:"页",
         diskInfo:(d,b)=>d+" 天 · "+b,
         navCommunity:"社区", navContribute:"贡献席位", navLeaderboard:"贡献榜",
         subContribute:"绑定 SuperGrok · 加入共享容量", subLeaderboard:"社区贡献席位排行",
@@ -716,13 +723,14 @@ ${styles()}
         routeTitle:"API 路由", routeHint:"对你的 API 密钥生效", saveRoute:"保存路由",
         routeScopeLabel:"路由模式", routeAccountLabel:"指定席位",
         routePublic:"公共号池", routeMine:"仅自己号池", routeAccount:"指定账号",
-        routePublicHint:"使用管理员账号 + 公开贡献席位（他人私有号除外）。",
+        routePublicHint:"仅使用公开席位（管理员账号 + 公开贡献）。私有号不会进入公共轮询。",
         routeMineHint:"只使用你贡献的账号。没有可用席位时请求会失败。",
         routeAccountHint:"固定走下方选中的账号（须有权使用）。",
         routeSaved:"路由偏好已保存",
-        colVisibility:"可见性", colOwner:"所属用户", visPublic:"公共", visPrivate:"仅自己",
-        setPrivate:"仅自己", setPublic:"公开",
-        privateOk:"已设为仅自己可用", publicOk:"已设为公共池可用",
+        colVisibility:"可见性", colOwner:"所属用户", visPublic:"公开", visPrivate:"私有",
+        setPrivate:"私有", setPublic:"公开",
+        privateOk:"已设为私有（不进公共池）", publicOk:"已设为公开（可进公共池）",
+        usePrivateBlocked:"私有贡献账号不能设为公共池当前账号",
         filterSearch:"搜索…", filterAllStatus:"全部状态", filterAllRole:"全部角色", filterAllVis:"全部可见性",
         editKey:"编辑", editKeyTitle:"编辑密钥", editKeySub:"修改别名、有效期或备注。不会重新生成密钥。",
         keyUpdated:"密钥已更新", save:"保存", never:"永不过期",
@@ -801,6 +809,7 @@ ${styles()}
         switchOk:"Switched (credits checked for this account only)", addOk:"Account added", keyCreated:"API key created",
         statAccounts:"Accounts", statActive:"Active", statReqs:"Requests (7d)", statKeys:"API Keys",
         pageOf:(c,t,n)=>"Page "+c+" / "+t+" · "+n+" total", prev:"Prev", next:"Next",
+        goPage:"Go", pageJumpPh:"page",
         diskInfo:(d,b)=>d+" days · "+b,
         navCommunity:"Community", navContribute:"Contribute", navLeaderboard:"Leaderboard",
         subContribute:"Link SuperGrok · grow shared capacity", subLeaderboard:"Community contribution ranking",
@@ -824,13 +833,14 @@ ${styles()}
         routeTitle:"API routing", routeHint:"Applies to your API keys", saveRoute:"Save routing",
         routeScopeLabel:"Route mode", routeAccountLabel:"Pinned seat",
         routePublic:"Public pool", routeMine:"My seats only", routeAccount:"Pin account",
-        routePublicHint:"Admin seats + public contributions (others' private seats excluded).",
+        routePublicHint:"Public seats only (admin + public contributions). Private seats never join public RR.",
         routeMineHint:"Only accounts you contributed. Requests fail if none are available.",
         routeAccountHint:"Always use the selected account (must be allowed for you).",
         routeSaved:"Routing preference saved",
         colVisibility:"Visibility", colOwner:"Owner", visPublic:"Public", visPrivate:"Private",
         setPrivate:"Private", setPublic:"Public",
-        privateOk:"Now private to you", publicOk:"Now available in public pool",
+        privateOk:"Now private (excluded from public pool)", publicOk:"Now public (joins public pool)",
+        usePrivateBlocked:"Private contributed accounts cannot be set as the public-pool current seat",
         filterSearch:"Search…", filterAllStatus:"All status", filterAllRole:"All roles", filterAllVis:"All visibility",
         editKey:"Edit", editKeyTitle:"Edit API key", editKeySub:"Update alias, validity, or note. The secret is not rotated.",
         keyUpdated:"API key updated", save:"Save", never:"never",
@@ -982,6 +992,8 @@ ${styles()}
       paintLogDaySelect();
       applyRoleNav();
       setView(view);
+      enhanceAllSelects();
+      document.querySelectorAll(".cselect").forEach((w) => { if (w._cselectRefresh) w._cselectRefresh(); });
       renderAccounts();
       renderKeys();
       renderMyAccounts();
@@ -1145,8 +1157,20 @@ ${styles()}
         '<span>' + esc(t("pageOf", page, totalPages, totalItems)) + '</span>' +
         '<div class="btns">' +
         '<button class="btn btn-secondary btn-sm" type="button" data-dir="-1"' + (page <= 1 ? " disabled" : "") + '>' + esc(t("prev")) + '</button>' +
+        '<div class="pager-jump">' +
+        '<input class="pager-input" type="number" min="1" max="' + totalPages + '" value="' + page + '" aria-label="' + esc(t("pageJumpPh")) + '" />' +
+        '<span class="pager-total">/ ' + totalPages + '</span>' +
+        '<button class="btn btn-secondary btn-sm" type="button" data-go="1">' + esc(t("goPage")) + '</button>' +
+        '</div>' +
         '<button class="btn btn-secondary btn-sm" type="button" data-dir="1"' + (page >= totalPages ? " disabled" : "") + '>' + esc(t("next")) + '</button>' +
         '</div>';
+      const jumpTo = (raw) => {
+        const n = Math.floor(Number(raw));
+        if (!Number.isFinite(n)) return;
+        const next = Math.min(totalPages, Math.max(1, n));
+        if (next === page) return;
+        onPage(next);
+      };
       el.querySelectorAll("button[data-dir]").forEach((btn) => {
         btn.addEventListener("click", () => {
           const next = page + Number(btn.getAttribute("data-dir"));
@@ -1154,7 +1178,132 @@ ${styles()}
           onPage(next);
         });
       });
+      const inp = el.querySelector(".pager-input");
+      const goBtn = el.querySelector("button[data-go]");
+      if (goBtn) goBtn.addEventListener("click", () => jumpTo(inp && inp.value));
+      if (inp) {
+        inp.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") { e.preventDefault(); jumpTo(inp.value); }
+        });
+      }
       return page;
+    }
+
+    /** Custom dropdown UI for native <select class="select"> */
+    function enhanceSelect(sel) {
+      if (!sel || sel.tagName !== "SELECT" || sel.dataset.cselect === "1") return;
+      sel.dataset.cselect = "1";
+      sel.classList.add("select-native");
+      const wrap = document.createElement("div");
+      wrap.className = "cselect" + (sel.classList.contains("grow") || sel.style.width === "100%" ? " block" : "");
+      if (sel.style.minWidth) wrap.style.minWidth = sel.style.minWidth;
+      if (sel.style.width && sel.style.width !== "100%") wrap.style.width = sel.style.width;
+      if (sel.style.maxWidth) wrap.style.maxWidth = sel.style.maxWidth;
+      sel.parentNode.insertBefore(wrap, sel);
+      wrap.appendChild(sel);
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cselect-btn";
+      btn.setAttribute("aria-haspopup", "listbox");
+      btn.innerHTML =
+        '<span class="cselect-label"></span>' +
+        '<svg class="cselect-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      const menu = document.createElement("div");
+      menu.className = "cselect-menu";
+      menu.setAttribute("role", "listbox");
+      wrap.appendChild(btn);
+      wrap.appendChild(menu);
+
+      const labelEl = btn.querySelector(".cselect-label");
+
+      function selectedText() {
+        const opt = sel.options[sel.selectedIndex];
+        return opt ? (opt.textContent || opt.value || "") : "";
+      }
+      function syncLabel() {
+        labelEl.textContent = selectedText() || "–";
+      }
+      function closeMenu() {
+        wrap.classList.remove("open");
+        btn.setAttribute("aria-expanded", "false");
+      }
+      function openMenu() {
+        document.querySelectorAll(".cselect.open").forEach((w) => {
+          if (w !== wrap) w.classList.remove("open");
+        });
+        rebuildOptions();
+        wrap.classList.add("open");
+        btn.setAttribute("aria-expanded", "true");
+        // flip upward if near bottom
+        menu.classList.remove("drop-up");
+        const rect = wrap.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        if (spaceBelow < 200 && rect.top > spaceBelow) menu.classList.add("drop-up");
+      }
+      function rebuildOptions() {
+        menu.innerHTML = "";
+        Array.from(sel.options).forEach((opt, idx) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "cselect-opt" + (opt.selected ? " on" : "");
+          b.setAttribute("role", "option");
+          b.setAttribute("aria-selected", opt.selected ? "true" : "false");
+          b.disabled = opt.disabled;
+          b.textContent = opt.textContent || opt.value || "";
+          b.dataset.value = opt.value;
+          b.dataset.idx = String(idx);
+          b.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (opt.disabled) return;
+            const prev = sel.value;
+            sel.selectedIndex = idx;
+            syncLabel();
+            closeMenu();
+            if (sel.value !== prev) {
+              sel.dispatchEvent(new Event("change", { bubbles: true }));
+              sel.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+          });
+          menu.appendChild(b);
+        });
+      }
+      function refresh() {
+        syncLabel();
+        if (wrap.classList.contains("open")) rebuildOptions();
+      }
+
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (wrap.classList.contains("open")) closeMenu();
+        else openMenu();
+      });
+      sel.addEventListener("change", syncLabel);
+      // when options rewritten (e.g. logDay), re-sync
+      const mo = new MutationObserver(() => refresh());
+      mo.observe(sel, { childList: true, subtree: true, characterData: true, attributes: true });
+      wrap._cselectRefresh = refresh;
+      syncLabel();
+    }
+
+    function enhanceAllSelects(root) {
+      (root || document).querySelectorAll("select.select").forEach(enhanceSelect);
+    }
+
+    if (!window.__cselectDocBound) {
+      window.__cselectDocBound = true;
+      document.addEventListener("click", (e) => {
+        document.querySelectorAll(".cselect.open").forEach((w) => {
+          if (!w.contains(e.target)) w.classList.remove("open");
+        });
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          document.querySelectorAll(".cselect.open").forEach((w) => w.classList.remove("open"));
+        }
+      });
     }
 
     function matchQ(hay, q) {
@@ -1165,8 +1314,11 @@ ${styles()}
     function filteredAccounts() {
       const q = (($("accFilterQ") && $("accFilterQ").value) || "").trim().toLowerCase();
       const st = ($("accFilterSt") && $("accFilterSt").value) || "";
+      const vis = ($("accFilterVis") && $("accFilterVis").value) || "";
       return allAccounts.filter((a) => {
         if (st && a.status !== st) return false;
+        if (vis === "private" && a.private !== true) return false;
+        if (vis === "public" && a.private === true) return false;
         if (!q) return true;
         return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.donorUserId, q) || matchQ(a.lastError, q);
       });
@@ -1187,7 +1339,9 @@ ${styles()}
       tbody.innerHTML = slice.map((a) => {
         const cur = a.isCurrent;
         const err = a.lastError ? shortErr(a.lastError) : "";
-        return '<div class="dt-row' + (cur ? " current" : "") + '">' +
+        const isPriv = a.private === true;
+        const useDisabled = isPriv ? " disabled title=\"" + esc(t("usePrivateBlocked")) + "\"" : "";
+        return '<div class="dt-row' + (cur ? " current" : "") + (isPriv ? " is-private" : "") + '">' +
           '<div><div class="name">' + esc(a.name) + '</div>' +
           '<div class="mono">' + esc(a.id) + (a.donorUserId ? " · " + esc(a.donorUserId) : "") + "</div>" +
           ((cur || a.donorUserId)
@@ -1199,11 +1353,12 @@ ${styles()}
           (err ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
           "</div>" +
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
+          '<div><span class="badge ' + (isPriv ? "exhausted" : "active") + '">' + esc(isPriv ? t("visPrivate") : t("visPublic")) + "</span></div>" +
           "<div>" + creditCell(a) + "</div>" +
           '<div class="mono">' + a.useCount + "</div>" +
           '<div class="dt-time">' + fmtTime(a.lastUsedAt) + "</div>" +
           '<div class="dt-actions">' +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="use" data-id="' + esc(a.id) + '">' + esc(t("use")) + "</button>" +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="use" data-id="' + esc(a.id) + '"' + useDisabled + '>' + esc(t("use")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="reset" data-id="' + esc(a.id) + '">' + esc(t("reset")) + "</button>" +
           '<button class="btn btn-danger btn-sm" type="button" data-act="del" data-id="' + esc(a.id) + '">' + esc(t("del")) + "</button>" +
@@ -1211,6 +1366,7 @@ ${styles()}
       }).join("");
       tbody.querySelectorAll("button[data-act]").forEach((btn) => {
         btn.addEventListener("click", () => {
+          if (btn.disabled) return;
           const id = btn.getAttribute("data-id");
           const act = btn.getAttribute("data-act");
           if (act === "use") useAcc(id);
@@ -1286,6 +1442,8 @@ ${styles()}
       sel.innerHTML = '<option value="">' + esc(t("allDays")) + "</option>" +
         logDays.map((d) => '<option value="' + esc(d) + '">' + esc(d) + "</option>").join("");
       if (cur && logDays.includes(cur)) sel.value = cur;
+      enhanceSelect(sel);
+      if (sel.parentElement && sel.parentElement._cselectRefresh) sel.parentElement._cselectRefresh();
     }
 
     function clientLabel(r) {
@@ -2266,6 +2424,8 @@ ${styles()}
 
     async function useAcc(id) {
       try {
+        const acc = allAccounts.find((a) => a.id === id);
+        if (acc && acc.private === true) throw new Error(t("usePrivateBlocked"));
         const res = await fetch("/api/admin/routing/current", { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ accountId: id }) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
@@ -2601,6 +2761,7 @@ ${styles()}
     }
     bindFilter("accFilterQ", () => { accPage = 1; renderAccounts(); });
     bindFilter("accFilterSt", () => { accPage = 1; renderAccounts(); });
+    bindFilter("accFilterVis", () => { accPage = 1; renderAccounts(); });
     bindFilter("keyFilterQ", () => { keyPage = 1; renderKeys(); });
     bindFilter("keyFilterSt", () => { keyPage = 1; renderKeys(); });
     bindFilter("userFilterQ", () => loadUsers());

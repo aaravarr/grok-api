@@ -89,6 +89,58 @@ export function styles(): string {
     .input:focus,.select:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(23,23,23,.08)}
     .input.grow{flex:1;min-width:160px}
     .input::placeholder{color:var(--mute)}
+    /* Custom select (replaces native dropdown list) */
+    .cselect{
+      position:relative;display:inline-flex;vertical-align:middle;min-width:120px;
+    }
+    .cselect.grow,.cselect.block{display:flex;width:100%;min-width:0}
+    .cselect select.select-native{
+      position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;overflow:hidden;
+    }
+    .cselect-btn{
+      display:inline-flex;align-items:center;justify-content:space-between;gap:8px;
+      width:100%;min-width:0;height:32px;padding:0 10px 0 12px;border-radius:6px;
+      border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:13px;font-weight:500;
+      text-align:left;transition:border-color .15s,box-shadow .15s,background .12s;
+    }
+    .cselect-btn:hover{border-color:var(--hairline-strong);background:var(--canvas-soft)}
+    .cselect.open .cselect-btn,.cselect-btn:focus{
+      border-color:var(--ink);box-shadow:0 0 0 3px rgba(23,23,23,.08);outline:none;
+    }
+    .cselect-btn .cselect-label{
+      flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
+    .cselect-btn .cselect-caret{
+      flex-shrink:0;width:12px;height:12px;color:var(--mute);
+      transition:transform .15s var(--ease);
+    }
+    .cselect.open .cselect-caret{transform:rotate(180deg);color:var(--ink)}
+    .cselect-menu{
+      display:none;position:absolute;z-index:60;top:calc(100% + 4px);left:0;right:0;
+      min-width:100%;max-height:min(280px,50vh);overflow:auto;
+      padding:4px;border-radius:10px;border:1px solid var(--hairline);background:#fff;
+      box-shadow:0 12px 40px rgba(0,0,0,.12),0 2px 8px rgba(0,0,0,.04);
+      -webkit-overflow-scrolling:touch;
+    }
+    .cselect.open .cselect-menu{display:block;animation:fadeIn .12s var(--ease)}
+    .cselect-menu.drop-up{top:auto;bottom:calc(100% + 4px)}
+    .cselect-opt{
+      display:flex;align-items:center;width:100%;min-height:32px;padding:6px 10px;border:0;
+      border-radius:6px;background:transparent;color:var(--body);font-size:13px;font-weight:500;
+      text-align:left;cursor:pointer;transition:background .1s,color .1s;
+    }
+    .cselect-opt:hover,.cselect-opt:focus{background:var(--canvas-soft-2);color:var(--ink);outline:none}
+    .cselect-opt.on{background:var(--ink);color:#fff}
+    .cselect-opt.on:hover{background:#000;color:#fff}
+    .cselect-opt:disabled{opacity:.4;cursor:not-allowed}
+    .filter-bar .cselect{min-width:110px}
+    .pager-jump{display:inline-flex;align-items:center;gap:6px}
+    .pager-jump .pager-input{
+      width:52px;height:28px;padding:0 6px;border-radius:6px;border:1px solid var(--hairline);
+      background:#fff;color:var(--ink);font-size:12px;font-variant-numeric:tabular-nums;text-align:center;outline:none;
+    }
+    .pager-jump .pager-input:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(23,23,23,.08)}
+    .pager-jump .pager-total{color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap}
 
     .seg{display:inline-flex;border:1px solid var(--hairline);border-radius:8px;overflow:hidden;background:#fff}
     .seg button{border:0;background:transparent;height:30px;padding:0 12px;color:var(--body);font-weight:500;font-size:13px}
@@ -152,7 +204,7 @@ export function styles(): string {
     .dt-actions .btn{flex-shrink:0}
     .dt-time{display:flex;flex-direction:column;align-items:flex-start;gap:2px;overflow:hidden;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--mute)}
     .dt-time-main{white-space:nowrap}
-    .dt-accounts{--dt-min:900px;--dt-cols:minmax(160px,1.6fr) 96px minmax(100px,1.2fr) 56px 140px 268px}
+    .dt-accounts{--dt-min:980px;--dt-cols:minmax(150px,1.5fr) 88px 90px minmax(90px,1.1fr) 52px 120px 268px}
     .dt-users{--dt-min:880px;--dt-cols:minmax(140px,1.4fr) 88px 88px minmax(110px,1.1fr) 120px 244px}
     .dt-keys{--dt-min:800px;--dt-cols:minmax(120px,1.2fr) minmax(100px,1fr) 88px 140px 56px 200px}
     .dt-keys.has-owner{--dt-min:920px;--dt-cols:minmax(110px,1.1fr) minmax(90px,.9fr) minmax(90px,.9fr) 88px 130px 52px 200px}
@@ -319,7 +371,7 @@ export function styles(): string {
       .log-meta{grid-template-columns:1fr}
       /* keep actions on one line so row width stays locked to --dt-min */
       .dt-actions{flex-wrap:nowrap}
-      .dt-accounts{--dt-min:860px;--dt-cols:minmax(150px,1.4fr) 90px minmax(100px,1.1fr) 48px 130px 282px}
+      .dt-accounts{--dt-min:940px;--dt-cols:minmax(140px,1.3fr) 80px 84px minmax(90px,1fr) 48px 110px 280px}
       .dt-users{--dt-min:820px;--dt-cols:minmax(130px,1.2fr) 80px 80px minmax(100px,1fr) 110px 240px}
       .dt-keys{--dt-min:760px;--dt-cols:minmax(110px,1.1fr) minmax(100px,1fr) 80px 120px 48px 200px}
       .dt-keys.has-owner{--dt-min:880px;--dt-cols:minmax(100px,1fr) minmax(90px,.9fr) minmax(80px,.8fr) 80px 110px 48px 200px}

@@ -177,10 +177,15 @@ export function canUserUseAccount(
   return true;
 }
 
+/** Shared/public pool only — never includes private seats. */
+export function isPublicPoolAccount(acc: Account): boolean {
+  return acc.private !== true;
+}
+
 /**
  * Accounts eligible for a caller's route scope.
- * - public: admin-managed + non-private contrib (and caller's own private)
- * - mine: only donated by caller
+ * - public: ONLY non-private seats (admin-managed + public contrib). Private never joins public RR.
+ * - mine: only donated by caller (including private)
  * - account: single id if allowed
  */
 export function filterAccountsForCaller(
@@ -206,13 +211,8 @@ export function filterAccountsForCaller(
     return accounts.filter((a) => a.donorUserId === uid);
   }
 
-  // public pool: exclude others' private accounts
-  return accounts.filter((a) => {
-    if (a.private === true) {
-      return Boolean(uid && a.donorUserId === uid);
-    }
-    return true;
-  });
+  // public pool: strictly non-private only
+  return accounts.filter((a) => isPublicPoolAccount(a));
 }
 
 export async function deleteAccount(id: string): Promise<boolean> {
@@ -221,7 +221,9 @@ export async function deleteAccount(id: string): Promise<boolean> {
     store.accounts = store.accounts.filter((a) => a.id !== id);
     if (store.accounts.length === before) return false;
     if (store.routing.currentAccountId === id) {
-      store.routing.currentAccountId = store.accounts.find((a) => a.status === "active")?.id ?? null;
+      // global current must stay on a public active seat
+      store.routing.currentAccountId =
+        store.accounts.find((a) => a.status === "active" && a.private !== true)?.id ?? null;
     }
     if (store.routing.cursor >= store.accounts.length) store.routing.cursor = 0;
     return true;
@@ -276,8 +278,13 @@ export async function setRoutingMode(mode: RoutingMode): Promise<RoutingState> {
 
 export async function setCurrentAccount(id: string | null): Promise<RoutingState> {
   return mutate((store) => {
-    if (id && !store.accounts.some((a) => a.id === id)) {
-      throw new Error(`account not found: ${id}`);
+    if (id) {
+      const acc = store.accounts.find((a) => a.id === id);
+      if (!acc) throw new Error(`account not found: ${id}`);
+      // Global admin routing is the public pool — private seats cannot be selected
+      if (acc.private === true) {
+        throw new Error("不能将私有贡献账号设为公共池当前账号，请改用公开账号");
+      }
     }
     store.routing.currentAccountId = id;
     if (id) store.routing.mode = "manual";
@@ -291,10 +298,11 @@ export async function advanceToNextActive(
   eligibleIds?: string[] | null,
 ): Promise<Account | undefined> {
   return mutate((store) => {
+    // Default (no eligibleIds) = public pool only — never rotate onto private seats
     const pool =
       eligibleIds && eligibleIds.length > 0
         ? store.accounts.filter((a) => eligibleIds.includes(a.id))
-        : store.accounts;
+        : store.accounts.filter((a) => a.private !== true);
     const n = pool.length;
     if (n === 0) {
       if (!eligibleIds) store.routing.currentAccountId = null;
@@ -308,11 +316,12 @@ export async function advanceToNextActive(
       if (acc.status !== "active") continue;
       if (excludeId && acc.id === excludeId) continue;
       store.routing.cursor = (store.routing.cursor + 1) % Math.max(1, store.accounts.length);
-      store.routing.currentAccountId = acc.id;
+      // only write global current when selecting a public seat
+      if (acc.private !== true) store.routing.currentAccountId = acc.id;
       return acc;
     }
     const any = pool.find((a) => a.status === "active");
-    if (any) store.routing.currentAccountId = any.id;
+    if (any && any.private !== true) store.routing.currentAccountId = any.id;
     return any;
   });
 }
@@ -325,7 +334,11 @@ export async function ensureCurrentAccount(
   if (curId) {
     const acc = store.accounts.find((a) => a.id === curId);
     if (acc && acc.status === "active") {
-      if (!eligibleIds || eligibleIds.includes(acc.id)) return acc;
+      // stale: current points at private seat — skip for public/default routing
+      const inEligible = eligibleIds
+        ? eligibleIds.includes(acc.id)
+        : acc.private !== true;
+      if (inEligible) return acc;
     }
   }
   return advanceToNextActive(undefined, eligibleIds);

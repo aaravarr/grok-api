@@ -63,6 +63,10 @@ export async function routeAccount(opts?: {
     if (!canUserUseAccount(pref, callerUserId)) {
       throw new Error("无权使用该账号（私有或不可见）");
     }
+    // public pool must never land on private seats
+    if (scope === "public" && pref.private === true) {
+      throw new Error("公共号池不能使用私有账号，请改用「仅自己号池」或「指定账号」");
+    }
     // if user scoped to mine, preferred must be theirs
     if (scope === "mine" && pref.donorUserId !== callerUserId) {
       throw new Error("当前路由模式为「仅自己号池」，不能指定其他账号");
@@ -86,9 +90,12 @@ export async function routeAccount(opts?: {
     throw new Error("没有可用账号（未添加或全部不可用）");
   }
 
-  // Manual global mode: stick to selected if still eligible
+  // Manual global mode: stick to selected only if public + still eligible
   if (routing.mode === "manual" && routing.currentAccountId && !opts?.forceAuto) {
-    if (eligibleIds.includes(routing.currentAccountId)) {
+    const cur = all.find((a) => a.id === routing.currentAccountId);
+    if (cur && cur.private === true) {
+      // private cannot be global current — fall through to public auto
+    } else if (eligibleIds.includes(routing.currentAccountId)) {
       return useAccount(routing.currentAccountId, checkCredits);
     }
     // fall through to auto within pool
@@ -200,6 +207,9 @@ export async function onProviderError(
 export async function switchAccount(accountId: string): Promise<Account> {
   const acc = await getAccount(accountId);
   if (!acc) throw new Error(`account not found: ${accountId}`);
+  if (acc.private === true) {
+    throw new Error("不能将私有贡献账号设为公共池当前账号");
+  }
   await setCurrentAccount(accountId);
   try {
     await fetchAccountCredits(accountId, { force: true });
