@@ -10,6 +10,9 @@ export function authPageHtml(mode: AuthMode): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Grok API</title>
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
 ${styles()}
   </style>
@@ -18,9 +21,9 @@ ${styles()}
   <div class="auth-gate" id="authGate">
     <div class="auth-card" id="authCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px">
-        <a class="brand" href="/" style="padding:0;margin:0;gap:8px;font-size:14px">
+        <a class="brand" href="/" style="padding:0;margin:0;gap:8px">
           <div class="brand-mark" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="3.4" cy="3.4" r="1.35" fill="white"/><circle cx="3.4" cy="8" r="1.35" fill="white"/><circle cx="3.4" cy="12.6" r="1.35" fill="white"/><path d="M5.4 3.4C7.5 3.4 8.9 6.2 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 8H9.9" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 12.6C7.5 12.6 8.9 9.8 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M9.3 5.5L12.6 8L9.3 10.5" stroke="white" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <span>Grok API</span>
+          <span class="brand-name">Grok API</span>
         </a>
         <div class="seg" id="langSeg">
           <button type="button" data-lang="zh">中文</button>

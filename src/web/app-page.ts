@@ -20,6 +20,9 @@ export function appPageHtml(page: AppPage | string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Grok API</title>
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
 ${styles()}
@@ -30,7 +33,7 @@ ${styles()}
     <aside class="side" id="side">
       <a class="brand" href="/" title="Home">
         <div class="brand-mark" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="3.4" cy="3.4" r="1.35" fill="white"/><circle cx="3.4" cy="8" r="1.35" fill="white"/><circle cx="3.4" cy="12.6" r="1.35" fill="white"/><path d="M5.4 3.4C7.5 3.4 8.9 6.2 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 8H9.9" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 12.6C7.5 12.6 8.9 9.8 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M9.3 5.5L12.6 8L9.3 10.5" stroke="white" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <span>Grok API</span>
+        <span class="brand-name">Grok API</span>
       </a>
       <nav>
         <div class="nav-group">
@@ -42,14 +45,14 @@ ${styles()}
         </div>
         <div class="nav-group">
           <div class="nav-label" data-i18n="navCommunity">Community</div>
-          <a class="nav-item ${page==='contribute'?'on':''}" href="/contribute" data-view="contribute"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><span data-i18n="navContribute">Contribute</span></a>
-          <a class="nav-item ${page==='leaderboard'?'on':''}" href="/leaderboard" data-view="leaderboard"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M5 8H3a2 2 0 0 0 2 2h0"/><path d="M19 8h2a2 2 0 0 1-2 2h0"/></svg></span><span data-i18n="navLeaderboard">Leaderboard</span></a>
+          <a class="nav-item ${page==='contribute'?'on':''}" href="/contribute" data-view="contribute"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M4 19h16"/><path d="M6 19v2"/><path d="M18 19v2"/></svg></span><span data-i18n="navContribute">Contribute</span></a>
+          <a class="nav-item ${page==='leaderboard'?'on':''}" href="/leaderboard" data-view="leaderboard"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0V4Z"/><path d="M17 4h2a1 1 0 0 1 1 1v1a3 3 0 0 1-3 3"/><path d="M7 4H5a1 1 0 0 0-1 1v1a3 3 0 0 0 3 3"/></svg></span><span data-i18n="navLeaderboard">Leaderboard</span></a>
         </div>
         <div class="nav-group">
           <div class="nav-label" data-i18n="navSystem">System</div>
           <a class="nav-item ${page==='usage'?'on':''}" href="/usage" data-view="usage"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16v-5"/><path d="M12 16V8"/><path d="M17 16v-9"/></svg></span><span data-i18n="navUsage">Usage</span></a>
           <a class="nav-item ${page==='logs'?'on':''}" href="/logs" data-view="logs"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg></span><span data-i18n="navLogs">Logs</span></a>
-          <a class="nav-item ${page==='settings'?'on':''}" href="/settings" data-view="settings" data-admin-only><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span><span data-i18n="navSettings">Settings</span></a>
+          <a class="nav-item ${page==='settings'?'on':''}" href="/settings" data-view="settings" data-admin-only><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span data-i18n="navSettings">Settings</span></a>
         </div>
       </nav>
     </aside>
@@ -59,7 +62,13 @@ ${styles()}
     <div class="main-wrap">
       <header class="topbar">
         <div class="topbar-left">
-          <button class="btn btn-secondary btn-sm side-toggle" type="button" id="btnSide" aria-label="Menu">☰</button>
+          <button class="btn btn-secondary btn-sm side-toggle" type="button" id="btnSide" aria-label="Menu">
+            <svg class="side-toggle-icon" width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true">
+              <circle cx="4" cy="4" r="1.35"/><circle cx="9" cy="4" r="1.35"/><circle cx="14" cy="4" r="1.35"/>
+              <circle cx="4" cy="9" r="1.35"/><circle cx="9" cy="9" r="1.35"/><circle cx="14" cy="9" r="1.35"/>
+              <circle cx="4" cy="14" r="1.35"/><circle cx="9" cy="14" r="1.35"/><circle cx="14" cy="14" r="1.35"/>
+            </svg>
+          </button>
           <div class="topbar-titles">
             <span class="page-title" id="pageTitle">Overview</span>
             <span class="page-sub" id="pageSub"></span>
@@ -79,52 +88,108 @@ ${styles()}
       <main class="content">
         <!-- OVERVIEW -->
         <section class="view ${page==='overview'?'on':''}" id="view-overview">
-          <div class="hero">
-            <h1 data-i18n="title">Account Pool</h1>
-            <p data-i18n="subtitle">SuperGrok OAuth pool · credit-aware routing · OpenAI-compatible proxy.</p>
+          <div class="ov-welcome">
+            <div class="ov-welcome-main">
+              <div class="ov-kicker" data-i18n="ovKicker">Console</div>
+              <h1 id="ovHello" data-i18n="ovHello">Overview</h1>
+              <p id="ovHelloSub" data-i18n="ovHelloSub">Pool health, recent traffic, and shortcuts.</p>
+            </div>
+            <div class="ov-welcome-side">
+              <div class="ov-pill" id="ovUserPill">–</div>
+              <div class="ov-pill mono" id="ovRangePill">–</div>
+            </div>
           </div>
-          <div class="stats">
-            <div class="stat clickable" data-goto="accounts" data-admin-only><div class="n" id="sTotal">–</div><div class="l" data-i18n="statAccounts">Accounts</div></div>
-            <div class="stat clickable" data-goto="accounts" data-admin-only><div class="n" id="sActive">–</div><div class="l" data-i18n="statActive">Active</div></div>
-            <div class="stat clickable" data-goto="usage"><div class="n" id="sReq">–</div><div class="l" data-i18n="statReqs">Requests</div></div>
-            <div class="stat clickable" data-goto="keys"><div class="n" id="sKeys">–</div><div class="l" data-i18n="statKeys">API Keys</div></div>
+
+          <div class="ov-kpis" id="ovKpis">
+            <button type="button" class="ov-kpi clickable" data-goto="usage">
+              <div class="ov-kpi-l" data-i18n="statReqs">Requests</div>
+              <div class="ov-kpi-n" id="sReq">–</div>
+              <div class="ov-kpi-s" id="ovOkRate">–</div>
+            </button>
+            <button type="button" class="ov-kpi clickable" data-goto="usage">
+              <div class="ov-kpi-l" data-i18n="kpiTok">Total tokens</div>
+              <div class="ov-kpi-n" id="ovTok">–</div>
+              <div class="ov-kpi-s" id="ovLat">–</div>
+            </button>
+            <button type="button" class="ov-kpi clickable" data-goto="keys">
+              <div class="ov-kpi-l" data-i18n="statKeys">API Keys</div>
+              <div class="ov-kpi-n" id="sKeys">–</div>
+              <div class="ov-kpi-s" data-i18n="qaKey">Issue client keys</div>
+            </button>
+            <button type="button" class="ov-kpi clickable" data-goto="contribute">
+              <div class="ov-kpi-l" data-i18n="statMine">My seats</div>
+              <div class="ov-kpi-n" id="ovMine">–</div>
+              <div class="ov-kpi-s" id="ovRank">–</div>
+            </button>
+            <button type="button" class="ov-kpi clickable" data-goto="accounts" data-admin-only>
+              <div class="ov-kpi-l" data-i18n="statAccounts">Accounts</div>
+              <div class="ov-kpi-n" id="sTotal">–</div>
+              <div class="ov-kpi-s" id="sActiveWrap"><span id="sActive">–</span> <span data-i18n="statActive">Active</span></div>
+            </button>
           </div>
-          <div class="grid-2 mb">
-            <div class="card">
-              <div class="card-hd">
-                <strong data-i18n="ovUsage">Usage (7d)</strong>
-                <div class="spacer"></div>
-                <button class="btn btn-ghost btn-sm" type="button" data-goto="usage" data-i18n="viewMore">Details →</button>
-              </div>
-              <div class="card-bd">
-                <div class="usage-kpis compact" style="margin-bottom:10px">
-                  <div class="kpi"><div class="n" id="ovReq">–</div><div class="l" data-i18n="kpiReq">Requests</div></div>
-                  <div class="kpi"><div class="n" id="ovIn">–</div><div class="l" data-i18n="kpiIn">Input</div><div class="sub" id="ovCache">–</div></div>
-                  <div class="kpi"><div class="n" id="ovOut">–</div><div class="l" data-i18n="kpiOut">Output</div><div class="sub" id="ovReason">–</div></div>
+
+          <div class="ov-grid mb">
+            <div class="ov-main">
+              <div class="card ov-card-usage">
+                <div class="card-hd">
+                  <div>
+                    <strong data-i18n="ovUsage">Usage</strong>
+                    <div class="mono ov-card-sub" id="ovUsageSub">–</div>
+                  </div>
+                  <div class="spacer"></div>
+                  <button class="btn btn-ghost btn-sm" type="button" data-goto="usage" data-i18n="viewMore">Details →</button>
                 </div>
-                <div class="chart-wrap chart-overview"><canvas id="chartOverview"></canvas></div>
+                <div class="card-bd">
+                  <div class="ov-token-row">
+                    <div class="ov-token"><span class="ov-dot in"></span><span data-i18n="kpiIn">Input</span><strong id="ovIn">–</strong></div>
+                    <div class="ov-token"><span class="ov-dot cache"></span><span data-i18n="kpiCache">Cached</span><strong id="ovCache">–</strong></div>
+                    <div class="ov-token"><span class="ov-dot out"></span><span data-i18n="kpiOut">Output</span><strong id="ovOut">–</strong></div>
+                    <div class="ov-token"><span class="ov-dot reason"></span><span data-i18n="kpiReason">Reasoning</span><strong id="ovReason">–</strong></div>
+                  </div>
+                  <div class="chart-wrap chart-overview"><canvas id="chartOverview"></canvas></div>
+                </div>
+              </div>
+              <div class="ov-mini-grid">
+                <div class="card ov-card-mini">
+                  <div class="card-hd"><strong data-i18n="chartModel">Models</strong></div>
+                  <div class="card-bd">
+                    <div class="chart-wrap chart-ov-mini"><canvas id="chartOvModel"></canvas></div>
+                  </div>
+                </div>
+                <div class="card ov-card-mini">
+                  <div class="card-hd"><strong data-i18n="ovReqChart">Requests</strong></div>
+                  <div class="card-bd">
+                    <div class="chart-wrap chart-ov-mini"><canvas id="chartOvReq"></canvas></div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="card">
-              <div class="card-hd"><strong data-i18n="ovQuick">Quick actions</strong></div>
-              <div class="card-bd">
-                <div class="quick-actions" id="quickActions">
-                  <button type="button" class="qa" data-goto="contribute"><strong data-i18n="navContribute">Contribute</strong><span data-i18n="qaContrib">Share SuperGrok capacity</span></button>
-                  <button type="button" class="qa" data-goto="leaderboard"><strong data-i18n="navLeaderboard">Leaderboard</strong><span data-i18n="qaLb">See top contributors</span></button>
-                  <button type="button" class="qa" data-goto="keys"><strong data-i18n="navKeys">API Keys</strong><span data-i18n="qaKey">Issue client keys</span></button>
-                  <button type="button" class="qa" data-goto="usage"><strong data-i18n="navUsage">Usage</strong><span data-i18n="qaUsage">Charts & distribution</span></button>
-                  <button type="button" class="qa" data-goto="logs"><strong data-i18n="navLogs">Logs</strong><span data-i18n="qaLogs">Debug full requests</span></button>
-                  <button type="button" class="qa" data-goto="accounts" data-admin-only><strong data-i18n="navAccounts">Accounts</strong><span data-i18n="qaAcc">Add / switch / credits</span></button>
-                  <button type="button" class="qa" data-goto="settings" data-admin-only><strong data-i18n="navSettings">Settings</strong><span data-i18n="qaSettings">Proxy & logs</span></button>
-                  <a class="qa" href="/#examples"><strong data-i18n="qaCurlTitle">cURL</strong><span data-i18n="qaCurl">On homepage</span></a>
-                </div>
-                <div style="margin-top:14px">
-                  <div class="mono" style="margin-bottom:6px" data-i18n="ovRecent">Recent requests</div>
-                  <div class="quick-list" id="ovRecent"></div>
+
+            <div class="ov-side">
+              <div class="card">
+                <div class="card-hd"><strong data-i18n="ovQuick">Shortcuts</strong></div>
+                <div class="card-bd ov-qa-bd">
+                  <div class="quick-actions" id="quickActions">
+                    <button type="button" class="qa" data-goto="keys"><strong data-i18n="navKeys">API Keys</strong><span data-i18n="qaKey">Issue client keys</span></button>
+                    <button type="button" class="qa" data-goto="usage"><strong data-i18n="navUsage">Usage</strong><span data-i18n="qaUsage">Charts & distribution</span></button>
+                    <button type="button" class="qa" data-goto="contribute"><strong data-i18n="navContribute">Contribute</strong><span data-i18n="qaContrib">Share SuperGrok capacity</span></button>
+                    <button type="button" class="qa" data-goto="leaderboard"><strong data-i18n="navLeaderboard">Leaderboard</strong><span data-i18n="qaLb">See top contributors</span></button>
+                    <button type="button" class="qa" data-goto="logs"><strong data-i18n="navLogs">Logs</strong><span data-i18n="qaLogs">Debug full requests</span></button>
+                    <button type="button" class="qa" data-goto="accounts" data-admin-only><strong data-i18n="navAccounts">Accounts</strong><span data-i18n="qaAcc">Pool & credits</span></button>
+                    <button type="button" class="qa" data-goto="settings" data-admin-only><strong data-i18n="navSettings">Settings</strong><span data-i18n="qaSettings">Endpoints & proxy</span></button>
+                  </div>
                 </div>
               </div>
-              <div class="card-ft">
-                <button class="btn btn-secondary btn-sm" type="button" data-goto="logs" data-i18n="viewAllLogs">All logs →</button>
+
+              <div class="card ov-card-recent">
+                <div class="card-hd">
+                  <strong data-i18n="ovRecent">Recent requests</strong>
+                  <div class="spacer"></div>
+                  <button class="btn btn-ghost btn-sm" type="button" data-goto="logs" data-i18n="viewAllLogs">All logs →</button>
+                </div>
+                <div class="card-bd" style="padding:0">
+                  <div class="quick-list" id="ovRecent"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -883,7 +948,7 @@ ${styles()}
         authPassMismatch:"两次密码不一致",
         navOps:"运营", navAnalyze:"分析", navOps2:"运维", navSystem:"系统",
         navOverview:"总览", navAccounts:"账号", navKeys:"密钥", navUsers:"用户", navUsage:"用量", navLogs:"日志", navSettings:"设置",
-        subOverview:"状态一览与快捷入口", subAccounts:"OAuth 池 · 路由与额度", subKeys:"客户端鉴权密钥",
+        subOverview:"池状态 · 流量 · 快捷入口", subAccounts:"OAuth 池 · 路由与额度", subKeys:"客户端鉴权密钥",
         subUsers:"注册用户与角色", subUsage:"Token / 次数 / 模型分布", subLogs:"完整请求排查（低频）", subSettings:"代理与日志策略",
         usersHint:"管理注册用户", colUser:"用户", colRole:"角色", colQuota:"额度",
         allowRegister:"允许注册", userSettings:"用户注册",
@@ -892,9 +957,21 @@ ${styles()}
         quotaResetUsed:"将已用清零", saveQuota:"保存额度", quotaUnlimited:"不限",
         quotaFmt:(u,q)=>u+" / "+q, setQuota:"额度",
         viewMore:"查看详情 →", viewAllLogs:"全部日志 →",
-        ovUsage:"近 7 日用量", ovQuick:"快捷操作", ovRecent:"最近请求",
-        qaAcc:"添加 / 切换 / 查额度", qaKey:"签发客户端密钥", qaUsage:"图表与分布", qaLogs:"完整请求排查",
-        qaCurlTitle:"cURL 示例", qaCurl:"见首页", qaSettings:"代理与日志策略",
+        qaAcc:"账号池与额度", qaKey:"创建与管理密钥", qaUsage:"趋势与分布", qaLogs:"请求排查",
+        qaSettings:"端点与代理",
+        ovKicker:"控制台",
+        ovHello:"总览",
+        ovHelloNamed:(n)=>"你好，"+n,
+        ovHelloSub:"账号池健康度、近期流量与常用入口。",
+        ovUsage:"用量趋势",
+        ovUsageSub:(r)=>"最近 "+r,
+        ovQuick:"快捷入口",
+        ovRecent:"最近请求",
+        ovReqChart:"请求与成功率",
+        ovOk:"成功", ovFail:"失败",
+        ovOkRate:(p)=>"成功率 "+p+"%",
+        ovLat:(ms)=>"平均延迟 "+ms+"ms",
+        ovRankLine:(r)=>r ? ("贡献榜 "+r) : "暂未上榜",
         adminExplain:"可选环境变量 <code>ADMIN_TOKEN</code> 可作为紧急管理员通道（Bearer）。日常请使用用户名密码登录。",
         adminExplainOpen:"请使用<strong>用户名密码</strong>登录。首次打开会引导创建管理员；账号池与代理仅管理员可配置。",
         endpointsTitle:"出站端点", endpointsSub:"LLM / OAuth / 额度 — 可填官方地址或跳板域名",
@@ -974,13 +1051,13 @@ ${styles()}
         usedLeft:(u,r)=>u.toFixed(1)+"% 已用 · "+r.toFixed(1)+"% 剩余",
         src:{settings:"手动配置",direct:"直连",env:"环境变量",system:"系统代理",none:"无"},
         switchOk:"已切换（仅检查该账号额度）", addOk:"账号添加成功", keyCreated:"密钥已创建",
-        statAccounts:"账号", statActive:"可用", statReqs:"请求(7d)", statKeys:"密钥",
+        statAccounts:"账号", statActive:"可用", statReqs:"请求", statKeys:"密钥",
         pageOf:(c,t,n)=>"第 "+c+" / "+t+" 页 · 共 "+n+" 条", prev:"上一页", next:"下一页",
         goPage:"跳转", pageJumpPh:"页",
         diskInfo:(d,b)=>d+" 天 · "+b,
-        navCommunity:"社区", navContribute:"贡献席位", navLeaderboard:"贡献榜",
-        subContribute:"绑定 SuperGrok · 加入共享容量", subLeaderboard:"社区贡献席位排行",
-        qaContrib:"分享 SuperGrok 容量", qaLb:"查看贡献排行",
+        navCommunity:"社区", navContribute:"贡献", navLeaderboard:"排行",
+        subContribute:"绑定 SuperGrok · 加入共享容量", subLeaderboard:"社区贡献排行",
+        qaContrib:"绑定席位进池", qaLb:"社区贡献排行",
         contribKicker:"社区容量", contribTitle:"分享你的 SuperGrok 席位",
         contribSub:"绑定你拥有的 xAI 账号。剩余额度会进入共享池——大家更稳，你也能登上贡献榜。",
         contribCta:"贡献一个账号",
@@ -1051,7 +1128,7 @@ ${styles()}
         authPassMismatch:"Passwords do not match",
         navOps:"Operate", navAnalyze:"Analyze", navOps2:"Ops", navSystem:"System",
         navOverview:"Overview", navAccounts:"Accounts", navKeys:"API Keys", navUsers:"Users", navUsage:"Usage", navLogs:"Logs", navSettings:"Settings",
-        subOverview:"Status & shortcuts", subAccounts:"OAuth pool · routing & credits", subKeys:"Client auth keys",
+        subOverview:"Pool health · traffic · shortcuts", subAccounts:"OAuth pool · routing & credits", subKeys:"Client auth keys",
         subUsers:"Registered users & roles", subUsage:"Tokens / calls / models", subLogs:"Full request debug (rare)", subSettings:"Proxy & log policy",
         usersHint:"Manage registered users", colUser:"User", colRole:"Role", colQuota:"Quota",
         allowRegister:"Allow registration", userSettings:"Registration",
@@ -1060,9 +1137,21 @@ ${styles()}
         quotaResetUsed:"Reset used to 0", saveQuota:"Save quota", quotaUnlimited:"Unlimited",
         quotaFmt:(u,q)=>u+" / "+q, setQuota:"Quota",
         viewMore:"Details →", viewAllLogs:"All logs →",
-        ovUsage:"Usage (7d)", ovQuick:"Quick actions", ovRecent:"Recent requests",
-        qaAcc:"Add / switch / credits", qaKey:"Issue client keys", qaUsage:"Charts & mix", qaLogs:"Full request debug",
-        qaCurlTitle:"cURL", qaCurl:"On homepage", qaSettings:"Proxy & log policy",
+        qaAcc:"Pool & credits", qaKey:"Create and manage keys", qaUsage:"Trends & mix", qaLogs:"Request debug",
+        qaSettings:"Endpoints & proxy",
+        ovKicker:"Console",
+        ovHello:"Overview",
+        ovHelloNamed:(n)=>"Hi, "+n,
+        ovHelloSub:"Pool health, recent traffic, and shortcuts.",
+        ovUsage:"Usage trend",
+        ovUsageSub:(r)=>"Last "+r,
+        ovQuick:"Shortcuts",
+        ovRecent:"Recent requests",
+        ovReqChart:"Requests & success",
+        ovOk:"OK", ovFail:"Fail",
+        ovOkRate:(p)=>p+"% success",
+        ovLat:(ms)=>"avg "+ms+"ms",
+        ovRankLine:(r)=>r ? ("Rank "+r) : "Unranked",
         adminExplain:"Optional env <code>ADMIN_TOKEN</code> is an emergency admin Bearer. Prefer username/password login.",
         adminExplainOpen:"Sign in with username/password. First visit creates the admin. Account pool & proxy are admin-only.",
         endpointsTitle:"Outbound endpoints", endpointsSub:"LLM / OAuth / Billing — official hosts or a jump proxy",
@@ -1142,13 +1231,13 @@ ${styles()}
         usedLeft:(u,r)=>u.toFixed(1)+"% used · "+r.toFixed(1)+"% left",
         src:{settings:"manual",direct:"direct",env:"env",system:"system",none:"none"},
         switchOk:"Switched (credits checked for this account only)", addOk:"Account added", keyCreated:"API key created",
-        statAccounts:"Accounts", statActive:"Active", statReqs:"Requests (7d)", statKeys:"API Keys",
+        statAccounts:"Accounts", statActive:"Active", statReqs:"Requests", statKeys:"API Keys",
         pageOf:(c,t,n)=>"Page "+c+" / "+t+" · "+n+" total", prev:"Prev", next:"Next",
         goPage:"Go", pageJumpPh:"page",
         diskInfo:(d,b)=>d+" days · "+b,
-        navCommunity:"Community", navContribute:"Contribute", navLeaderboard:"Leaderboard",
+        navCommunity:"Community", navContribute:"Share", navLeaderboard:"Ranks",
         subContribute:"Link SuperGrok · grow shared capacity", subLeaderboard:"Community contribution ranking",
-        qaContrib:"Share SuperGrok capacity", qaLb:"See top contributors",
+        qaContrib:"Link seats to the pool", qaLb:"Community ranking",
         contribKicker:"Community capacity", contribTitle:"Share your SuperGrok seat",
         contribSub:"Link an xAI account you own. Remaining credits join the shared pool — everyone gets more reliable access, and you climb the board.",
         contribCta:"Contribute an account",
@@ -1235,7 +1324,7 @@ ${styles()}
     let lastLogItems = [];
     let usageRange = "7d"; // 1h | 6h | 24h | 7d | 30d
     let usageGran = "auto"; // auto | minute | hour | day
-    let charts = { day: null, model: null, account: null, key: null, overview: null, tokMix: null, keyInOut: null };
+    let charts = { day: null, model: null, account: null, key: null, overview: null, ovModel: null, ovReq: null, tokMix: null, keyInOut: null };
     let lastStats = null;
 
     const $ = (id) => document.getElementById(id);
@@ -1284,11 +1373,20 @@ ${styles()}
       if (name === "usage" || name === "overview") {
         if (lastStats) {
           if (name === "usage") paintCharts(lastStats);
-          if (name === "overview") paintOverviewChart(lastStats);
+          if (name === "overview") {
+            paintOverviewChrome();
+            paintOverviewChart(lastStats);
+          }
+        } else if (name === "overview") {
+          paintOverviewChrome();
         }
       }
       if (name === "users" && isAdmin()) loadUsers();
-      if (name === "contribute") { loadMyAccounts(); loadMyRouting(); loadLeaderboardLite(); }
+      if (name === "contribute" || name === "overview") {
+        loadMyAccounts();
+        if (name === "contribute") loadMyRouting();
+        loadLeaderboardLite();
+      }
       if (name === "leaderboard") loadLeaderboard();
     }
 
@@ -1297,13 +1395,8 @@ ${styles()}
       document.querySelectorAll("[data-admin-only]").forEach((el) => {
         el.classList.toggle("hide", !admin);
       });
-      // stats: non-admin only sees 请求 + API Keys
-      const stats = document.querySelector(".stats");
-      if (stats) stats.style.gridTemplateColumns = admin ? "" : "repeat(2,minmax(0,1fr))";
-      // quick actions: hide admin tiles, keep user-facing ones
       const qa = $("quickActions");
       if (qa) qa.classList.toggle("user-only", !admin);
-      // logs grid without account column for non-admin
       document.querySelectorAll(".dt-logs").forEach((el) => el.classList.toggle("no-account", !admin));
       if (currentUser) {
         $("userChip").style.display = "inline-flex";
@@ -1312,6 +1405,7 @@ ${styles()}
       } else {
         $("userChip").style.display = "none";
       }
+      paintOverviewChrome();
     }
 
         async function logout() {
@@ -2242,20 +2336,41 @@ ${styles()}
       });
     }
 
+    function paintOverviewChrome() {
+      const name = currentUser && currentUser.username ? currentUser.username : "";
+      if ($("ovHello")) $("ovHello").textContent = name ? t("ovHelloNamed", name) : t("ovHello");
+      if ($("ovHelloSub")) $("ovHelloSub").textContent = t("ovHelloSub");
+      if ($("ovUserPill")) {
+        if (currentUser) {
+          $("ovUserPill").textContent =
+            currentUser.username + (currentUser.role === "admin" ? " · admin" : "");
+        } else {
+          $("ovUserPill").textContent = "–";
+        }
+      }
+      if ($("ovRangePill")) $("ovRangePill").textContent = t("ovUsageSub", usageRange || "7d");
+      if ($("ovUsageSub")) $("ovUsageSub").textContent = t("ovUsageSub", usageRange || "7d");
+    }
+
     function renderOverviewRecent(items) {
       const el = $("ovRecent");
       if (!el) return;
       if (!items || !items.length) {
-        el.innerHTML = '<div class="mono" style="padding:8px 0">' + esc(t("noLogs")) + "</div>";
+        el.innerHTML = '<div class="ov-empty">' + esc(t("noLogs")) + "</div>";
         return;
       }
-      el.innerHTML = items.slice(0, 5).map((r) => {
+      el.innerHTML = items.slice(0, 6).map((r) => {
         const st = r.ok ? "active" : "error";
         const client = clientLabel(r);
         return '<div class="quick-row clickable" data-id="' + esc(r.id) + '">' +
-          '<div><div class="name">' + esc(r.model || "–") + ' · ' + esc(client) + '</div><div class="mono">' + esc(fmtTime(r.ts)) + "</div></div>" +
-          '<div style="text-align:right"><span class="badge ' + st + '">' + esc(r.status) + '</span>' +
-          '<div class="mono">' + (r.usage ? fmtUsageShort(r.usage) : ((r.latencyMs || 0) + "ms")) + "</div></div></div>";
+          '<div class="ov-recent-main">' +
+          '<div class="name">' + esc(r.model || "–") + '</div>' +
+          '<div class="mono">' + esc(client) + " · " + esc(fmtTime(r.ts)) + "</div>" +
+          "</div>" +
+          '<div class="ov-recent-side">' +
+          '<span class="badge ' + st + '">' + esc(r.status) + "</span>" +
+          '<div class="mono">' + (r.usage ? fmtUsageShort(r.usage) : ((r.latencyMs || 0) + "ms")) + "</div>" +
+          "</div></div>";
       }).join("");
       el.querySelectorAll("[data-id]").forEach((row) => {
         row.addEventListener("click", () => openLogDetail(row.getAttribute("data-id")));
@@ -2283,7 +2398,7 @@ ${styles()}
         boxHeight: 7,
         padding: 14,
         color: "#4d4d4d",
-        font: { size: 12, family: "Geist, Inter, system-ui, sans-serif", weight: "500" }
+         font: { size: 12, family: "Geist, Noto Sans SC, system-ui, sans-serif", weight: "500" }
       }
     };
 
@@ -2412,25 +2527,155 @@ ${styles()}
     }
 
     function paintOverviewChart(stats) {
-      if (typeof Chart === "undefined" || !$("chartOverview")) return;
+      if (typeof Chart === "undefined") return;
       const dayLabels = timeSeriesLabels(stats);
-      destroyChart("overview");
-      charts.overview = new Chart($("chartOverview"), {
-        type: "bar",
-        data: { labels: dayLabels, datasets: stackedTokDatasets(stats.byDay, false) },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          interaction: { mode: "index", intersect: false },
-          plugins: {
-            legend: { display: true, ...legendOpts },
-            tooltip: { backgroundColor: "#171717", cornerRadius: 8, padding: 10, usePointStyle: true, boxWidth: 8, boxHeight: 8 }
+      const tip = { backgroundColor: "#171717", cornerRadius: 8, padding: 8, usePointStyle: true, boxWidth: 8, boxHeight: 8 };
+      const miniLegend = {
+        position: "right",
+        labels: { usePointStyle: true, pointStyle: "circle", boxWidth: 7, boxHeight: 7, padding: 8, color: "#4d4d4d", font: { size: 10 } },
+      };
+
+      if ($("chartOverview")) {
+        destroyChart("overview");
+        charts.overview = new Chart($("chartOverview"), {
+          type: "bar",
+          data: { labels: dayLabels, datasets: stackedTokDatasets(stats.byDay, false) },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            layout: { padding: { top: 2, bottom: 0, left: 0, right: 2 } },
+            plugins: {
+              legend: {
+                display: true, position: "top", align: "end",
+                labels: { ...(legendOpts.labels || {}), boxWidth: 7, boxHeight: 7, padding: 8, font: { size: 10 } },
+              },
+              tooltip: tip,
+            },
+            scales: {
+              y: {
+                stacked: true, display: true, beginAtZero: true,
+                grid: { color: "rgba(0,0,0,.04)", drawBorder: false },
+                ticks: { font: { size: 10 }, color: "#888", maxTicksLimit: 4, padding: 2 },
+              },
+              x: {
+                stacked: true, grid: { display: false },
+                ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8, color: "#888", padding: 0 },
+              },
+            },
           },
-          scales: {
-            y: { stacked: true, display: true, grid: { color: "rgba(0,0,0,.04)", drawBorder: false }, ticks: { font: { size: 10 }, color: "#888" } },
-            x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12, color: "#888" } }
-          }
-        }
-      });
+        });
+      }
+
+      // Model mix doughnut
+      if ($("chartOvModel")) {
+        destroyChart("ovModel");
+        const models = (stats.byModel || []).slice(0, 6);
+        const hasModel = models.length > 0;
+        charts.ovModel = new Chart($("chartOvModel"), {
+          type: "doughnut",
+          data: {
+            labels: hasModel ? models.map((m) => localBucketLabel(m.label)) : [t("noModel")],
+            datasets: [{
+              data: hasModel ? models.map((m) => m.requests || 0) : [1],
+              backgroundColor: hasModel
+                ? models.map((_, i) => PALETTE[i % PALETTE.length])
+                : ["#e5e5e5"],
+              borderWidth: 2, borderColor: "#fff", hoverOffset: 3,
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false, cutout: "62%",
+            plugins: {
+              legend: miniLegend,
+              tooltip: tip,
+            },
+          },
+        });
+      }
+
+      // Requests + success rate over time
+      if ($("chartOvReq")) {
+        destroyChart("ovReq");
+        const rows = stats.byDay || [];
+        charts.ovReq = new Chart($("chartOvReq"), {
+          type: "bar",
+          data: {
+            labels: dayLabels,
+            datasets: [
+              {
+                type: "bar",
+                label: t("ovOk"),
+                data: rows.map((d) => d.ok || 0),
+                backgroundColor: "rgba(10,122,62,.75)",
+                borderWidth: 0,
+                stack: "r",
+                yAxisID: "y",
+                order: 2,
+                barPercentage: 0.72,
+                categoryPercentage: 0.8,
+              },
+              {
+                type: "bar",
+                label: t("ovFail"),
+                data: rows.map((d) => d.fail || 0),
+                backgroundColor: "rgba(238,0,0,.55)",
+                borderWidth: 0,
+                stack: "r",
+                yAxisID: "y",
+                order: 2,
+                barPercentage: 0.72,
+                categoryPercentage: 0.8,
+              },
+              {
+                type: "line",
+                label: t("kpiOk"),
+                data: rows.map((d) => {
+                  const n = (d.ok || 0) + (d.fail || 0);
+                  return n ? Math.round(((d.ok || 0) / n) * 100) : null;
+                }),
+                borderColor: "#171717",
+                backgroundColor: "#171717",
+                tension: 0.35,
+                yAxisID: "y1",
+                pointRadius: 2.5,
+                pointHoverRadius: 4,
+                pointBackgroundColor: "#fff",
+                borderWidth: 2,
+                order: 1,
+                spanGaps: true,
+              },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            layout: { padding: { top: 2, bottom: 0, left: 0, right: 2 } },
+            plugins: {
+              legend: {
+                display: true, position: "top", align: "end",
+                labels: { usePointStyle: true, pointStyle: "circle", boxWidth: 7, boxHeight: 7, padding: 8, color: "#4d4d4d", font: { size: 10 } },
+              },
+              tooltip: tip,
+            },
+            scales: {
+              y: {
+                stacked: true, beginAtZero: true, position: "left",
+                grid: { color: "rgba(0,0,0,.04)", drawBorder: false },
+                ticks: { font: { size: 10 }, color: "#888", maxTicksLimit: 4, padding: 2 },
+              },
+              y1: {
+                position: "right", min: 0, max: 100,
+                grid: { drawOnChartArea: false },
+                ticks: { font: { size: 10 }, color: "#888", maxTicksLimit: 4, callback: (v) => v + "%" },
+              },
+              x: {
+                stacked: true, grid: { display: false },
+                ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 6, color: "#888" },
+              },
+            },
+          },
+        });
+      }
     }
 
     function paintCharts(stats) {
@@ -2825,11 +3070,20 @@ ${styles()}
         paintUsageControls(data.stats);
 
         if ($("sReq")) $("sReq").textContent = fmtNum(s.requests);
-        if ($("ovReq")) $("ovReq").textContent = fmtNum(s.requests);
+        if ($("ovTok")) $("ovTok").textContent = fmtNum(s.totalTokens);
         if ($("ovIn")) $("ovIn").textContent = fmtNum(seg.uncachedIn);
         if ($("ovOut")) $("ovOut").textContent = fmtNum(s.completionTokens);
-        if ($("ovCache")) $("ovCache").textContent = t("kpiCache") + " " + fmtNum(seg.cached);
-        if ($("ovReason")) $("ovReason").textContent = t("kpiReason") + " " + fmtNum(s.reasoningTokens);
+        if ($("ovCache")) $("ovCache").textContent = fmtNum(seg.cached);
+        if ($("ovReason")) $("ovReason").textContent = fmtNum(s.reasoningTokens || 0);
+        if ($("ovOkRate")) {
+          $("ovOkRate").textContent = s.requests
+            ? t("ovOkRate", Math.round((s.ok / s.requests) * 100))
+            : "–";
+        }
+        if ($("ovLat")) {
+          $("ovLat").textContent = s.avgLatencyMs != null ? t("ovLat", s.avgLatencyMs) : "–";
+        }
+        paintOverviewChrome();
 
         if (view === "usage") paintCharts(data.stats);
         if (view === "overview") paintOverviewChart(data.stats);
@@ -3155,6 +3409,7 @@ ${styles()}
         if ($("cActive")) $("cActive").textContent = st.active ?? 0;
         if ($("cExhausted")) $("cExhausted").textContent = st.exhausted ?? 0;
         if ($("contribMineCount")) $("contribMineCount").textContent = t("lbSeats", st.total ?? myAccounts.length);
+        if ($("ovMine")) $("ovMine").textContent = String(st.total ?? myAccounts.length);
         const maxPage = Math.max(1, Math.ceil(myAccounts.length / PAGE_SIZE));
         if (contribPage > maxPage) contribPage = maxPage;
         renderMyAccounts();
@@ -3168,6 +3423,9 @@ ${styles()}
         const data = await res.json();
         if ($("cRank")) {
           $("cRank").textContent = data.me ? ("#" + data.me.rank) : t("contribRankUnranked");
+        }
+        if ($("ovRank")) {
+          $("ovRank").textContent = t("ovRankLine", data.me ? ("#" + data.me.rank) : "");
         }
       } catch {}
     }

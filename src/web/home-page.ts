@@ -7,6 +7,9 @@ export function homePageHtml(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Grok API</title>
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     @font-face{font-family:"Geist";src:url("/static/fonts/Geist-Regular.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap}
     @font-face{font-family:"Geist";src:url("/static/fonts/Geist-Medium.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap}
@@ -25,8 +28,8 @@ export function homePageHtml(): string {
       --ok-bg:#dcfce7;
       --warn:#b45309;
       --warn-bg:#ffedd5;
-      --font:"Geist",ui-sans-serif,system-ui,-apple-system,sans-serif;
-      --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+      --font:"Geist","Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+      --mono:"Geist Mono","Noto Sans SC",ui-monospace,SFMono-Regular,Menlo,monospace;
       --ease:cubic-bezier(.16,1,.3,1);
     }
     *{box-sizing:border-box}
@@ -34,8 +37,8 @@ export function homePageHtml(): string {
     html,body{margin:0;padding:0}
     body{
       font-family:var(--font);color:var(--ink);background:#fff;
-      font-size:15px;line-height:1.5;letter-spacing:-.01em;
-      min-height:100dvh;-webkit-font-smoothing:antialiased;
+      font-size:15px;line-height:1.55;letter-spacing:0;
+      min-height:100dvh;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
     }
     button,input{font:inherit} button{cursor:pointer}
     a{color:inherit;text-decoration:none}
@@ -58,8 +61,11 @@ export function homePageHtml(): string {
     }
     .nav > .wrap{height:100%}
     .nav.scrolled{border-color:var(--line);box-shadow:0 1px 0 rgba(0,0,0,.02)}
-    .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.03em;min-width:0}
-    .brand span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;color:var(--ink)}
+    .brand-name{
+      font-family:var(--mono);font-weight:600;font-size:14px;line-height:1;
+      letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
     .mark{
       width:24px;height:24px;border-radius:7px;background:var(--ink);
       display:grid;place-items:center;flex-shrink:0;
@@ -220,7 +226,7 @@ export function homePageHtml(): string {
     <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;width:100%">
       <a class="brand" href="/">
         <span class="mark" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="3.4" cy="3.4" r="1.35" fill="white"/><circle cx="3.4" cy="8" r="1.35" fill="white"/><circle cx="3.4" cy="12.6" r="1.35" fill="white"/><path d="M5.4 3.4C7.5 3.4 8.9 6.2 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 8H9.9" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M5.4 12.6C7.5 12.6 8.9 9.8 9.9 8" stroke="white" stroke-width="1.45" stroke-linecap="round"/><path d="M9.3 5.5L12.6 8L9.3 10.5" stroke="white" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span>Grok API</span>
+        <span class="brand-name">Grok API</span>
       </a>
       <div class="nav-right">
         <div class="seg" id="langSeg">
