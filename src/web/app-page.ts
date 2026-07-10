@@ -45,7 +45,7 @@ ${styles()}
         </div>
         <div class="nav-group">
           <div class="nav-label" data-i18n="navCommunity">Community</div>
-          <a class="nav-item ${page==='contribute'?'on':''}" href="/contribute" data-view="contribute"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M4 19h16"/><path d="M6 19v2"/><path d="M18 19v2"/></svg></span><span data-i18n="navContribute">Contribute</span></a>
+          <a class="nav-item ${page==='contribute'?'on':''}" href="/contribute" data-view="contribute"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="M15.41 6.51 8.59 10.49"/></svg></span><span data-i18n="navContribute">Contribute</span></a>
           <a class="nav-item ${page==='leaderboard'?'on':''}" href="/leaderboard" data-view="leaderboard"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0V4Z"/><path d="M17 4h2a1 1 0 0 1 1 1v1a3 3 0 0 1-3 3"/><path d="M7 4H5a1 1 0 0 0-1 1v1a3 3 0 0 0 3 3"/></svg></span><span data-i18n="navLeaderboard">Leaderboard</span></a>
         </div>
         <div class="nav-group">
