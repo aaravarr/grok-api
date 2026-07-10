@@ -154,7 +154,23 @@ export function styles(): string {
     .dt-time-main{white-space:nowrap}
     .dt-accounts{--dt-min:900px;--dt-cols:minmax(160px,1.6fr) 96px minmax(100px,1.2fr) 56px 140px 268px}
     .dt-users{--dt-min:880px;--dt-cols:minmax(140px,1.4fr) 88px 88px minmax(110px,1.1fr) 120px 244px}
-    .dt-keys{--dt-min:800px;--dt-cols:minmax(120px,1.3fr) minmax(110px,1fr) 88px 140px 56px 176px}
+    .dt-keys{--dt-min:800px;--dt-cols:minmax(120px,1.2fr) minmax(100px,1fr) 88px 140px 56px 200px}
+    .dt-keys.has-owner{--dt-min:920px;--dt-cols:minmax(110px,1.1fr) minmax(90px,.9fr) minmax(90px,.9fr) 88px 130px 52px 200px}
+    .filter-bar{
+      display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+      padding:10px 14px;border-bottom:1px solid var(--hairline);background:var(--canvas-soft);
+    }
+    .filter-bar .input,.filter-bar .select{height:32px}
+    .filter-bar .input.grow{flex:1;min-width:140px}
+    .route-panel .panel-bd{padding:16px 18px 18px}
+    .route-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:14px 16px;align-items:end}
+    .route-field{display:flex;flex-direction:column;gap:8px;min-width:0}
+    .field-label{font-size:12px;font-weight:500;color:var(--mute);letter-spacing:.01em}
+    .route-hint{
+      margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--hairline);
+      background:var(--canvas-soft);font-size:12px;line-height:1.5;color:var(--body);
+    }
+    .route-panel .seg{width:fit-content;max-width:100%}
     .dt-logs{--dt-min:980px;--dt-cols:118px minmax(110px,1fr) minmax(110px,1fr) 72px minmax(120px,1.2fr) 72px minmax(100px,.9fr) minmax(100px,.9fr)}
     .dt-logs.no-account{--dt-min:850px;--dt-cols:118px minmax(110px,1fr) minmax(110px,1fr) 72px minmax(120px,1.2fr) 72px minmax(120px,1fr)}
     .acc-err{
@@ -305,7 +321,13 @@ export function styles(): string {
       .dt-actions{flex-wrap:nowrap}
       .dt-accounts{--dt-min:860px;--dt-cols:minmax(150px,1.4fr) 90px minmax(100px,1.1fr) 48px 130px 282px}
       .dt-users{--dt-min:820px;--dt-cols:minmax(130px,1.2fr) 80px 80px minmax(100px,1fr) 110px 240px}
-      .dt-keys{--dt-min:760px;--dt-cols:minmax(120px,1.2fr) minmax(110px,1fr) 80px 130px 48px 192px}
+      .dt-keys{--dt-min:760px;--dt-cols:minmax(110px,1.1fr) minmax(100px,1fr) 80px 120px 48px 200px}
+      .dt-keys.has-owner{--dt-min:880px;--dt-cols:minmax(100px,1fr) minmax(90px,.9fr) minmax(80px,.8fr) 80px 110px 48px 200px}
+      .route-grid{grid-template-columns:1fr}
+      .route-panel .seg{width:100%}
+      .route-panel .seg button{flex:1}
+      .filter-bar{padding:10px 12px}
+      .filter-bar .input.grow{width:100%;min-width:0}
       .dt-contrib{--dt-min:880px;--dt-cols:minmax(130px,1.2fr) 80px minmax(90px,1fr) 48px 90px 110px 220px}
       .dt-logs{--dt-min:940px;--dt-cols:110px minmax(100px,1fr) minmax(100px,1fr) 68px minmax(110px,1.1fr) 68px minmax(90px,.9fr) minmax(90px,.9fr)}
       .dt-logs.no-account{--dt-min:820px;--dt-cols:110px minmax(100px,1fr) minmax(100px,1fr) 68px minmax(110px,1.1fr) 68px minmax(110px,1fr)}
@@ -432,7 +454,7 @@ export function styles(): string {
     .rank-badge.top1{background:#fff6df;border-color:#f0d789;color:#9a6700}
     .rank-badge.top2{background:#f1f5f9;border-color:#cbd5e1;color:#475569}
     .rank-badge.top3{background:#fff1e8;border-color:#f0c2a0;color:#9a3412}
-    .dt-contrib{--dt-min:920px;--dt-cols:minmax(140px,1.4fr) 88px minmax(90px,1fr) 52px 100px 120px 220px}
+    .dt-contrib{--dt-min:960px;--dt-cols:minmax(140px,1.3fr) 88px minmax(90px,1fr) 52px 90px 120px 240px}
     .dt-lb{--dt-min:440px;--dt-cols:72px minmax(120px,1.5fr) 100px 100px}
     .empty-cta{padding:48px 20px;text-align:center}
     .empty-cta h3{margin:0 0 6px;font-size:16px;font-weight:600}

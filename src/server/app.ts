@@ -332,9 +332,27 @@ export function createApp() {
       alias?: string;
       enabled?: boolean;
       expiresAt?: number | null;
+      expiresInDays?: number | null;
       note?: string;
     };
-    const updated = await updateApiKey(c.req.param("id"), body);
+    const patch: {
+      alias?: string;
+      enabled?: boolean;
+      expiresAt?: number | null;
+      note?: string;
+    } = {};
+    if (body.alias !== undefined) patch.alias = body.alias;
+    if (body.enabled !== undefined) patch.enabled = body.enabled;
+    if (body.note !== undefined) patch.note = body.note;
+    if (body.expiresInDays !== undefined) {
+      patch.expiresAt =
+        body.expiresInDays != null && body.expiresInDays > 0
+          ? Date.now() + body.expiresInDays * 86400_000
+          : null;
+    } else if (body.expiresAt !== undefined) {
+      patch.expiresAt = body.expiresAt;
+    }
+    const updated = await updateApiKey(c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
     return c.json({ record: publicApiKey(updated) });
   });
@@ -785,10 +803,17 @@ export function createApp() {
     return c.json({ routing: await getRouting() });
   });
 
-  // Admin can list all keys (all users)
+  // Admin can list all keys (all users) + owner username
   app.get("/api/admin/keys", async (c) => {
     const keys = await listApiKeys();
-    return c.json({ keys: keys.map(publicApiKey) });
+    const users = await listUsers();
+    const names = new Map(users.map((u) => [u.id, u.username] as const));
+    return c.json({
+      keys: keys.map((k) => ({
+        ...publicApiKey(k),
+        username: k.userId ? names.get(k.userId) ?? k.userId : null,
+      })),
+    });
   });
 
   app.post("/api/admin/keys", async (c) => {
@@ -818,9 +843,27 @@ export function createApp() {
       alias?: string;
       enabled?: boolean;
       expiresAt?: number | null;
+      expiresInDays?: number | null;
       note?: string;
     };
-    const updated = await updateApiKey(c.req.param("id"), body);
+    const patch: {
+      alias?: string;
+      enabled?: boolean;
+      expiresAt?: number | null;
+      note?: string;
+    } = {};
+    if (body.alias !== undefined) patch.alias = body.alias;
+    if (body.enabled !== undefined) patch.enabled = body.enabled;
+    if (body.note !== undefined) patch.note = body.note;
+    if (body.expiresInDays !== undefined) {
+      patch.expiresAt =
+        body.expiresInDays != null && body.expiresInDays > 0
+          ? Date.now() + body.expiresInDays * 86400_000
+          : null;
+    } else if (body.expiresAt !== undefined) {
+      patch.expiresAt = body.expiresAt;
+    }
+    const updated = await updateApiKey(c.req.param("id"), patch);
     if (!updated) return c.json({ error: "not found" }, 404);
     return c.json({ record: publicApiKey(updated) });
   });

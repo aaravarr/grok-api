@@ -154,6 +154,16 @@ ${styles()}
               <div class="label" style="margin-top:8px" id="pollStatus"></div>
             </div>
             <div id="msg" class="msg"></div>
+            <div class="filter-bar">
+              <input id="accFilterQ" class="input grow" data-i18n-placeholder="filterSearch" placeholder="Search…" />
+              <select id="accFilterSt" class="select" style="min-width:110px">
+                <option value="" data-i18n="filterAllStatus">All status</option>
+                <option value="active">active</option>
+                <option value="exhausted">exhausted</option>
+                <option value="expired">expired</option>
+                <option value="error">error</option>
+              </select>
+            </div>
             <div class="dt dt-accounts">
               <div class="dt-head">
                 <div data-i18n="colAccount">Account</div>
@@ -178,6 +188,19 @@ ${styles()}
               <div class="spacer"></div>
             </div>
             <div id="msgUsers" class="msg"></div>
+            <div class="filter-bar">
+              <input id="userFilterQ" class="input grow" data-i18n-placeholder="filterSearch" placeholder="Search…" />
+              <select id="userFilterRole" class="select" style="min-width:110px">
+                <option value="" data-i18n="filterAllRole">All roles</option>
+                <option value="admin">admin</option>
+                <option value="user">user</option>
+              </select>
+              <select id="userFilterSt" class="select" style="min-width:110px">
+                <option value="" data-i18n="filterAllStatus">All status</option>
+                <option value="active">active</option>
+                <option value="disabled">disabled</option>
+              </select>
+            </div>
             <div class="dt dt-users">
               <div class="dt-head">
                 <div data-i18n="colUser">User</div>
@@ -202,10 +225,20 @@ ${styles()}
               <button class="btn" id="btnCreateKey" type="button" data-i18n="createKey">Create key</button>
             </div>
             <div id="msgKeys" class="msg"></div>
+            <div class="filter-bar">
+              <input id="keyFilterQ" class="input grow" data-i18n-placeholder="filterSearch" placeholder="Search…" />
+              <select id="keyFilterSt" class="select" style="min-width:110px">
+                <option value="" data-i18n="filterAllStatus">All status</option>
+                <option value="active">active</option>
+                <option value="disabled">disabled</option>
+                <option value="expired">expired</option>
+              </select>
+            </div>
             <div class="dt dt-keys">
               <div class="dt-head">
                 <div data-i18n="colAlias">Alias</div>
                 <div data-i18n="colKey">Key</div>
+                <div data-i18n="colOwner" data-admin-only>Owner</div>
                 <div data-i18n="colStatus">Status</div>
                 <div data-i18n="colExpires">Expires</div>
                 <div data-i18n="colUses">Uses</div>
@@ -265,6 +298,7 @@ ${styles()}
                 <option value="true">OK</option>
                 <option value="false">Fail</option>
               </select>
+              <input id="logFilterQ" class="input" style="min-width:140px;max-width:200px" data-i18n-placeholder="filterSearch" placeholder="Search…" />
               <span class="mono" id="logDisk">–</span>
               <div class="spacer"></div>
               <button class="btn btn-secondary btn-sm" type="button" id="btnLogRefresh" data-i18n="refresh">Refresh</button>
@@ -352,23 +386,31 @@ ${styles()}
             <div class="stat"><div class="n" id="cRank">–</div><div class="l" data-i18n="statMyRank">My rank</div></div>
           </div>
 
-          <div class="panel mb">
+          <div class="panel mb route-panel">
             <div class="panel-hd">
-              <strong data-i18n="routeTitle">API routing</strong>
-              <span class="mono" data-i18n="routeHint">Applies to your API keys</span>
+              <div>
+                <strong data-i18n="routeTitle">API routing</strong>
+                <div class="mono" style="margin-top:2px;font-size:12px" data-i18n="routeHint">Applies to your API keys</div>
+              </div>
               <div class="spacer"></div>
               <button class="btn btn-sm" type="button" id="btnSaveRoute" data-i18n="saveRoute">Save</button>
             </div>
             <div class="panel-bd">
-              <div class="settings-row">
-                <div class="seg" id="routeScopeSeg">
-                  <button type="button" data-rscope="public" class="on" data-i18n="routePublic">Public pool</button>
-                  <button type="button" data-rscope="mine" data-i18n="routeMine">My seats only</button>
-                  <button type="button" data-rscope="account" data-i18n="routeAccount">Pin account</button>
+              <div class="route-grid">
+                <div class="route-field">
+                  <label class="field-label" data-i18n="routeScopeLabel">Route mode</label>
+                  <div class="seg" id="routeScopeSeg">
+                    <button type="button" data-rscope="public" class="on" data-i18n="routePublic">Public pool</button>
+                    <button type="button" data-rscope="mine" data-i18n="routeMine">My seats only</button>
+                    <button type="button" data-rscope="account" data-i18n="routeAccount">Pin account</button>
+                  </div>
                 </div>
-                <select id="routeAccountSel" class="select" style="min-width:180px;display:none"></select>
+                <div class="route-field" id="routeAccountWrap" style="display:none">
+                  <label class="field-label" data-i18n="routeAccountLabel">Pinned seat</label>
+                  <select id="routeAccountSel" class="select" style="width:100%;min-width:0"></select>
+                </div>
               </div>
-              <div class="hint" id="routeScopeHint" data-i18n="routePublicHint">Use admin + public contributed seats (others' private seats excluded).</div>
+              <div class="route-hint" id="routeScopeHint" data-i18n="routePublicHint">Use admin + public contributed seats (others' private seats excluded).</div>
             </div>
           </div>
 
@@ -378,6 +420,21 @@ ${styles()}
               <span class="mono" data-i18n="mineHint">Visible only to you</span>
               <div class="spacer"></div>
               <button class="btn btn-secondary btn-sm" type="button" id="btnContribRefresh" data-i18n="refresh">Refresh</button>
+            </div>
+            <div class="filter-bar">
+              <input id="contribFilterQ" class="input grow" data-i18n-placeholder="filterSearch" placeholder="Search…" />
+              <select id="contribFilterSt" class="select" style="min-width:110px">
+                <option value="" data-i18n="filterAllStatus">All status</option>
+                <option value="active">active</option>
+                <option value="exhausted">exhausted</option>
+                <option value="expired">expired</option>
+                <option value="error">error</option>
+              </select>
+              <select id="contribFilterVis" class="select" style="min-width:110px">
+                <option value="" data-i18n="filterAllVis">All visibility</option>
+                <option value="public" data-i18n="visPublic">Public</option>
+                <option value="private" data-i18n="visPrivate">Private</option>
+              </select>
             </div>
             <div class="dt dt-contrib">
               <div class="dt-head">
@@ -504,8 +561,8 @@ ${styles()}
 
   <div class="modal-mask" id="keyModal">
     <div class="modal" role="dialog">
-      <h3 data-i18n="createKey">Create API Key</h3>
-      <p data-i18n="keyOnce">The full key is shown only once. Copy it now.</p>
+      <h3 id="keyModalTitle" data-i18n="createKey">Create API Key</h3>
+      <p id="keyModalSub" data-i18n="keyOnce">The full key is shown only once. Copy it now.</p>
       <div id="keyForm">
         <div class="field"><label data-i18n="colAlias">Alias</label><input id="keyAlias" class="input" style="width:100%" placeholder="production" /></div>
         <div class="field"><label data-i18n="validDays">Valid days (empty = never)</label><input id="keyDays" class="input" style="width:100%" type="number" min="1" placeholder="30" /></div>
@@ -657,14 +714,18 @@ ${styles()}
         withdrawContribConfirm:(n)=>"确定撤回贡献「"+n+"」？将从共享池移除该账号。",
         withdrawContribOk:"已撤回贡献",
         routeTitle:"API 路由", routeHint:"对你的 API 密钥生效", saveRoute:"保存路由",
+        routeScopeLabel:"路由模式", routeAccountLabel:"指定席位",
         routePublic:"公共号池", routeMine:"仅自己号池", routeAccount:"指定账号",
         routePublicHint:"使用管理员账号 + 公开贡献席位（他人私有号除外）。",
         routeMineHint:"只使用你贡献的账号。没有可用席位时请求会失败。",
         routeAccountHint:"固定走下方选中的账号（须有权使用）。",
         routeSaved:"路由偏好已保存",
-        colVisibility:"可见性", visPublic:"公共", visPrivate:"仅自己",
+        colVisibility:"可见性", colOwner:"所属用户", visPublic:"公共", visPrivate:"仅自己",
         setPrivate:"仅自己", setPublic:"公开",
         privateOk:"已设为仅自己可用", publicOk:"已设为公共池可用",
+        filterSearch:"搜索…", filterAllStatus:"全部状态", filterAllRole:"全部角色", filterAllVis:"全部可见性",
+        editKey:"编辑", editKeyTitle:"编辑密钥", editKeySub:"修改别名、有效期或备注。不会重新生成密钥。",
+        keyUpdated:"密钥已更新", save:"保存", never:"永不过期",
         lbKicker:"公开排行", lbTitle:"贡献者排行榜",
         lbSub:"按贡献的 SuperGrok 席位数量排序。管理员账号已排除，榜单只反映社区贡献。",
         lbCta:"立即贡献", lbYourRank:"你的排名", lbBoost:"提升排名",
@@ -761,14 +822,18 @@ ${styles()}
         withdrawContribConfirm:(n)=>"Withdraw contribution ["+n+"]? It will be removed from the shared pool.",
         withdrawContribOk:"Contribution withdrawn",
         routeTitle:"API routing", routeHint:"Applies to your API keys", saveRoute:"Save routing",
+        routeScopeLabel:"Route mode", routeAccountLabel:"Pinned seat",
         routePublic:"Public pool", routeMine:"My seats only", routeAccount:"Pin account",
         routePublicHint:"Admin seats + public contributions (others' private seats excluded).",
         routeMineHint:"Only accounts you contributed. Requests fail if none are available.",
         routeAccountHint:"Always use the selected account (must be allowed for you).",
         routeSaved:"Routing preference saved",
-        colVisibility:"Visibility", visPublic:"Public", visPrivate:"Private",
+        colVisibility:"Visibility", colOwner:"Owner", visPublic:"Public", visPrivate:"Private",
         setPrivate:"Private", setPublic:"Public",
         privateOk:"Now private to you", publicOk:"Now available in public pool",
+        filterSearch:"Search…", filterAllStatus:"All status", filterAllRole:"All roles", filterAllVis:"All visibility",
+        editKey:"Edit", editKeyTitle:"Edit API key", editKeySub:"Update alias, validity, or note. The secret is not rotated.",
+        keyUpdated:"API key updated", save:"Save", never:"never",
         lbKicker:"Public ranking", lbTitle:"Contributor leaderboard",
         lbSub:"Ranked by SuperGrok seats contributed. Admin accounts are excluded so the board stays community-first.",
         lbCta:"Contribute now", lbYourRank:"Your rank", lbBoost:"Boost rank",
@@ -801,6 +866,7 @@ ${styles()}
     let logPage = 1;
     let logTotal = 0;
     let logDays = [];
+    let lastLogItems = [];
     let usageDays = 7;
     let charts = { day: null, model: null, account: null, key: null, overview: null, tokMix: null, keyInOut: null };
     let lastStats = null;
@@ -1091,17 +1157,33 @@ ${styles()}
       return page;
     }
 
+    function matchQ(hay, q) {
+      if (!q) return true;
+      return String(hay || "").toLowerCase().includes(q);
+    }
+
+    function filteredAccounts() {
+      const q = (($("accFilterQ") && $("accFilterQ").value) || "").trim().toLowerCase();
+      const st = ($("accFilterSt") && $("accFilterSt").value) || "";
+      return allAccounts.filter((a) => {
+        if (st && a.status !== st) return false;
+        if (!q) return true;
+        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.donorUserId, q) || matchQ(a.lastError, q);
+      });
+    }
+
     function renderAccounts() {
       const tbody = $("tbody");
       if (!tbody) return;
-      if (!allAccounts.length) {
-        tbody.innerHTML = '<div class="dt-empty">' + esc(t("noAccounts")) + "</div>";
+      const list = filteredAccounts();
+      if (!list.length) {
+        tbody.innerHTML = '<div class="dt-empty">' + esc(allAccounts.length ? t("noLogs") : t("noAccounts")) + "</div>";
         $("accPager").innerHTML = "";
         return;
       }
-      accPage = renderPager($("accPager"), accPage, allAccounts.length, PAGE_SIZE, (p) => { accPage = p; renderAccounts(); });
+      accPage = renderPager($("accPager"), accPage, list.length, PAGE_SIZE, (p) => { accPage = p; renderAccounts(); });
       const start = (accPage - 1) * PAGE_SIZE;
-      const slice = allAccounts.slice(start, start + PAGE_SIZE);
+      const slice = list.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((a) => {
         const cur = a.isCurrent;
         const err = a.lastError ? shortErr(a.lastError) : "";
@@ -1139,26 +1221,48 @@ ${styles()}
       });
     }
 
+    function keyStatus(k) {
+      return !k.enabled ? "disabled" : k.expired ? "expired" : "active";
+    }
+
+    function filteredKeys() {
+      const q = (($("keyFilterQ") && $("keyFilterQ").value) || "").trim().toLowerCase();
+      const st = ($("keyFilterSt") && $("keyFilterSt").value) || "";
+      return allKeys.filter((k) => {
+        if (st && keyStatus(k) !== st) return false;
+        if (!q) return true;
+        return matchQ(k.alias, q) || matchQ(k.keyPrefix, q) || matchQ(k.note, q) ||
+          matchQ(k.username, q) || matchQ(k.userId, q);
+      });
+    }
+
     function renderKeys() {
       const tbody = $("tbodyKeys");
       if (!tbody) return;
-      if (!allKeys.length) {
-        tbody.innerHTML = '<div class="dt-empty">' + esc(t("noKeys")) + "</div>";
+      const showOwner = isAdmin();
+      const root = tbody.closest(".dt-keys");
+      if (root) root.classList.toggle("has-owner", showOwner);
+      const list = filteredKeys();
+      if (!list.length) {
+        tbody.innerHTML = '<div class="dt-empty">' + esc(allKeys.length ? t("noLogs") : t("noKeys")) + "</div>";
         $("keyPager").innerHTML = "";
         return;
       }
-      keyPage = renderPager($("keyPager"), keyPage, allKeys.length, PAGE_SIZE, (p) => { keyPage = p; renderKeys(); });
+      keyPage = renderPager($("keyPager"), keyPage, list.length, PAGE_SIZE, (p) => { keyPage = p; renderKeys(); });
       const start = (keyPage - 1) * PAGE_SIZE;
-      const slice = allKeys.slice(start, start + PAGE_SIZE);
+      const slice = list.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((k) => {
-        const st = !k.enabled ? "disabled" : k.expired ? "expired" : "active";
+        const st = keyStatus(k);
+        const owner = k.username || k.userId || "–";
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(k.alias) + '</div><div class="mono">' + esc(k.note || "") + "</div></div>" +
           '<div class="mono">' + esc(k.keyPrefix) + "</div>" +
+          (showOwner ? '<div><div class="name">' + esc(owner) + '</div><div class="mono">' + esc(k.userId || "") + "</div></div>" : "") +
           '<div><span class="badge ' + (st === "active" ? "active" : "error") + '">' + st + "</span></div>" +
-          '<div class="dt-time">' + (k.expiresAt ? fmtTime(k.expiresAt) : "never") + "</div>" +
+          '<div class="dt-time">' + (k.expiresAt ? fmtTime(k.expiresAt) : t("never")) + "</div>" +
           '<div class="mono">' + k.useCount + "</div>" +
           '<div class="dt-actions">' +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="editkey" data-id="' + esc(k.id) + '">' + esc(t("editKey")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="toggle" data-id="' + esc(k.id) + '" data-en="' + (k.enabled ? "0" : "1") + '">' +
           esc(k.enabled ? t("disable") : t("enable")) + "</button>" +
           '<button class="btn btn-danger btn-sm" type="button" data-act="delkey" data-id="' + esc(k.id) + '">' + esc(t("del")) + "</button>" +
@@ -1168,6 +1272,7 @@ ${styles()}
         btn.addEventListener("click", () => {
           const id = btn.getAttribute("data-id");
           const act = btn.getAttribute("data-act");
+          if (act === "editkey") openKeyEdit(id);
           if (act === "toggle") toggleKey(id, btn.getAttribute("data-en") === "1");
           if (act === "delkey") delKey(id);
         });
@@ -1217,10 +1322,21 @@ ${styles()}
         rows.filter(([, v]) => v != null).map(([k, v]) => k + "=" + v).join(" · ") || "–";
     }
 
+    function filterLogItems(items) {
+      const q = (($("logFilterQ") && $("logFilterQ").value) || "").trim().toLowerCase();
+      if (!q) return items;
+      return items.filter((r) =>
+        matchQ(r.model, q) || matchQ(r.client, q) || matchQ(r.userAgent, q) ||
+        matchQ(r.apiKeyAlias, q) || matchQ(r.accountName, q) || matchQ(r.status, q) ||
+        matchQ(r.id, q)
+      );
+    }
+
     function renderLogs(items) {
       const tbody = $("tbodyLogs");
       if (!tbody) return;
-      if (!items.length) {
+      const filtered = filterLogItems(items);
+      if (!filtered.length) {
         tbody.innerHTML = '<div class="dt-empty">' + esc(t("noLogs")) + "</div>";
         $("logPager").innerHTML = "";
         return;
@@ -1229,7 +1345,7 @@ ${styles()}
       const showAcc = isAdmin();
       const logsRoot = tbody.closest(".dt-logs");
       if (logsRoot) logsRoot.classList.toggle("no-account", !showAcc);
-      tbody.innerHTML = items.map((r) => {
+      tbody.innerHTML = filtered.map((r) => {
         const tok = fmtUsageShort(r.usage);
         const stCls = r.ok ? "active" : "error";
         const client = clientLabel(r);
@@ -1652,6 +1768,19 @@ ${styles()}
       $("quotaModal").classList.remove("show");
     }
 
+    function filteredUsers() {
+      const q = (($("userFilterQ") && $("userFilterQ").value) || "").trim().toLowerCase();
+      const role = ($("userFilterRole") && $("userFilterRole").value) || "";
+      const st = ($("userFilterSt") && $("userFilterSt").value) || "";
+      return allUsers.filter((u) => {
+        if (role && u.role !== role) return false;
+        if (st === "active" && !u.enabled) return false;
+        if (st === "disabled" && u.enabled) return false;
+        if (!q) return true;
+        return matchQ(u.username, q) || matchQ(u.id, q);
+      });
+    }
+
     async function loadUsers() {
       if (!isAdmin()) return;
       const res = await fetch("/api/admin/users", { headers: headers() });
@@ -1659,11 +1788,12 @@ ${styles()}
       const data = await res.json();
       allUsers = data.users || [];
       const tbody = $("tbodyUsers");
-      if (!allUsers.length) {
+      const list = filteredUsers();
+      if (!list.length) {
         tbody.innerHTML = '<div class="dt-empty">–</div>';
         return;
       }
-      tbody.innerHTML = allUsers.map((u) => {
+      tbody.innerHTML = list.map((u) => {
         const qCls = u.tokenQuota != null && (u.tokenUsed ?? 0) >= u.tokenQuota ? " error" : "";
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(u.username) + '</div><div class="mono">' + esc(u.id) + "</div></div>" +
@@ -1745,10 +1875,11 @@ ${styles()}
         const data = await res.json();
         logTotal = data.total || 0;
         logDays = data.days || [];
+        lastLogItems = data.items || [];
         paintLogDaySelect();
         if (data.disk && $("logDisk")) $("logDisk").textContent = t("diskInfo", data.disk.days, fmtBytes(data.disk.bytes));
-        renderLogs(data.items || []);
-        if (view === "overview" || !day) renderOverviewRecent(data.items || []);
+        renderLogs(lastLogItems);
+        if (view === "overview" || !day) renderOverviewRecent(lastLogItems);
       } catch (e) {
         showMsg($("msgLogs"), String(e.message || e), "err");
       }
@@ -1793,6 +1924,19 @@ ${styles()}
       if (contribPollTimer) { clearInterval(contribPollTimer); contribPollTimer = null; }
     }
 
+    function filteredMyAccounts() {
+      const q = (($("contribFilterQ") && $("contribFilterQ").value) || "").trim().toLowerCase();
+      const st = ($("contribFilterSt") && $("contribFilterSt").value) || "";
+      const vis = ($("contribFilterVis") && $("contribFilterVis").value) || "";
+      return myAccounts.filter((a) => {
+        if (st && a.status !== st) return false;
+        if (vis === "private" && a.private !== true) return false;
+        if (vis === "public" && a.private === true) return false;
+        if (!q) return true;
+        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.lastError, q);
+      });
+    }
+
     function renderMyAccounts() {
       const tbody = $("tbodyContrib");
       if (!tbody) return;
@@ -1803,9 +1947,15 @@ ${styles()}
         if (b) b.onclick = () => startContribute();
         return;
       }
-      contribPage = renderPager($("contribPager"), contribPage, myAccounts.length, PAGE_SIZE, (pg) => { contribPage = pg; renderMyAccounts(); });
+      const list = filteredMyAccounts();
+      if (!list.length) {
+        tbody.innerHTML = '<div class="dt-empty">' + esc(t("noLogs")) + "</div>";
+        if ($("contribPager")) $("contribPager").innerHTML = "";
+        return;
+      }
+      contribPage = renderPager($("contribPager"), contribPage, list.length, PAGE_SIZE, (pg) => { contribPage = pg; renderMyAccounts(); });
       const start = (contribPage - 1) * PAGE_SIZE;
-      const slice = myAccounts.slice(start, start + PAGE_SIZE);
+      const slice = list.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((a) => {
         const err = a.lastError ? shortErr(a.lastError) : "";
         const isPriv = a.private === true;
@@ -2011,7 +2161,7 @@ ${styles()}
     function paintRouteScopeUI() {
       if (!$("routeScopeSeg")) return;
       $("routeScopeSeg").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.rscope === routeScope));
-      if ($("routeAccountSel")) $("routeAccountSel").style.display = routeScope === "account" ? "" : "none";
+      if ($("routeAccountWrap")) $("routeAccountWrap").style.display = routeScope === "account" ? "" : "none";
       if ($("routeScopeHint")) {
         $("routeScopeHint").textContent =
           routeScope === "mine" ? t("routeMineHint") :
@@ -2144,13 +2294,39 @@ ${styles()}
       await loadAccounts();
     }
 
+    let keyEditId = null;
+
     function openKeyModal() {
+      keyEditId = null;
       $("keyModal").classList.add("show");
       $("keyForm").style.display = "block"; $("keyReveal").style.display = "none";
-      $("keySubmit").style.display = ""; $("keyAlias").value = ""; $("keyDays").value = ""; $("keyNote").value = "";
+      $("keySubmit").style.display = "";
+      $("keyAlias").value = ""; $("keyDays").value = ""; $("keyNote").value = "";
+      if ($("keyModalTitle")) $("keyModalTitle").textContent = t("createKey");
+      if ($("keyModalSub")) $("keyModalSub").textContent = t("keyOnce");
+      if ($("keySubmit")) $("keySubmit").textContent = t("create");
       applyI18n();
     }
-    function closeKeyModal() { $("keyModal").classList.remove("show"); }
+    function openKeyEdit(id) {
+      const k = allKeys.find((x) => x.id === id);
+      if (!k) return;
+      keyEditId = id;
+      $("keyModal").classList.add("show");
+      $("keyForm").style.display = "block"; $("keyReveal").style.display = "none";
+      $("keySubmit").style.display = "";
+      $("keyAlias").value = k.alias || "";
+      $("keyNote").value = k.note || "";
+      if (k.expiresAt) {
+        const days = Math.max(1, Math.ceil((k.expiresAt - Date.now()) / 86400_000));
+        $("keyDays").value = String(days);
+      } else {
+        $("keyDays").value = "";
+      }
+      if ($("keyModalTitle")) $("keyModalTitle").textContent = t("editKeyTitle");
+      if ($("keyModalSub")) $("keyModalSub").textContent = t("editKeySub");
+      if ($("keySubmit")) $("keySubmit").textContent = t("save");
+    }
+    function closeKeyModal() { keyEditId = null; $("keyModal").classList.remove("show"); }
     if ($("btnCreateKey")) $("btnCreateKey").onclick = openKeyModal;
     if ($("keyCancel")) $("keyCancel").onclick = closeKeyModal;
     if ($("keyModal")) $("keyModal").addEventListener("click", (e) => { if (e.target === $("keyModal")) closeKeyModal(); });
@@ -2179,10 +2355,28 @@ ${styles()}
     };
     if ($("keySubmit")) $("keySubmit").onclick = async () => {
       try {
-        const days = $("keyDays").value ? Number($("keyDays").value) : null;
+        const daysRaw = $("keyDays").value.trim();
+        const days = daysRaw === "" ? null : Number(daysRaw);
+        const body = {
+          alias: $("keyAlias").value || undefined,
+          note: $("keyNote").value || undefined,
+          expiresInDays: days,
+        };
+        if (keyEditId) {
+          const res = await fetch(apiKeysPath() + "/" + encodeURIComponent(keyEditId), {
+            method: "PATCH", headers: jsonHeaders(),
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || res.statusText);
+          closeKeyModal();
+          showMsg($("msgKeys"), t("keyUpdated"), "ok");
+          await loadKeys();
+          return;
+        }
         const res = await fetch(apiKeysPath(), {
           method: "POST", headers: jsonHeaders(),
-          body: JSON.stringify({ alias: $("keyAlias").value || undefined, expiresInDays: days, note: $("keyNote").value || undefined }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
@@ -2399,6 +2593,23 @@ ${styles()}
       paintRouteScopeUI();
     });
     if ($("btnSaveRoute")) $("btnSaveRoute").onclick = () => saveMyRouting();
+    function bindFilter(id, fn) {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("input", () => { fn(); });
+      el.addEventListener("change", () => { fn(); });
+    }
+    bindFilter("accFilterQ", () => { accPage = 1; renderAccounts(); });
+    bindFilter("accFilterSt", () => { accPage = 1; renderAccounts(); });
+    bindFilter("keyFilterQ", () => { keyPage = 1; renderKeys(); });
+    bindFilter("keyFilterSt", () => { keyPage = 1; renderKeys(); });
+    bindFilter("userFilterQ", () => loadUsers());
+    bindFilter("userFilterRole", () => loadUsers());
+    bindFilter("userFilterSt", () => loadUsers());
+    bindFilter("contribFilterQ", () => { contribPage = 1; renderMyAccounts(); });
+    bindFilter("contribFilterSt", () => { contribPage = 1; renderMyAccounts(); });
+    bindFilter("contribFilterVis", () => { contribPage = 1; renderMyAccounts(); });
+    bindFilter("logFilterQ", () => renderLogs(lastLogItems));
     if ($("btnLbRefresh")) $("btnLbRefresh").onclick = () => loadLeaderboard();
     if ($("btnContribCopy")) $("btnContribCopy").onclick = async () => {
       const code = $("contribUserCode")?.textContent || "";
