@@ -2,6 +2,8 @@ import { listAccounts, listApiKeys } from "../account/store.js";
 import { readLogsSince } from "./logger.js";
 import type { RequestLog, TokenUsage } from "./types.js";
 
+export type UsageGranularity = "day" | "hour" | "minute";
+
 export interface TokenTotals {
   promptTokens: number;
   completionTokens: number;
@@ -28,16 +30,32 @@ export interface UsageBucket extends TokenTotals {
   avgLatencyMs: number;
 }
 
+export interface UsageStatsQuery {
+  /** Calendar days (legacy). Ignored when hours is set. */
+  days?: number;
+  /** Rolling window in hours (takes precedence over days). */
+  hours?: number;
+  /** Bucket size for time series. */
+  granularity?: UsageGranularity;
+  userId?: string;
+  apiKeyIds?: string[];
+}
+
 export interface UsageStats {
   rangeDays: number;
+  rangeHours: number;
+  granularity: UsageGranularity;
   fromDay: string;
   toDay: string;
+  fromTs: number;
+  toTs: number;
   summary: {
     requests: number;
     ok: number;
     fail: number;
     avgLatencyMs: number;
   } & TokenTotals;
+  /** Time series at selected granularity (kept name byDay for API compat). */
   byDay: UsageBucket[];
   byModel: UsageBucket[];
   byAccount: UsageBucket[];
@@ -129,51 +147,173 @@ function summaryOf(b: UsageBucket): UsageStats["summary"] {
   };
 }
 
+const STEP_MS: Record<UsageGranularity, number> = {
+  day: 86_400_000,
+  hour: 3_600_000,
+  minute: 60_000,
+};
+
+/** Max buckets we prefill (avoid huge charts). */
+const MAX_BUCKETS: Record<UsageGranularity, number> = {
+  day: 90,
+  hour: 168, // 7d
+  minute: 720, // 12h
+};
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function floorTs(ts: number, gran: UsageGranularity): number {
+  const d = new Date(ts);
+  if (gran === "day") {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  }
+  if (gran === "hour") {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime();
+  }
+  return new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+    d.getHours(),
+    d.getMinutes(),
+  ).getTime();
+}
+
+export function bucketKeyFromTs(ts: number, gran: UsageGranularity): string {
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const mo = pad2(d.getMonth() + 1);
+  const da = pad2(d.getDate());
+  if (gran === "day") return `${y}-${mo}-${da}`;
+  const h = pad2(d.getHours());
+  if (gran === "hour") return `${y}-${mo}-${da}T${h}`;
+  return `${y}-${mo}-${da}T${h}:${pad2(d.getMinutes())}`;
+}
+
+export function bucketLabelFromKey(key: string, gran: UsageGranularity): string {
+  if (gran === "day") {
+    // YYYY-MM-DD → MM-DD
+    return key.length >= 10 ? key.slice(5) : key;
+  }
+  if (gran === "hour") {
+    const m = key.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2})$/);
+    if (m) return `${m[2]}-${m[3]} ${m[4]}:00`;
+  }
+  if (gran === "minute") {
+    const m = key.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+    if (m) return `${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
+  }
+  return key;
+}
+
+function resolveWindow(query: UsageStatsQuery): {
+  rangeMs: number;
+  rangeHours: number;
+  rangeDays: number;
+  gran: UsageGranularity;
+} {
+  let rangeHours: number;
+  if (query.hours != null && Number.isFinite(query.hours) && query.hours > 0) {
+    rangeHours = Math.max(1 / 60, Math.min(90 * 24, Number(query.hours)));
+  } else {
+    const days = Math.max(1, Math.min(90, Number(query.days) || 7));
+    rangeHours = days * 24;
+  }
+
+  // auto: minute only for very short windows (≤2h); 6h/24h → hour; longer → day
+  let gran: UsageGranularity =
+    query.granularity === "hour" || query.granularity === "minute" || query.granularity === "day"
+      ? query.granularity
+      : rangeHours <= 2
+        ? "minute"
+        : rangeHours <= 72
+          ? "hour"
+          : "day";
+
+  // clamp range so we don't exceed max buckets for granularity
+  const maxH = (MAX_BUCKETS[gran] * STEP_MS[gran]) / 3_600_000;
+  if (rangeHours > maxH) rangeHours = maxH;
+
+  const rangeMs = rangeHours * 3_600_000;
+  const rangeDays = Math.max(1, Math.ceil(rangeHours / 24));
+  return { rangeMs, rangeHours, rangeDays, gran };
+}
+
+/**
+ * Compute usage stats.
+ * @param daysOrQuery - legacy number of days, or full query object
+ * @param filter - legacy filter when first arg is number
+ */
 export async function computeUsageStats(
-  days = 7,
+  daysOrQuery: number | UsageStatsQuery = 7,
   filter?: { userId?: string; apiKeyIds?: string[] },
 ): Promise<UsageStats> {
-  const rangeDays = Math.max(1, Math.min(90, days));
+  const query: UsageStatsQuery =
+    typeof daysOrQuery === "number"
+      ? { days: daysOrQuery, userId: filter?.userId, apiKeyIds: filter?.apiKeyIds }
+      : { ...daysOrQuery, ...filter };
+
+  const { rangeMs, rangeHours, rangeDays, gran } = resolveWindow(query);
+  const now = Date.now();
+  const fromTs = now - rangeMs;
+  const toTs = now;
+
   const [allLogs, accounts, apiKeys] = await Promise.all([
-    readLogsSince(rangeDays),
+    readLogsSince(rangeDays + 1),
     listAccounts(),
-    listApiKeys(filter?.userId),
+    listApiKeys(query.userId),
   ]);
-  let logs = allLogs;
-  if (filter?.userId) {
+
+  let logs = allLogs.filter((r) => {
+    const ts = typeof r.ts === "number" ? r.ts : 0;
+    return ts >= fromTs && ts <= toTs;
+  });
+
+  if (query.userId) {
     const keySet = new Set(
-      filter.apiKeyIds ?? apiKeys.filter((k) => k.userId === filter.userId).map((k) => k.id),
+      query.apiKeyIds ?? apiKeys.filter((k) => k.userId === query.userId).map((k) => k.id),
     );
-    logs = allLogs.filter(
-      (r) => r.userId === filter.userId || (r.apiKeyId != null && keySet.has(r.apiKeyId)),
+    logs = logs.filter(
+      (r) => r.userId === query.userId || (r.apiKeyId != null && keySet.has(r.apiKeyId)),
     );
-  } else if (filter?.apiKeyIds) {
-    const keySet = new Set(filter.apiKeyIds);
-    logs = allLogs.filter((r) => r.apiKeyId != null && keySet.has(r.apiKeyId));
+  } else if (query.apiKeyIds) {
+    const keySet = new Set(query.apiKeyIds);
+    logs = logs.filter((r) => r.apiKeyId != null && keySet.has(r.apiKeyId));
   }
+
   const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
-  const allKeysForLabel = filter?.userId ? apiKeys : await listApiKeys();
+  const allKeysForLabel = query.userId ? apiKeys : await listApiKeys();
   const keyAliasById = new Map(allKeysForLabel.map((k) => [k.id, k.alias || k.keyPrefix]));
 
-  const byDayMap = new Map<string, UsageBucket>();
+  const byTimeMap = new Map<string, UsageBucket>();
   const byModelMap = new Map<string, UsageBucket>();
   const byAccountMap = new Map<string, UsageBucket>();
   const byKeyMap = new Map<string, UsageBucket>();
   const summary = emptyBucket("all", "all");
 
-  const today = new Date();
-  for (let i = rangeDays - 1; i >= 0; i--) {
-    const d = new Date(today.getTime() - i * 86400_000);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    byDayMap.set(key, emptyBucket(key, key));
+  // Prefill empty buckets across the window
+  const step = STEP_MS[gran];
+  let t = floorTs(fromTs, gran);
+  const endFloor = floorTs(toTs, gran);
+  let count = 0;
+  while (t <= endFloor && count < MAX_BUCKETS[gran]) {
+    const key = bucketKeyFromTs(t, gran);
+    byTimeMap.set(key, emptyBucket(key, bucketLabelFromKey(key, gran)));
+    t += step;
+    count += 1;
   }
 
   for (const log of logs) {
     add(summary, log);
 
-    const day = log.day || "unknown-day";
-    if (!byDayMap.has(day)) byDayMap.set(day, emptyBucket(day, day));
-    add(byDayMap.get(day)!, log);
+    const ts = typeof log.ts === "number" ? log.ts : Date.now();
+    const timeKey = bucketKeyFromTs(ts, gran);
+    if (!byTimeMap.has(timeKey)) {
+      byTimeMap.set(timeKey, emptyBucket(timeKey, bucketLabelFromKey(timeKey, gran)));
+    }
+    add(byTimeMap.get(timeKey)!, log);
 
     const model = log.model || "(no model)";
     if (!byModelMap.has(model)) byModelMap.set(model, emptyBucket(model, model));
@@ -209,20 +349,24 @@ export async function computeUsageStats(
     }
   }
 
-  for (const b of byDayMap.values()) finalize(b);
+  for (const b of byTimeMap.values()) finalize(b);
   for (const b of byModelMap.values()) finalize(b);
   for (const b of byAccountMap.values()) finalize(b);
   for (const b of byKeyMap.values()) finalize(b);
   finalize(summary);
 
-  const byDay = [...byDayMap.values()].sort((a, b) => a.key.localeCompare(b.key));
+  const byDay = [...byTimeMap.values()].sort((a, b) => a.key.localeCompare(b.key));
   const fromDay = byDay[0]?.key ?? "";
   const toDay = byDay[byDay.length - 1]?.key ?? "";
 
   return {
     rangeDays,
+    rangeHours: Math.round(rangeHours * 1000) / 1000,
+    granularity: gran,
     fromDay,
     toDay,
+    fromTs,
+    toTs,
     summary: summaryOf(summary),
     byDay,
     byModel: sortBuckets([...byModelMap.values()]),

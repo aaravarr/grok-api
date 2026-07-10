@@ -428,8 +428,16 @@ export function createApp() {
   app.get("/api/me/usage", async (c) => {
     const user = c.get("user")!;
     const days = Number(c.req.query("days") ?? 7);
+    const hoursRaw = c.req.query("hours");
+    const hours = hoursRaw != null && hoursRaw !== "" ? Number(hoursRaw) : undefined;
+    const gran = c.req.query("granularity");
+    const granularity =
+      gran === "day" || gran === "hour" || gran === "minute" ? gran : undefined;
     const myKeys = await listApiKeys(user.id);
-    const stats = await computeUsageStats(days, {
+    const stats = await computeUsageStats({
+      days,
+      hours: Number.isFinite(hours as number) ? hours : undefined,
+      granularity,
       userId: user.id,
       apiKeyIds: myKeys.map((k) => k.id),
     });
@@ -1212,11 +1220,18 @@ export function createApp() {
 
   app.get("/api/admin/usage", async (c) => {
     const days = Number(c.req.query("days") ?? 7);
+    const hoursRaw = c.req.query("hours");
+    const hours = hoursRaw != null && hoursRaw !== "" ? Number(hoursRaw) : undefined;
+    const gran = c.req.query("granularity");
+    const granularity =
+      gran === "day" || gran === "hour" || gran === "minute" ? gran : undefined;
     const userId = c.req.query("userId") || undefined;
-    const stats = await computeUsageStats(
+    const stats = await computeUsageStats({
       days,
-      userId ? { userId } : undefined,
-    );
+      hours: Number.isFinite(hours as number) ? hours : undefined,
+      granularity,
+      userId,
+    });
     return c.json({ stats });
   });
 

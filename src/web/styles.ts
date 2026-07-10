@@ -638,6 +638,17 @@ export function styles(): string {
       display:flex;flex-wrap:wrap;align-items:center;gap:10px;
       margin:0 0 12px;padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;background:var(--canvas-soft);
     }
+    .usage-hd{align-items:flex-start;flex-wrap:wrap;gap:12px}
+    .usage-controls{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;justify-content:flex-end}
+    .usage-ctrl{display:flex;flex-direction:column;gap:4px}
+    .usage-ctrl .field-label{font-size:11px;color:var(--mute);font-weight:500}
+    .usage-ctrl .seg button{padding:0 10px;font-size:12px;height:28px}
+    @media(max-width:720px){
+      .usage-controls{width:100%}
+      .usage-ctrl{flex:1;min-width:140px}
+      .usage-ctrl .seg{width:100%}
+      .usage-ctrl .seg button{flex:1}
+    }
     .member-list{display:grid;gap:8px;max-height:min(360px,50vh);overflow:auto;margin:4px 0 8px}
     .member-row{
       display:flex;align-items:center;justify-content:space-between;gap:12px;

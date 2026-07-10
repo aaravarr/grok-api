@@ -280,13 +280,32 @@ ${styles()}
         <!-- USAGE -->
         <section class="view ${page==='usage'?'on':''}" id="view-usage">
           <div class="panel mb">
-            <div class="panel-hd">
-              <strong data-i18n="usageTitle">Analytics</strong>
+            <div class="panel-hd usage-hd">
+              <div>
+                <strong data-i18n="usageTitle">Analytics</strong>
+                <div class="mono" id="usageRangeHint" style="margin-top:2px;font-size:12px">–</div>
+              </div>
               <div class="spacer"></div>
-              <div class="seg" id="rangeSeg">
-                <button type="button" data-days="1">1d</button>
-                <button type="button" data-days="7" class="on">7d</button>
-                <button type="button" data-days="30">30d</button>
+              <div class="usage-controls">
+                <div class="usage-ctrl">
+                  <span class="field-label" data-i18n="usageRange">Range</span>
+                  <div class="seg" id="rangeSeg">
+                    <button type="button" data-range="1h">1h</button>
+                    <button type="button" data-range="6h">6h</button>
+                    <button type="button" data-range="24h">24h</button>
+                    <button type="button" data-range="7d" class="on">7d</button>
+                    <button type="button" data-range="30d">30d</button>
+                  </div>
+                </div>
+                <div class="usage-ctrl">
+                  <span class="field-label" data-i18n="usageGran">Bucket</span>
+                  <div class="seg" id="granSeg">
+                    <button type="button" data-gran="auto" class="on" data-i18n="granAuto">Auto</button>
+                    <button type="button" data-gran="minute" data-i18n="granMinute">Min</button>
+                    <button type="button" data-gran="hour" data-i18n="granHour">Hour</button>
+                    <button type="button" data-gran="day" data-i18n="granDay">Day</button>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="panel-bd">
@@ -304,7 +323,7 @@ ${styles()}
                 <div class="kpi"><div class="n" id="uImg">–</div><div class="l" data-i18n="kpiImg">Image tokens</div></div>
               </div>
               <div class="charts">
-                <div class="chart-card"><h4 data-i18n="chartDay">Daily token breakdown</h4><div class="chart-wrap"><canvas id="chartDay"></canvas></div></div>
+                <div class="chart-card"><h4 id="chartTimeTitle" data-i18n="chartDay">Token over time</h4><div class="chart-wrap"><canvas id="chartDay"></canvas></div></div>
                 <div class="chart-card"><h4 data-i18n="chartTokMix">Token mix</h4><div class="chart-wrap"><canvas id="chartTokMix"></canvas></div></div>
                 <div class="chart-card"><h4 data-i18n="chartModel">Model distribution</h4><div class="chart-wrap"><canvas id="chartModel"></canvas></div></div>
                 <div class="chart-card" data-admin-only><h4 data-i18n="chartAccount">By account</h4><div class="chart-wrap"><canvas id="chartAccount"></canvas></div></div>
@@ -918,7 +937,10 @@ ${styles()}
         logSaved:"日志设置已保存",
         usageTitle:"分析", kpiReq:"请求数", kpiTok:"总 Token", kpiOk:"成功率", kpiLat:"平均延迟",
         kpiIn:"输入(未缓存)", kpiOut:"输出 Token", kpiCache:"缓存输入", kpiReason:"推理 Token", kpiImg:"图片 Token",
-        chartDay:"每日 Token 构成", chartTokMix:"Token 构成", chartModel:"模型分布", chartAccount:"按账号", chartKey:"按密钥（总 Token）",
+        chartDay:"Token 趋势", chartTokMix:"Token 构成", chartModel:"模型分布", chartAccount:"按账号", chartKey:"按密钥（总 Token）",
+        usageRange:"时间范围", usageGran:"时间粒度",
+        granAuto:"自动", granMinute:"分钟", granHour:"小时", granDay:"天",
+        usageRangeHint:(r,g,n)=>"最近 "+r+" · 按"+g+" · "+n+" 个桶",
         chartKeyInOut:"按密钥 · 输入/输出",
         chartReq:"请求数", chartTok:"总 Token", chartIn:"输入(未缓存)", chartOut:"输出", chartCache:"缓存输入", chartReason:"推理",
         unrouted:"未路由(失败)", noKeyLabel:"无 Key", noModel:"无模型",
@@ -1084,7 +1106,10 @@ ${styles()}
         logSaved:"Log settings saved",
         usageTitle:"Analytics", kpiReq:"Requests", kpiTok:"Total tokens", kpiOk:"Success rate", kpiLat:"Avg latency",
         kpiIn:"Input (uncached)", kpiOut:"Output tokens", kpiCache:"Cached input", kpiReason:"Reasoning", kpiImg:"Image tokens",
-        chartDay:"Daily token breakdown", chartTokMix:"Token mix", chartModel:"Model distribution", chartAccount:"By account", chartKey:"By API key (total)",
+        chartDay:"Tokens over time", chartTokMix:"Token mix", chartModel:"Model distribution", chartAccount:"By account", chartKey:"By API key (total)",
+        usageRange:"Range", usageGran:"Bucket",
+        granAuto:"Auto", granMinute:"Min", granHour:"Hour", granDay:"Day",
+        usageRangeHint:(r,g,n)=>"Last "+r+" · by "+g+" · "+n+" buckets",
         chartKeyInOut:"By key · in / out",
         chartReq:"Requests", chartTok:"Total", chartIn:"Input (uncached)", chartOut:"Output", chartCache:"Cached input", chartReason:"Reasoning",
         unrouted:"Unrouted (failed)", noKeyLabel:"No key", noModel:"No model",
@@ -1224,7 +1249,8 @@ ${styles()}
     let logTotal = 0;
     let logDays = [];
     let lastLogItems = [];
-    let usageDays = 7;
+    let usageRange = "7d"; // 1h | 6h | 24h | 7d | 30d
+    let usageGran = "auto"; // auto | minute | hour | day
     let charts = { day: null, model: null, account: null, key: null, overview: null, tokMix: null, keyInOut: null };
     let lastStats = null;
 
@@ -2376,9 +2402,19 @@ ${styles()}
       return ds;
     }
 
+    function timeSeriesLabels(stats) {
+      const gran = stats.granularity || "day";
+      return (stats.byDay || []).map((d) => {
+        if (d.label && d.label !== d.key) return d.label;
+        // fallback for older payloads: day key YYYY-MM-DD
+        if (gran === "day" && d.key && d.key.length >= 10) return d.key.slice(5);
+        return d.label || d.key || "";
+      });
+    }
+
     function paintOverviewChart(stats) {
       if (typeof Chart === "undefined" || !$("chartOverview")) return;
-      const dayLabels = stats.byDay.map((d) => d.label.slice(5));
+      const dayLabels = timeSeriesLabels(stats);
       destroyChart("overview");
       charts.overview = new Chart($("chartOverview"), {
         type: "bar",
@@ -2392,7 +2428,7 @@ ${styles()}
           },
           scales: {
             y: { stacked: true, display: true, grid: { color: "rgba(0,0,0,.04)", drawBorder: false }, ticks: { font: { size: 10 }, color: "#888" } },
-            x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0, color: "#888" } }
+            x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12, color: "#888" } }
           }
         }
       });
@@ -2400,7 +2436,7 @@ ${styles()}
 
     function paintCharts(stats) {
       if (typeof Chart === "undefined" || !$("chartDay")) return;
-      const dayLabels = stats.byDay.map((d) => d.label.slice(5));
+      const dayLabels = timeSeriesLabels(stats);
       const s = stats.summary;
       const tip = { backgroundColor: "#171717", cornerRadius: 8, padding: 10, usePointStyle: true, boxWidth: 8, boxHeight: 8 };
       const hBar = {
@@ -2411,6 +2447,7 @@ ${styles()}
           y: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 }, color: "#4d4d4d" } }
         }
       };
+      const xTickLimit = (stats.byDay || []).length > 48 ? 16 : (stats.byDay || []).length > 24 ? 12 : 24;
 
       destroyChart("day");
       charts.day = new Chart($("chartDay"), {
@@ -2432,7 +2469,10 @@ ${styles()}
               ticks: { font: { size: 10 }, color: "#888", padding: 6 },
               title: { display: true, text: t("chartReq"), color: "#888", font: { size: 11, weight: "500" } }
             },
-            x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, color: "#888" } }
+            x: {
+              stacked: true, grid: { display: false },
+              ticks: { font: { size: 10 }, color: "#888", maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: xTickLimit }
+            }
           }
         }
       });
@@ -2739,9 +2779,36 @@ ${styles()}
       });
     }
 
+    function usageQueryParams() {
+      const qs = new URLSearchParams();
+      const map = { "1h": 1, "6h": 6, "24h": 24, "7d": 7 * 24, "30d": 30 * 24 };
+      const hours = map[usageRange] != null ? map[usageRange] : 7 * 24;
+      qs.set("hours", String(hours));
+      if (usageGran && usageGran !== "auto") qs.set("granularity", usageGran);
+      return qs;
+    }
+    function paintUsageControls(stats) {
+      if ($("rangeSeg")) {
+        $("rangeSeg").querySelectorAll("button[data-range]").forEach((b) => {
+          b.classList.toggle("on", b.getAttribute("data-range") === usageRange);
+        });
+      }
+      if ($("granSeg")) {
+        $("granSeg").querySelectorAll("button[data-gran]").forEach((b) => {
+          b.classList.toggle("on", b.getAttribute("data-gran") === usageGran);
+        });
+      }
+      if ($("usageRangeHint") && stats) {
+        const granKey = stats.granularity === "minute" ? "granMinute"
+          : stats.granularity === "hour" ? "granHour" : "granDay";
+        const n = (stats.byDay && stats.byDay.length) || 0;
+        $("usageRangeHint").textContent = t("usageRangeHint", usageRange, t(granKey), n);
+      }
+    }
+
     async function loadUsage() {
       try {
-        const res = await fetch(apiUsagePath() + "?days=" + usageDays, { headers: headers() });
+        const res = await fetch(apiUsagePath() + "?" + usageQueryParams().toString(), { headers: headers() });
         if (!res.ok) return;
         const data = await res.json();
         lastStats = data.stats;
@@ -2756,7 +2823,7 @@ ${styles()}
         if ($("uOk")) $("uOk").textContent = s.requests ? Math.round((s.ok / s.requests) * 100) + "%" : "–";
         if ($("uLat")) $("uLat").textContent = s.avgLatencyMs != null ? s.avgLatencyMs + "ms" : "–";
         if ($("uImg")) $("uImg").textContent = fmtNum(s.imageTokens);
-        if ($("rangeSeg")) $("rangeSeg").querySelectorAll("button").forEach((b) => b.classList.toggle("on", Number(b.dataset.days) === usageDays));
+        paintUsageControls(data.stats);
 
         if ($("sReq")) $("sReq").textContent = fmtNum(s.requests);
         if ($("ovReq")) $("ovReq").textContent = fmtNum(s.requests);
@@ -3794,9 +3861,19 @@ ${styles()}
       } catch (e) { showMsg($("msgLogs"), e.message, "err"); }
     };
     if ($("rangeSeg")) $("rangeSeg").addEventListener("click", (e) => {
-      const b = e.target.closest("button[data-days]");
+      const b = e.target.closest("button[data-range]");
       if (!b) return;
-      usageDays = Number(b.dataset.days) || 7;
+      usageRange = b.getAttribute("data-range") || "7d";
+      // sensible default granularity when switching range
+      if (usageGran === "auto") { /* keep auto */ }
+      else if (usageRange === "1h" || usageRange === "6h") usageGran = usageGran === "day" ? "auto" : usageGran;
+      else if (usageRange === "30d" && usageGran === "minute") usageGran = "auto";
+      loadUsage();
+    });
+    if ($("granSeg")) $("granSeg").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-gran]");
+      if (!b) return;
+      usageGran = b.getAttribute("data-gran") || "auto";
       loadUsage();
     });
     if ($("logDay")) $("logDay").onchange = () => { logPage = 1; loadLogs(); };
