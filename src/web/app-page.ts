@@ -758,7 +758,7 @@ ${styles()}
         noContrib:"No contributions yet. Click above to link your first account.",
         contribOk:"Contribution added", contribRankUnranked:"Unranked",
         withdrawContrib:"Withdraw",
-        withdrawContribConfirm:(n)=>"Withdraw contribution \""+n+"\"? It will be removed from the shared pool.",
+        withdrawContribConfirm:(n)=>"Withdraw contribution ["+n+"]? It will be removed from the shared pool.",
         withdrawContribOk:"Contribution withdrawn",
         routeTitle:"API routing", routeHint:"Applies to your API keys", saveRoute:"Save routing",
         routePublic:"Public pool", routeMine:"My seats only", routeAccount:"Pin account",
