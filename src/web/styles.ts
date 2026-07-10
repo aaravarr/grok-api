@@ -111,7 +111,14 @@ export function styles(): string {
     .codebox.show{display:block}.codebox .label{color:var(--mute);font-size:12px;margin-bottom:8px}
     .codebox .code{font-family:var(--mono);font-size:28px;font-weight:500;letter-spacing:.14em}
 
-    /* CSS Grid data tables — fixed track widths so head and every row share identical width */
+    /*
+      CSS Grid data tables
+      - .dt is the horizontal scrollport (mobile-friendly)
+      - each head/row is its own grid with the SAME width: max(100%, --dt-min)
+        so columns align and wide screens fill the panel
+      - flexible tracks use minmax(minPx, Nfr); fixed tracks stay px
+      - --dt-min ≈ sum of track floors (enables overflow-x when viewport is narrow)
+    */
     .dt{
       width:100%;max-width:100%;
       overflow-x:auto;overflow-y:hidden;
@@ -123,15 +130,14 @@ export function styles(): string {
       display:grid;align-items:center;column-gap:0;
       border-bottom:1px solid var(--hairline);
       box-sizing:border-box;
-      /* lock to --dt-min: never let content inflate a single row past the header */
-      width:var(--dt-min,100%);
+      width:max(100%,var(--dt-min,0px));
       min-width:max(100%,var(--dt-min,0px));
       grid-template-columns:var(--dt-cols);
     }
     .dt-head{background:#fafafa;position:sticky;top:0;z-index:1}
     .dt-head > div{
       padding:10px 12px;color:var(--mute);font-weight:500;font-size:12px;white-space:nowrap;
-      overflow:hidden;text-overflow:ellipsis;
+      overflow:hidden;text-overflow:ellipsis;min-width:0;
     }
     .dt-row > div{
       padding:10px 12px;font-size:13px;line-height:1.4;min-width:0;
@@ -146,16 +152,11 @@ export function styles(): string {
     .dt-actions .btn{flex-shrink:0}
     .dt-time{display:flex;flex-direction:column;align-items:flex-start;gap:2px;overflow:hidden;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--mute)}
     .dt-time-main{white-space:nowrap}
-    /*
-      Explicit px tracks only (no fr). Each head/row is its own grid; fr would size
-      independently per row from content and make body rows wider than the header.
-      --dt-min MUST equal the sum of --dt-cols.
-    */
-    .dt-accounts{--dt-min:900px;--dt-cols:220px 96px 120px 56px 140px 268px}
-    .dt-users{--dt-min:880px;--dt-cols:200px 88px 88px 140px 120px 244px}
-    .dt-keys{--dt-min:800px;--dt-cols:180px 160px 88px 140px 56px 176px}
-    .dt-logs{--dt-min:980px;--dt-cols:118px 140px 140px 72px 160px 72px 130px 148px}
-    .dt-logs.no-account{--dt-min:850px;--dt-cols:118px 150px 150px 72px 170px 72px 218px}
+    .dt-accounts{--dt-min:900px;--dt-cols:minmax(160px,1.6fr) 96px minmax(100px,1.2fr) 56px 140px 268px}
+    .dt-users{--dt-min:880px;--dt-cols:minmax(140px,1.4fr) 88px 88px minmax(110px,1.1fr) 120px 244px}
+    .dt-keys{--dt-min:800px;--dt-cols:minmax(120px,1.3fr) minmax(110px,1fr) 88px 140px 56px 176px}
+    .dt-logs{--dt-min:980px;--dt-cols:118px minmax(110px,1fr) minmax(110px,1fr) 72px minmax(120px,1.2fr) 72px minmax(100px,.9fr) minmax(100px,.9fr)}
+    .dt-logs.no-account{--dt-min:850px;--dt-cols:118px minmax(110px,1fr) minmax(110px,1fr) 72px minmax(120px,1.2fr) 72px minmax(120px,1fr)}
     .acc-err{
       color:var(--error);font-size:11px;line-height:1.3;margin-top:3px;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
@@ -302,10 +303,12 @@ export function styles(): string {
       .log-meta{grid-template-columns:1fr}
       /* keep actions on one line so row width stays locked to --dt-min */
       .dt-actions{flex-wrap:nowrap}
-      .dt-accounts{--dt-min:860px;--dt-cols:200px 90px 110px 48px 130px 282px}
-      .dt-users{--dt-min:820px;--dt-cols:180px 80px 80px 130px 110px 240px}
-      .dt-keys{--dt-min:760px;--dt-cols:160px 150px 80px 130px 48px 192px}
-      .dt-contrib{--dt-min:780px;--dt-cols:200px 90px 110px 56px 140px 184px}
+      .dt-accounts{--dt-min:860px;--dt-cols:minmax(150px,1.4fr) 90px minmax(100px,1.1fr) 48px 130px 282px}
+      .dt-users{--dt-min:820px;--dt-cols:minmax(130px,1.2fr) 80px 80px minmax(100px,1fr) 110px 240px}
+      .dt-keys{--dt-min:760px;--dt-cols:minmax(120px,1.2fr) minmax(110px,1fr) 80px 130px 48px 192px}
+      .dt-contrib{--dt-min:780px;--dt-cols:minmax(150px,1.4fr) 90px minmax(100px,1.1fr) 56px 140px 184px}
+      .dt-logs{--dt-min:940px;--dt-cols:110px minmax(100px,1fr) minmax(100px,1fr) 68px minmax(110px,1.1fr) 68px minmax(90px,.9fr) minmax(90px,.9fr)}
+      .dt-logs.no-account{--dt-min:820px;--dt-cols:110px minmax(100px,1fr) minmax(100px,1fr) 68px minmax(110px,1.1fr) 68px minmax(110px,1fr)}
       .toast{top:max(12px,calc(env(safe-area-inset-top) + 8px));left:16px;right:16px;width:auto;max-width:none;transform:translateY(-6px);min-width:0}
       .toast.show{transform:translateY(0)}
       .modal-mask{padding:12px;padding-top:max(12px,env(safe-area-inset-top));align-items:flex-end}
@@ -429,8 +432,8 @@ export function styles(): string {
     .rank-badge.top1{background:#fff6df;border-color:#f0d789;color:#9a6700}
     .rank-badge.top2{background:#f1f5f9;border-color:#cbd5e1;color:#475569}
     .rank-badge.top3{background:#fff1e8;border-color:#f0c2a0;color:#9a3412}
-    .dt-contrib{--dt-min:820px;--dt-cols:220px 96px 120px 56px 140px 188px}
-    .dt-lb{--dt-min:440px;--dt-cols:72px 168px 100px 100px}
+    .dt-contrib{--dt-min:820px;--dt-cols:minmax(160px,1.6fr) 96px minmax(100px,1.2fr) 56px 140px 188px}
+    .dt-lb{--dt-min:440px;--dt-cols:72px minmax(120px,1.5fr) 100px 100px}
     .empty-cta{padding:48px 20px;text-align:center}
     .empty-cta h3{margin:0 0 6px;font-size:16px;font-weight:600}
     .empty-cta p{margin:0 0 16px;color:var(--mute);font-size:13px}
