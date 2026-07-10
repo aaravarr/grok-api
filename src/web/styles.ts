@@ -248,8 +248,15 @@ export function styles(): string {
     }
     .badge{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;font-size:11px;font-weight:500;background:var(--canvas-soft-2);color:var(--body);border:1px solid var(--hairline);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .badge.active{background:var(--success-bg);color:var(--success);border-color:#b7e4c7}
+    .badge.pending{background:var(--link-bg);color:var(--link-deep);border-color:#b6d4ff}
     .badge.exhausted{background:var(--violet-bg);color:var(--violet);border-color:#d8ccf1}
     .badge.expired,.badge.error{background:var(--error-bg);color:var(--error);border-color:#f0b8bb}
+    .contrib-paths{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:720px){.contrib-paths{grid-template-columns:1fr}}
+    .contrib-path{border:1px solid var(--hairline);border-radius:12px;padding:12px 14px;background:var(--canvas-soft)}
+    .contrib-path-hd{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
+    .contrib-path-hd strong{font-size:13px;color:var(--ink)}
+    .oauth-phase{font-size:11px;color:var(--mute);margin-top:2px;line-height:1.3}
     .badge.current{background:var(--link-bg);color:var(--link-deep);border-color:#b6d4ff}
     .mono{font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .name{font-weight:500;font-size:13px;line-height:1.35;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -325,7 +332,12 @@ export function styles(): string {
 
     .modal-mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:200;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)}
     .modal-mask.show{display:flex;animation:fadeIn .15s var(--ease)}
+    #confirmModal{z-index:320}
     .modal{width:min(440px,100%);background:#fff;border-radius:14px;border:1px solid var(--hairline);box-shadow:0 16px 48px rgba(0,0,0,.12);padding:20px;position:relative;z-index:1}
+    .modal.modal-confirm{width:min(400px,100%)}
+    .modal.modal-confirm p{white-space:pre-wrap;word-break:break-word}
+    #confirmOk.btn-danger{background:var(--error);border-color:var(--error);color:#fff}
+    #confirmOk.btn-danger:hover{filter:brightness(.95)}
     .modal.wide{width:min(820px,100%);max-height:min(86dvh,900px);display:flex;flex-direction:column}
     .modal.modal-acc{width:min(520px,100%);padding:0;overflow:visible}
     .modal-hd{padding:18px 20px 0}

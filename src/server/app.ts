@@ -23,6 +23,7 @@ import {
   verifyApiKey,
 } from "../account/store.js";
 import { getDeviceSession, pollDeviceLogin, startDeviceLogin } from "../account/oauth.js";
+import { enqueueSessionOAuth } from "../account/session-oauth.js";
 import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
 import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js";
@@ -48,6 +49,8 @@ import {
 import {
   captureJsonResponse,
   ensureStreamUsage,
+  extractBodyError,
+  isLogOk,
   parseBodyMeta,
   safeCloneBody,
   teeAndCapture,
@@ -182,6 +185,7 @@ export function createApp() {
       logRetentionDays: settings.logRetentionDays,
       logEnabled: settings.logEnabled,
       logBodies: settings.logBodies === true,
+      logBodiesOnError: settings.logBodiesOnError !== false,
       allowRegisterSetting: settings.allowRegister,
       xaiBaseUrl: resolveUpstreamBaseUrl(settings.upstreamBaseUrl),
       upstreamBaseUrlConfigured: settings.upstreamBaseUrl || "",
@@ -472,6 +476,7 @@ export function createApp() {
       stats: {
         total: accounts.length,
         active: accounts.filter((a) => a.status === "active").length,
+        pending: accounts.filter((a) => a.status === "pending").length,
         exhausted: accounts.filter((a) => a.status === "exhausted").length,
         expired: accounts.filter((a) => a.status === "expired").length,
         error: accounts.filter((a) => a.status === "error").length,
@@ -479,30 +484,83 @@ export function createApp() {
     });
   });
 
+  /**
+   * Dual-path contribute OAuth:
+   * - mode=browser (default): open device URL; seat appears as pending in list
+   * - mode=auto: body.sessionToken required; backend automates authorize (async)
+   * - accountId: rebind existing pending/error seat (manual retry)
+   */
   app.post("/api/me/accounts/oauth", async (c) => {
     const user = c.get("user")!;
     const body = (await c.req.json().catch(() => ({}))) as {
       name?: string;
       openBrowser?: boolean;
+      mode?: "browser" | "auto";
+      sessionToken?: string;
+      accountId?: string;
     };
+    const mode = body.mode === "auto" ? "auto" : "browser";
+    if (mode === "auto" && !body.sessionToken?.trim()) {
+      return c.json({ error: "auto 模式需要 sessionToken" }, 400);
+    }
+    if (body.accountId) {
+      const existing = await getAccount(body.accountId);
+      if (!existing || existing.donorUserId !== user.id) {
+        return c.json({ error: "not found" }, 404);
+      }
+    }
     try {
       const session = await startDeviceLogin({
-        name: body.name?.trim() || undefined, // store assigns unique contrib-N when empty
-        openBrowser: body.openBrowser === true, // browser open only when server-side requested
+        name: body.name?.trim() || undefined,
+        openBrowser: false,
         donorUserId: user.id,
+        mode,
+        accountId: body.accountId,
       });
+      if (mode === "auto" && body.sessionToken) {
+        enqueueSessionOAuth({
+          accountId: session.accountId,
+          sessionToken: body.sessionToken.trim(),
+          verificationUrl:
+            session.verificationUriComplete || session.verificationUri,
+        });
+      }
+      const acc = await getAccount(session.accountId);
       return c.json({
-        mode: "device_code",
+        mode,
         sessionId: session.sessionId,
+        accountId: session.accountId,
         userCode: session.userCode,
         verificationUri: session.verificationUri,
         verificationUriComplete: session.verificationUriComplete,
         expiresIn: session.expiresIn,
-        instructions: `打开 ${session.verificationUri}，输入代码 ${session.userCode}`,
+        account: acc ? publicAccount(acc) : null,
+        instructions:
+          mode === "auto"
+            ? "自动授权已启动，请在列表中查看状态"
+            : `打开 ${session.verificationUri}，输入代码 ${session.userCode}`,
       });
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
     }
+  });
+
+  /** Open browser URL for a pending seat (manual fallback). Does not restart device code. */
+  app.post("/api/me/accounts/:id/oauth/open", async (c) => {
+    const user = c.get("user")!;
+    const acc = await getAccount(c.req.param("id"));
+    if (!acc || acc.donorUserId !== user.id) return c.json({ error: "not found" }, 404);
+    if (!acc.oauth?.verificationUri) {
+      return c.json({ error: "无进行中的 OAuth，请重新发起" }, 400);
+    }
+    const url = acc.oauth.verificationUriComplete || acc.oauth.verificationUri;
+    return c.json({
+      ok: true,
+      url,
+      userCode: acc.oauth.userCode,
+      sessionId: acc.oauth.sessionId,
+      expiresAt: acc.oauth.expiresAt,
+    });
   });
 
   app.get("/api/me/accounts/oauth/poll", async (c) => {
@@ -527,14 +585,22 @@ export function createApp() {
       });
     }
     if (result.pending) {
+      const acc = session.accountId ? await getAccount(session.accountId) : null;
       return c.json({
         ok: false,
         pending: true,
         userCode: session.userCode,
         verificationUri: session.verificationUri,
+        account: acc ? publicAccount(acc) : null,
       });
     }
-    return c.json({ ok: false, pending: false, error: result.error }, 400);
+    const acc = session.accountId ? await getAccount(session.accountId) : null;
+    return c.json({
+      ok: false,
+      pending: false,
+      error: result.error,
+      account: acc ? publicAccount(acc) : null,
+    }, 400);
   });
 
   app.post("/api/me/accounts/:id/credits", async (c) => {
@@ -589,27 +655,32 @@ export function createApp() {
       const next = currentExtras.filter((id) => !revoke.has(id));
       patch.allowedUserIds = sanitizeAllowedUserIds(next, user.id);
     } else if (body.allowedUserIds !== undefined) {
-      // donor may only shrink the set (subset of current); empty/null clears extras
-      if (body.allowedUserIds === null) {
+      // donor may only shrink the set (subset of current); empty/null clears extras → pure public/private
+      if (body.allowedUserIds === null || body.allowedUserIds === [] as unknown) {
         patch.allowedUserIds = null;
       } else if (Array.isArray(body.allowedUserIds)) {
-        const requested = [
-          ...new Set(
-            body.allowedUserIds
-              .map((x) => (typeof x === "string" ? x.trim() : ""))
-              .filter(Boolean),
-          ),
-        ];
-        const currentSet = new Set(currentExtras);
-        const illegal = requested.filter((id) => !currentSet.has(id) && id !== user.id);
-        if (illegal.length) {
-          return c.json(
-            { error: "贡献者不能添加新用户，只能从现有名单中移除。请联系管理员添加成员。" },
-            400,
-          );
+        if (body.allowedUserIds.length === 0) {
+          // empty array = clear all extras (fully public when private=false)
+          patch.allowedUserIds = null;
+        } else {
+          const requested = [
+            ...new Set(
+              body.allowedUserIds
+                .map((x) => (typeof x === "string" ? x.trim() : ""))
+                .filter(Boolean),
+            ),
+          ];
+          const currentSet = new Set(currentExtras);
+          const illegal = requested.filter((id) => !currentSet.has(id) && id !== user.id);
+          if (illegal.length) {
+            return c.json(
+              { error: "贡献者不能添加新用户，只能从现有名单中移除。请联系管理员添加成员。" },
+              400,
+            );
+          }
+          const next = requested.filter((id) => currentSet.has(id));
+          patch.allowedUserIds = sanitizeAllowedUserIds(next, user.id);
         }
-        const next = requested.filter((id) => currentSet.has(id));
-        patch.allowedUserIds = sanitizeAllowedUserIds(next, user.id);
       } else {
         return c.json({ error: "allowedUserIds 须为数组或 null" }, 400);
       }
@@ -673,6 +744,7 @@ export function createApp() {
       logRetentionDays?: number;
       logEnabled?: boolean;
       logBodies?: boolean;
+      logBodiesOnError?: boolean;
       allowRegister?: boolean;
     };
     const patch: {
@@ -683,6 +755,7 @@ export function createApp() {
       logRetentionDays?: number;
       logEnabled?: boolean;
       logBodies?: boolean;
+      logBodiesOnError?: boolean;
       allowRegister?: boolean;
     } = {};
     if (body.proxyUrl !== undefined) patch.proxyUrl = body.proxyUrl;
@@ -692,6 +765,7 @@ export function createApp() {
     if (body.logRetentionDays !== undefined) patch.logRetentionDays = body.logRetentionDays;
     if (body.logEnabled !== undefined) patch.logEnabled = body.logEnabled;
     if (body.logBodies !== undefined) patch.logBodies = body.logBodies;
+    if (body.logBodiesOnError !== undefined) patch.logBodiesOnError = body.logBodiesOnError;
     if (body.allowRegister !== undefined) patch.allowRegister = body.allowRegister;
     try {
       const settings = await saveSettings(patch);
@@ -854,14 +928,18 @@ export function createApp() {
         donorUserId,
         private: body.private === true,
         allowedUserIds,
+        mode: "browser",
       });
+      const acc = await getAccount(session.accountId);
       return c.json({
-        mode: "device_code",
+        mode: "browser",
         sessionId: session.sessionId,
+        accountId: session.accountId,
         userCode: session.userCode,
         verificationUri: session.verificationUri,
         verificationUriComplete: session.verificationUriComplete,
         expiresIn: session.expiresIn,
+        account: acc ? publicAccount(acc) : null,
         instructions: `打开 ${session.verificationUri}，输入代码 ${session.userCode}`,
       });
     } catch (e) {
@@ -1263,6 +1341,7 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
   const settings = await loadSettings();
   const logging = settings.logEnabled !== false;
   const logBodies = settings.logBodies === true;
+  const logBodiesOnError = settings.logBodiesOnError !== false;
   const reqClone = logging && logBodies ? safeCloneBody(body) : { value: undefined as unknown, truncated: false };
 
   const baseLog = {
@@ -1279,6 +1358,22 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
     headers: inbound.headers,
     userAgent: inbound.userAgent,
     client: inbound.client,
+  };
+
+  /** Keep response body when full bodies on, or on failure when logBodiesOnError. */
+  const pickResponse = (
+    status: number,
+    captured: { response?: unknown; responseTruncated?: boolean; error?: string },
+    bodyError?: string,
+  ) => {
+    const ok = isLogOk(status, bodyError || captured.error);
+    const keep = logBodies || (!ok && logBodiesOnError);
+    return {
+      ok,
+      response: keep ? captured.response : undefined,
+      responseTruncated: keep ? captured.responseTruncated : undefined,
+      error: bodyError || captured.error,
+    };
   };
 
   try {
@@ -1304,7 +1399,7 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
           accountId: result.accountId,
           accountName: result.accountName,
           status: result.status,
-          ok: result.status >= 200 && result.status < 300,
+          ok: isLogOk(result.status),
           latencyMs: Date.now() - t0,
         });
       }
@@ -1316,6 +1411,7 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
       contentType.includes("text/event-stream") ||
       contentType.includes("event-stream");
 
+    // Charge only on HTTP 2xx; body-level errors still may have used tokens upstream
     const shouldCharge = Boolean(apiKeyUserId) && result.status >= 200 && result.status < 300;
     if (!logging && !shouldCharge) {
       return new Response(result.body, { status: result.status, headers });
@@ -1325,18 +1421,20 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
       const clientBody = teeAndCapture(result.body, (captured) => {
         if (shouldCharge) chargeUserTokens(apiKeyUserId, captured.usage);
         if (logging) {
+          const bodyError = extractBodyError(captured.response) || captured.error;
+          const picked = pickResponse(result.status, captured, bodyError);
           void appendRequestLog({
             ...baseLog,
             stream: true,
             accountId: result.accountId,
             accountName: result.accountName,
             status: result.status,
-            ok: result.status >= 200 && result.status < 300,
+            ok: picked.ok,
             latencyMs: Date.now() - t0,
-            response: logBodies ? captured.response : undefined,
-            responseTruncated: logBodies ? captured.responseTruncated : undefined,
+            response: picked.response,
+            responseTruncated: picked.responseTruncated,
             usage: captured.usage,
-            error: captured.error,
+            error: picked.error,
           });
         }
       });
@@ -1346,18 +1444,20 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
     const { bytes, result: captured } = await captureJsonResponse(result.body);
     if (shouldCharge) chargeUserTokens(apiKeyUserId, captured.usage);
     if (logging) {
+      const bodyError = extractBodyError(captured.response) || captured.error;
+      const picked = pickResponse(result.status, captured, bodyError);
       void appendRequestLog({
         ...baseLog,
         stream: false,
         accountId: result.accountId,
         accountName: result.accountName,
         status: result.status,
-        ok: result.status >= 200 && result.status < 300,
+        ok: picked.ok,
         latencyMs: Date.now() - t0,
-        response: logBodies ? captured.response : undefined,
-        responseTruncated: logBodies ? captured.responseTruncated : undefined,
+        response: picked.response,
+        responseTruncated: picked.responseTruncated,
         usage: captured.usage,
-        error: captured.error,
+        error: picked.error,
       });
     }
     return new Response(bytes, { status: result.status, headers });

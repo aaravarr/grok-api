@@ -1,5 +1,26 @@
 export type AccountStatus = "active" | "exhausted" | "expired" | "error" | "pending";
 
+/** How the seat is being authorized */
+export type OAuthMode = "browser" | "auto";
+
+/** Progress of in-flight device-code authorization */
+export type OAuthPhase =
+  | "waiting_user"
+  | "automating"
+  | "failed"
+  | "authorized";
+
+export interface AccountOAuthMeta {
+  sessionId: string;
+  mode: OAuthMode;
+  phase: OAuthPhase;
+  userCode: string;
+  verificationUri: string;
+  verificationUriComplete?: string;
+  expiresAt: number;
+  lastMessage?: string;
+}
+
 export interface AccountTokens {
   access: string;
   refresh: string;
@@ -46,6 +67,8 @@ export interface Account {
    * Also excludes the seat from the public shared pool.
    */
   allowedUserIds?: string[] | null;
+  /** In-flight device OAuth (pending seats only; cleared when active) */
+  oauth?: AccountOAuthMeta | null;
 }
 
 export interface ApiKeyRecord {
@@ -98,6 +121,8 @@ export interface DeviceSession {
   createdAt: number;
   /** Contributor user id when started from /contribute */
   donorUserId?: string | null;
+  private?: boolean;
+  allowedUserIds?: string[] | null;
 }
 
 export interface TokenResponse {

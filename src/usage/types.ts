@@ -47,7 +47,10 @@ export interface RequestLog {
   /** Full request body (may be truncated). Omitted when logBodies is off. */
   request?: unknown;
   requestTruncated?: boolean;
-  /** Full response body or SSE text (may be truncated). Omitted when logBodies is off. */
+  /**
+   * Response body or SSE text (may be truncated).
+   * Stored when logBodies is on, or when request failed and logBodiesOnError is on.
+   */
   response?: unknown;
   responseTruncated?: boolean;
   usage?: TokenUsage;

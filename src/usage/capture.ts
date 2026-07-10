@@ -135,6 +135,100 @@ export interface CaptureResult {
   error?: string;
 }
 
+/**
+ * Detect business-level errors in upstream JSON / SSE even when HTTP is 2xx.
+ * OpenAI-style: { error: { message } } | { error: "..." }
+ * Also: empty choices with finish_reason content_filter, etc.
+ */
+export function extractBodyError(payload: unknown): string | undefined {
+  if (payload == null) return undefined;
+  if (typeof payload === "string") {
+    const t = payload.trim();
+    if (!t) return undefined;
+    // SSE: scan data lines for error objects
+    if (t.includes("data:") || t.includes("\n")) {
+      let last: string | undefined;
+      for (const line of t.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const data = trimmed.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        try {
+          const err = extractBodyError(JSON.parse(data));
+          if (err) last = err;
+        } catch {
+          // ignore
+        }
+      }
+      if (last) return last;
+    }
+    if (t.trimStart().startsWith("{")) {
+      try {
+        return extractBodyError(JSON.parse(t));
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }
+  if (typeof payload !== "object") return undefined;
+  const o = payload as Record<string, unknown>;
+
+  // { error: "msg" } | { error: { message, type, code } }
+  if (o.error != null) {
+    if (typeof o.error === "string" && o.error.trim()) return o.error.trim().slice(0, 500);
+    if (typeof o.error === "object") {
+      const e = o.error as Record<string, unknown>;
+      const msg =
+        (typeof e.message === "string" && e.message) ||
+        (typeof e.msg === "string" && e.msg) ||
+        (typeof e.code === "string" && e.code) ||
+        (typeof e.type === "string" && e.type);
+      if (msg) {
+        const parts = [msg];
+        if (typeof e.type === "string" && e.type !== msg) parts.push(e.type);
+        if (typeof e.code === "string" && e.code !== msg) parts.push(String(e.code));
+        return parts.join(" · ").slice(0, 500);
+      }
+      try {
+        return JSON.stringify(e).slice(0, 500);
+      } catch {
+        return "upstream error object";
+      }
+    }
+  }
+
+  // { message, type: "error" } loose shapes
+  if (
+    typeof o.message === "string" &&
+    o.message.trim() &&
+    (o.type === "error" || o.status === "error" || o.ok === false)
+  ) {
+    return o.message.trim().slice(0, 500);
+  }
+
+  // chat.completion with empty choices + content filter
+  if (Array.isArray(o.choices) && o.choices.length === 0 && o.object) {
+    return "empty choices";
+  }
+  if (Array.isArray(o.choices)) {
+    for (const ch of o.choices) {
+      if (!ch || typeof ch !== "object") continue;
+      const c = ch as Record<string, unknown>;
+      if (c.finish_reason === "content_filter") return "content_filter";
+      if (c.native_finish_reason === "content_filter") return "content_filter";
+    }
+  }
+
+  return undefined;
+}
+
+/** HTTP 2xx + body business error → not ok */
+export function isLogOk(status: number, bodyError?: string | null): boolean {
+  if (!(status >= 200 && status < 300)) return false;
+  return !bodyError;
+}
+
 /** Buffer non-stream response fully; return same bytes for client. */
 export async function captureJsonResponse(
   stream: ReadableStream<Uint8Array>,

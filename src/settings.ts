@@ -32,6 +32,11 @@ export interface AppSettings {
    * Default false — only metadata + usage (bodies are large).
    */
   logBodies: boolean;
+  /**
+   * When true (default), always store response body for failed requests
+   * (HTTP non-2xx or body-level error), even if logBodies is off.
+   */
+  logBodiesOnError: boolean;
   /** Allow public self-registration after admin setup. */
   allowRegister: boolean;
 }
@@ -48,6 +53,7 @@ const defaultSettings = (): AppSettings => ({
   logRetentionDays: 7,
   logEnabled: true,
   logBodies: false,
+  logBodiesOnError: true,
   allowRegister: true,
 });
 
@@ -216,6 +222,8 @@ export async function loadSettings(): Promise<AppSettings> {
       logRetentionDays: normalizeRetention(data.logRetentionDays, 7),
       logEnabled: data.logEnabled !== false,
       logBodies: data.logBodies === true,
+      // default true when missing (legacy installs)
+      logBodiesOnError: data.logBodiesOnError !== false,
       allowRegister: data.allowRegister !== false,
     };
   } catch {
@@ -248,6 +256,10 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
         : cur.logRetentionDays,
     logEnabled: patch.logEnabled !== undefined ? Boolean(patch.logEnabled) : cur.logEnabled,
     logBodies: patch.logBodies !== undefined ? Boolean(patch.logBodies) : cur.logBodies,
+    logBodiesOnError:
+      patch.logBodiesOnError !== undefined
+        ? Boolean(patch.logBodiesOnError)
+        : cur.logBodiesOnError,
     allowRegister:
       patch.allowRegister !== undefined ? Boolean(patch.allowRegister) : cur.allowRegister,
   };

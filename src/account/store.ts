@@ -5,6 +5,7 @@ import { config } from "../config.js";
 import { atomicWriteJson } from "../fs-atomic.js";
 import type {
   Account,
+  AccountOAuthMeta,
   AccountStatus,
   AccountsStore,
   ApiKeyRecord,
@@ -115,6 +116,57 @@ function normalizeAllowedUserIds(v: unknown): string[] | null {
   return ids.length ? ids : null;
 }
 
+function nextAccountName(
+  store: AccountsStore,
+  input: { name?: string; donorUserId?: string | null },
+  donorSlug: string,
+): string {
+  let name = input.name?.trim() || "";
+  if (name) return name;
+  if (input.donorUserId) {
+    const n = store.accounts.filter((a) => a.donorUserId === input.donorUserId).length + 1;
+    return `contrib-${donorSlug || "user"}-${n}`;
+  }
+  return `account-${store.accounts.length + 1}`;
+}
+
+/** Placeholder seat while device OAuth is in progress (not routable). */
+export async function addPendingAccount(input: {
+  name?: string;
+  donorUserId?: string | null;
+  private?: boolean;
+  allowedUserIds?: string[] | null;
+  oauth: AccountOAuthMeta;
+}): Promise<Account> {
+  let donorSlug = "";
+  if (input.donorUserId) {
+    const donor = await getUser(input.donorUserId);
+    donorSlug = slugUsername(donor?.username || input.donorUserId.slice(0, 6));
+  }
+  return mutate((store) => {
+    const t = now();
+    const account: Account = {
+      id: randomId(8),
+      name: nextAccountName(store, input, donorSlug),
+      status: "pending",
+      tokens: { access: "", refresh: "", expires: 0 },
+      createdAt: t,
+      updatedAt: t,
+      useCount: 0,
+      donorUserId: input.donorUserId ?? null,
+      private: input.private === true,
+      allowedUserIds: sanitizeAllowedUserIds(
+        input.allowedUserIds,
+        input.donorUserId ?? null,
+      ),
+      oauth: input.oauth,
+      lastError: input.oauth.lastMessage,
+    };
+    store.accounts.push(account);
+    return account;
+  });
+}
+
 export async function addAccount(input: {
   name?: string;
   access: string;
@@ -131,18 +183,9 @@ export async function addAccount(input: {
   }
   return mutate((store) => {
     const t = now();
-    let name = input.name?.trim() || "";
-    if (!name) {
-      if (input.donorUserId) {
-        const n = store.accounts.filter((a) => a.donorUserId === input.donorUserId).length + 1;
-        name = `contrib-${donorSlug || "user"}-${n}`;
-      } else {
-        name = `account-${store.accounts.length + 1}`;
-      }
-    }
     const account: Account = {
       id: randomId(8),
-      name,
+      name: nextAccountName(store, input, donorSlug),
       status: "active",
       tokens: {
         access: input.access,
@@ -167,6 +210,35 @@ export async function addAccount(input: {
   });
 }
 
+/** Activate a pending seat after device OAuth succeeds. */
+export async function activatePendingAccount(
+  id: string,
+  tokens: { access: string; refresh: string; expires: number },
+): Promise<Account | undefined> {
+  return mutate((store) => {
+    const idx = store.accounts.findIndex((a) => a.id === id);
+    if (idx < 0) return undefined;
+    const cur = store.accounts[idx]!;
+    const next: Account = {
+      ...cur,
+      status: "active",
+      tokens: {
+        access: tokens.access,
+        refresh: tokens.refresh,
+        expires: tokens.expires,
+      },
+      oauth: null,
+      lastError: undefined,
+      updatedAt: now(),
+    };
+    store.accounts[idx] = next;
+    if (!store.routing.currentAccountId && isPublicPoolAccount(next)) {
+      store.routing.currentAccountId = next.id;
+    }
+    return next;
+  });
+}
+
 export async function updateAccount(
   id: string,
   patch: Partial<
@@ -183,6 +255,7 @@ export async function updateAccount(
       | "donorUserId"
       | "private"
       | "allowedUserIds"
+      | "oauth"
     >
   >,
 ): Promise<Account | undefined> {
@@ -196,6 +269,7 @@ export async function updateAccount(
       tokens: patch.tokens ?? cur.tokens,
       credits: patch.credits !== undefined ? patch.credits : cur.credits,
       private: patch.private !== undefined ? Boolean(patch.private) : cur.private === true,
+      oauth: patch.oauth !== undefined ? patch.oauth : cur.oauth,
       updatedAt: now(),
     };
     if (patch.donorUserId !== undefined) {
@@ -252,6 +326,7 @@ export function canUserUseAccount(
   acc: Account,
   callerUserId: string | null | undefined,
 ): boolean {
+  if (acc.status === "pending" || !acc.tokens?.refresh) return false;
   if (isAccountDonor(acc, callerUserId)) return true;
   if (hasAllowedUsers(acc)) {
     return isUserAllowedOnAccount(acc, callerUserId);
@@ -572,6 +647,18 @@ export function publicAccount(a: Account, currentId?: string | null) {
     donorUserId: a.donorUserId ?? null,
     private: a.private === true,
     allowedUserIds: hasAllowedUsers(a) ? [...(a.allowedUserIds || [])] : [],
+    oauth: a.oauth
+      ? {
+          sessionId: a.oauth.sessionId,
+          mode: a.oauth.mode,
+          phase: a.oauth.phase,
+          userCode: a.oauth.userCode,
+          verificationUri: a.oauth.verificationUri,
+          verificationUriComplete: a.oauth.verificationUriComplete,
+          expiresAt: a.oauth.expiresAt,
+          lastMessage: a.oauth.lastMessage,
+        }
+      : null,
     credits: a.credits
       ? {
           creditUsagePercent: a.credits.creditUsagePercent,
@@ -696,6 +783,8 @@ export async function buildLeaderboard(
   for (const a of accounts) {
     const uid = a.donorUserId;
     if (!uid || adminUserIds.has(uid)) continue;
+    // pending / incomplete OAuth seats do not count on leaderboard
+    if (a.status === "pending" || !a.tokens?.refresh) continue;
     totalDonated += 1;
     const isPriv = a.private === true || hasAllowedUsers(a);
     if (isPriv) totalPrivate += 1;

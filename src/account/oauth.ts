@@ -2,9 +2,14 @@ import open from "open";
 import { config } from "../config.js";
 import { outboundFetch } from "../proxy.js";
 import { getOAuthEndpoints } from "../settings.js";
-import type { TokenResponse } from "../types.js";
+import type { Account, AccountOAuthMeta, OAuthMode, TokenResponse } from "../types.js";
 import { now, randomId, sleep } from "../utils.js";
-import { addAccount } from "./store.js";
+import {
+  activatePendingAccount,
+  addPendingAccount,
+  getAccount,
+  updateAccount,
+} from "./store.js";
 
 const DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 const DEFAULT_INTERVAL_MS = 5_000;
@@ -33,6 +38,7 @@ export interface DeviceSession {
   donorUserId?: string | null;
   private?: boolean;
   allowedUserIds?: string[] | null;
+  mode: OAuthMode;
 }
 
 interface DeviceCodeResponse {
@@ -84,7 +90,9 @@ async function requestDeviceCode(): Promise<DeviceCodeResponse> {
   return data;
 }
 
-async function pollOnce(deviceCode: string): Promise<TokenResponse | { pending: true; slowDown?: boolean }> {
+async function pollOnce(
+  deviceCode: string,
+): Promise<TokenResponse | { pending: true; slowDown?: boolean }> {
   const ep = await getOAuthEndpoints();
   const res = await outboundFetch(ep.tokenUrl, {
     method: "POST",
@@ -120,6 +128,25 @@ async function pollOnce(deviceCode: string): Promise<TokenResponse | { pending: 
   throw new Error(body.error_description || body.error || `token 交换失败 (${res.status})`);
 }
 
+async function patchOAuth(
+  accountId: string | undefined,
+  patch: Partial<AccountOAuthMeta> & { lastError?: string; status?: "pending" | "error" },
+): Promise<void> {
+  if (!accountId) return;
+  const acc = await getAccount(accountId);
+  if (!acc?.oauth) return;
+  const oauth: AccountOAuthMeta = {
+    ...acc.oauth,
+    ...patch,
+    lastMessage: patch.lastMessage ?? patch.lastError ?? acc.oauth.lastMessage,
+  };
+  await updateAccount(accountId, {
+    oauth,
+    lastError: patch.lastError ?? (patch.lastMessage !== undefined ? patch.lastMessage : acc.lastError),
+    status: patch.status ?? acc.status,
+  });
+}
+
 function startPolling(sessionId: string): void {
   if (pollers.has(sessionId)) return;
 
@@ -147,15 +174,19 @@ function startPolling(sessionId: string): void {
           throw new Error("token 响应缺少 access_token");
         }
 
-        const account = await addAccount({
-          name: current.name,
+        const accountId = current.accountId;
+        if (!accountId) {
+          throw new Error("missing pending account");
+        }
+
+        const account = await activatePendingAccount(accountId, {
           access: tokens.access_token,
           refresh: tokens.refresh_token ?? "",
           expires: now() + (tokens.expires_in ?? 3600) * 1000,
-          donorUserId: current.donorUserId ?? null,
-          private: current.private === true,
-          allowedUserIds: current.allowedUserIds ?? null,
         });
+        if (!account) {
+          throw new Error("pending account missing");
+        }
 
         current.status = "success";
         current.accountId = account.id;
@@ -167,6 +198,12 @@ function startPolling(sessionId: string): void {
           s.status = "error";
           s.error = msg;
         }
+        await patchOAuth(current.accountId, {
+          phase: "failed",
+          lastMessage: msg,
+          lastError: msg,
+          status: "error",
+        });
         return;
       }
     }
@@ -175,6 +212,12 @@ function startPolling(sessionId: string): void {
     if (s && s.status === "pending") {
       s.status = "error";
       s.error = "授权超时，请重试";
+      await patchOAuth(s.accountId, {
+        phase: "failed",
+        lastMessage: s.error,
+        lastError: s.error,
+        status: "error",
+      });
     }
   })().finally(() => {
     pollers.delete(sessionId);
@@ -189,19 +232,26 @@ export async function startDeviceLogin(opts?: {
   donorUserId?: string | null;
   private?: boolean;
   allowedUserIds?: string[] | null;
+  mode?: OAuthMode;
+  /** Existing pending seat to rebind (manual retry) */
+  accountId?: string;
 }): Promise<{
   sessionId: string;
+  accountId: string;
   userCode: string;
   verificationUri: string;
   verificationUriComplete?: string;
   expiresIn: number;
+  mode: OAuthMode;
 }> {
+  const mode: OAuthMode = opts?.mode === "auto" ? "auto" : "browser";
   const device = await requestDeviceCode();
   const expiresMs = positiveSecondsToMs(device.expires_in, DEFAULT_EXPIRES_MS);
   const intervalMs = Math.max(
     positiveSecondsToMs(device.interval, DEFAULT_INTERVAL_MS),
     MIN_INTERVAL_MS,
   );
+  const expiresAt = now() + expiresMs;
 
   const session: DeviceSession = {
     id: randomId(8),
@@ -211,18 +261,62 @@ export async function startDeviceLogin(opts?: {
     verificationUri: device.verification_uri,
     verificationUriComplete: device.verification_uri_complete,
     intervalMs,
-    expiresAt: now() + expiresMs,
+    expiresAt,
     status: "pending",
     createdAt: now(),
     donorUserId: opts?.donorUserId ?? null,
     private: opts?.private === true,
     allowedUserIds: opts?.allowedUserIds ?? null,
+    mode,
   };
+
+  const oauthMeta: AccountOAuthMeta = {
+    sessionId: session.id,
+    mode,
+    phase: mode === "auto" ? "automating" : "waiting_user",
+    userCode: session.userCode,
+    verificationUri: session.verificationUri,
+    verificationUriComplete: session.verificationUriComplete,
+    expiresAt,
+    lastMessage: mode === "auto" ? "自动授权进行中…" : "等待浏览器授权…",
+  };
+
+  let account: Account;
+  if (opts?.accountId) {
+    const existing = await getAccount(opts.accountId);
+    if (!existing) throw new Error("account not found");
+    if (existing.status !== "pending" && existing.status !== "error") {
+      throw new Error("only pending/error seats can restart OAuth");
+    }
+    const updated = await updateAccount(opts.accountId, {
+      status: "pending",
+      oauth: oauthMeta,
+      lastError: oauthMeta.lastMessage,
+      name: opts.name?.trim() || existing.name,
+      private: opts.private !== undefined ? opts.private === true : existing.private,
+      allowedUserIds:
+        opts.allowedUserIds !== undefined
+          ? opts.allowedUserIds
+          : existing.allowedUserIds,
+    });
+    if (!updated) throw new Error("account not found");
+    account = updated;
+  } else {
+    account = await addPendingAccount({
+      name: opts?.name,
+      donorUserId: opts?.donorUserId ?? null,
+      private: opts?.private === true,
+      allowedUserIds: opts?.allowedUserIds ?? null,
+      oauth: oauthMeta,
+    });
+  }
+
+  session.accountId = account.id;
   sessions.set(session.id, session);
   startPolling(session.id);
 
   const openUrl = device.verification_uri_complete ?? device.verification_uri;
-  if (opts?.openBrowser !== false) {
+  if (opts?.openBrowser !== false && mode === "browser") {
     try {
       await open(openUrl);
     } catch {
@@ -230,15 +324,16 @@ export async function startDeviceLogin(opts?: {
     }
   }
 
-  // cleanup old sessions after 30 min
   setTimeout(() => sessions.delete(session.id), 30 * 60 * 1000);
 
   return {
     sessionId: session.id,
+    accountId: account.id,
     userCode: session.userCode,
     verificationUri: session.verificationUri,
     verificationUriComplete: session.verificationUriComplete,
     expiresIn: Math.floor(expiresMs / 1000),
+    mode,
   };
 }
 
@@ -252,12 +347,31 @@ export async function pollDeviceLogin(sessionId: string): Promise<OAuthResult> {
     return { ok: false, error: "session 不存在或已过期" };
   }
   if (session.status === "success" && session.accountId) {
-    return { ok: true, accountId: session.accountId, name: session.name ?? "" };
+    const acc = await getAccount(session.accountId);
+    return {
+      ok: true,
+      accountId: session.accountId,
+      name: acc?.name ?? session.name ?? "",
+    };
   }
   if (session.status === "error") {
     return { ok: false, error: session.error ?? "授权失败" };
   }
   return { ok: false, error: "等待用户授权中", pending: true };
+}
+
+/** Mark automation progress on the pending seat (does not finish OAuth). */
+export async function setOAuthAutomationPhase(
+  accountId: string,
+  phase: AccountOAuthMeta["phase"],
+  message?: string,
+): Promise<void> {
+  await patchOAuth(accountId, {
+    phase,
+    lastMessage: message,
+    lastError: phase === "failed" ? message : undefined,
+    status: phase === "failed" ? "error" : "pending",
+  });
 }
 
 export async function refreshTokens(

@@ -357,7 +357,7 @@ ${styles()}
             <h1 data-i18n="contribTitle">Share your SuperGrok seat</h1>
             <p data-i18n="contribSub">Link an xAI account you own. Its remaining credits join the shared pool — everyone gets more reliable access, and you climb the contributor board.</p>
             <div class="contrib-cta-row">
-              <button class="btn" type="button" id="btnContribStart" data-i18n="contribCta">Contribute an account</button>
+              <button class="btn" type="button" id="btnContribStart" data-i18n="contribCtaBrowser">Browser OAuth</button>
               <button class="btn btn-secondary" type="button" data-goto="leaderboard" data-i18n="contribSeeLb">View leaderboard</button>
               <span class="mono" id="contribMineCount" style="color:var(--mute)">–</span>
             </div>
@@ -386,13 +386,29 @@ ${styles()}
               <strong data-i18n="contribHow">How it works</strong>
               <div class="spacer"></div>
               <input id="contribName" class="input" data-i18n-placeholder="accNamePh" style="max-width:200px" />
-              <button class="btn" type="button" id="btnContribAdd" data-i18n="contribCta">Contribute an account</button>
             </div>
-            <div class="panel-bd" style="padding:0">
-              <div class="steps">
+            <div class="panel-bd">
+              <div class="contrib-paths">
+                <div class="contrib-path">
+                  <div class="contrib-path-hd">
+                    <strong data-i18n="pathBrowserTitle">Browser OAuth</strong>
+                    <span class="mono" data-i18n="pathBrowserHint">Open xAI page and approve</span>
+                  </div>
+                  <button class="btn" type="button" id="btnContribAdd" data-i18n="contribCtaBrowser">Browser OAuth</button>
+                </div>
+                <div class="contrib-path">
+                  <div class="contrib-path-hd">
+                    <strong data-i18n="pathAutoTitle">Session token</strong>
+                    <span class="mono" data-i18n="pathAutoHint">Paste session JWT · auto authorize</span>
+                  </div>
+                  <textarea id="contribSessionToken" class="input block" rows="2" data-i18n-placeholder="sessionTokenPh" placeholder="email|pass|eyJ… or eyJ…" style="min-height:64px;resize:vertical;font-family:var(--mono);font-size:12px"></textarea>
+                  <button class="btn btn-secondary" type="button" id="btnContribAuto" data-i18n="contribCtaAuto" style="margin-top:8px">Auto join pool</button>
+                </div>
+              </div>
+              <div class="steps" style="margin-top:14px">
                 <div class="step"><div class="n">01</div><strong data-i18n="step1t">Start OAuth</strong><span data-i18n="step1d">We open an xAI device-code flow. No password is stored by us.</span></div>
-                <div class="step"><div class="n">02</div><strong data-i18n="step2t">Approve in browser</strong><span data-i18n="step2d">Enter the code on accounts.x.ai and authorize SuperGrok access.</span></div>
-                <div class="step"><div class="n">03</div><strong data-i18n="step3t">Join the pool</strong><span data-i18n="step3d">Credits are checked and the seat becomes available for routing.</span></div>
+                <div class="step"><div class="n">02</div><strong data-i18n="step2t">Approve</strong><span data-i18n="step2d">Browser: authorize on accounts.x.ai · Token: backend automates (fallback to manual).</span></div>
+                <div class="step"><div class="n">03</div><strong data-i18n="step3t">Join the pool</strong><span data-i18n="step3d">Seat status updates live in your list. Failed auto can open browser manually.</span></div>
               </div>
               <div id="contribStage" class="oauth-stage">
                 <div class="label" style="color:var(--mute);font-size:12px;margin-bottom:10px" data-i18n="deviceHint">Enter this Device Code:</div>
@@ -452,6 +468,7 @@ ${styles()}
               <input id="contribFilterQ" class="input grow" data-i18n-placeholder="filterSearch" placeholder="Search…" />
               <select id="contribFilterSt" class="select" style="min-width:110px">
                 <option value="" data-i18n="filterAllStatus">All status</option>
+                <option value="pending">pending</option>
                 <option value="active">active</option>
                 <option value="exhausted">exhausted</option>
                 <option value="expired">expired</option>
@@ -648,6 +665,13 @@ ${styles()}
                         <em data-i18n="logBodiesSub">Large; enable only for debug</em>
                       </span>
                     </label>
+                    <label class="toggle-row">
+                      <input type="checkbox" id="logBodiesOnError" />
+                      <span>
+                        <strong data-i18n="logBodiesOnError">Bodies on error</strong>
+                        <em data-i18n="logBodiesOnErrorSub">Always keep response when request fails</em>
+                      </span>
+                    </label>
                     <div class="toggle-row static">
                       <span>
                         <strong data-i18n="logRetention">Retention (days)</strong>
@@ -688,6 +712,17 @@ ${styles()}
 
   <div id="msgContrib" class="toast" role="status" aria-live="polite"></div>
 
+  <div class="modal-mask" id="confirmModal">
+    <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMsg">
+      <h3 id="confirmTitle" data-i18n="confirmTitle">Confirm</h3>
+      <p id="confirmMsg"></p>
+      <div class="row">
+        <button class="btn btn-secondary" type="button" id="confirmCancel" data-i18n="cancel">Cancel</button>
+        <button class="btn" type="button" id="confirmOk" data-i18n="confirmOk">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-mask" id="keyModal">
     <div class="modal" role="dialog">
       <h3 id="keyModalTitle" data-i18n="createKey">Create API Key</h3>
@@ -723,9 +758,11 @@ ${styles()}
         <span class="field-label" data-i18n="colVisibility">Visibility</span>
         <div class="seg" id="myMembersVisSeg">
           <button type="button" data-mvis="public" data-i18n="visPublic">Public pool</button>
+          <button type="button" data-mvis="restricted" data-i18n="visRestricted">Named members</button>
           <button type="button" data-mvis="private" data-i18n="visPrivate">Donor only</button>
         </div>
       </div>
+      <div class="hint" id="myMembersVisHint" style="display:none;margin:0 0 10px"></div>
       <div class="member-list" id="myMembersBody"></div>
       <div class="row">
         <button class="btn btn-secondary" type="button" id="myMembersClose" data-i18n="close">Close</button>
@@ -831,6 +868,8 @@ ${styles()}
       zh: {
         title:"账号池", subtitle:"SuperGrok OAuth 多账号 · 额度感知轮询 · OpenAI 兼容代理。",
         refresh:"刷新", logout:"退出",
+        cancel:"取消", confirmOk:"确定", confirmTitle:"请确认",
+        confirmDelete:"确定删除？",
         authUser:"用户名", authPass:"密码", authPass2:"确认密码", authSubmit:"继续",
         authSetupTitle:"初始化管理员", authSetupSub:"首次使用，请创建管理员账号。账号池与代理仅管理员可配置。",
         authLoginTitle:"登录", authLoginSub:"使用你的账号登录管理控制台。",
@@ -866,14 +905,16 @@ ${styles()}
         billingBaseActive:(u)=>"生效 "+u,
         proxySub:"仅影响 Node 出站（浏览器授权页不走这里）",
         logEnabledSub:"写入请求日志到磁盘", logBodiesSub:"体积大，仅调试时开启",
+        logBodiesOnErrorSub:"HTTP/业务失败时仍保存响应体（默认开）",
         logRetentionSub:"自动清理更早日志",
         userSettingsSub:"控制是否开放公开注册",
         allowRegisterSub:"管理员创建后，用户可自助注册",
         proxyTitle:"出站代理", proxyAuto:"自动", proxyDirect:"直连", proxyCustom:"自定义",
         proxyHintAuto:(src,url)=>"当前生效："+(url||"直连")+"（来源："+src+"）",
         saveProxy:"保存", proxySaved:"代理已更新",
-        logSettings:"请求日志", logEnabled:"启用日志", logBodies:"记录请求/响应体", logRetention:"保留天数", saveLog:"保存日志设置",
-        logHint:"默认只记元数据与 Token；正文体积大，排查问题时再勾选",
+        logSettings:"请求日志", logEnabled:"启用日志", logBodies:"记录请求/响应体",
+        logBodiesOnError:"失败时保留响应体", logRetention:"保留天数", saveLog:"保存日志设置",
+        logHint:"默认只记元数据与 Token；失败时仍可保留响应体便于排查",
         logSaved:"日志设置已保存",
         usageTitle:"分析", kpiReq:"请求数", kpiTok:"总 Token", kpiOk:"成功率", kpiLat:"平均延迟",
         kpiIn:"输入(未缓存)", kpiOut:"输出 Token", kpiCache:"缓存输入", kpiReason:"推理 Token", kpiImg:"图片 Token",
@@ -903,7 +944,7 @@ ${styles()}
         colDonor:"贡献者", colAllowed:"可用成员", colMembers:"可用成员", colPublic:"公开", colPrivate:"私有",
         visPublic:"公开池", visPrivate:"仅贡献者", visRestricted:"指定成员",
         memberDonor:"贡献者（不可取消）", memberExtra:"额外成员",
-        membersTitle:"可用成员", membersSub:"你始终可用。可设公开/仅自己，或收回额外成员权限；不能自行添加用户（需管理员）。",
+        membersTitle:"可用成员", membersSub:"三态：公开池 / 指定成员 / 仅自己。你始终可用；添加成员需管理员。",
         membersNone:"仅贡献者本人", membersCount:(n)=>n+" 人可用",
         memberRevoke:"收回", memberRevokeOk:"已收回该用户权限",
         memberRevokeConfirm:(n)=>"确定收回「"+n+"」的使用权限？",
@@ -931,17 +972,24 @@ ${styles()}
         qaContrib:"分享 SuperGrok 容量", qaLb:"查看贡献排行",
         contribKicker:"社区容量", contribTitle:"分享你的 SuperGrok 席位",
         contribSub:"绑定你拥有的 xAI 账号。剩余额度会进入共享池——大家更稳，你也能登上贡献榜。",
-        contribCta:"贡献一个账号", contribSeeLb:"查看贡献榜",
+        contribCta:"贡献一个账号", contribCtaBrowser:"浏览器授权", contribCtaAuto:"Token 自动入池",
+        contribSeeLb:"查看贡献榜",
+        pathBrowserTitle:"浏览器 OAuth", pathBrowserHint:"打开 xAI 页面完成授权",
+        pathAutoTitle:"Session Token", pathAutoHint:"粘贴会话 JWT，后端自动点授权",
+        sessionTokenPh:"email|pass|eyJ… 或 eyJ…",
+        oauthOpenBrowser:"打开授权页", oauthRetry:"重新发起",
+        oauthPhaseWaiting:"等待授权", oauthPhaseAuto:"自动授权中", oauthPhaseFailed:"授权失败",
         why1t:"仅你可见", why1d:"你绑定的账号状态、额度与调用记录只对你开放，其他用户看不到列表。",
         why2t:"点亮账号池", why2d:"闲置的 SuperGrok 额度变成共享容量。额度感知路由会自动挑选健康席位。",
         why3t:"冲榜荣誉", why3d:"每次成功绑定都会计入排名。管理员不参与榜单，纯粹的社区排行。",
         contribHow:"如何贡献", step1t:"发起 OAuth", step1d:"走 xAI 设备码流程，我们不保存你的密码。",
-        step2t:"浏览器授权", step2d:"在 accounts.x.ai 输入代码，授权 SuperGrok 访问。",
-        step3t:"进入池子", step3d:"自动检查额度，席位即可参与路由。",
+        step2t:"完成授权", step2d:"浏览器：在 accounts.x.ai 授权；Token：后端自动点同意（失败可改手动）。",
+        step3t:"进入池子", step3d:"列表实时显示状态，成功后席位参与路由。",
         mineTitle:"我的贡献", mineHint:"仅自己可见",
         statMine:"我的席位", statExhausted:"已耗尽", statMyRank:"我的排名",
         noContrib:"还没有贡献。点上方按钮绑定第一个账号。",
         contribOk:"贡献成功", contribRankUnranked:"未上榜",
+        contribAutoStarted:"已启动自动入池，请在列表查看状态",
         withdrawContrib:"撤回",
         withdrawContribConfirm:(n)=>"确定撤回贡献「"+n+"」？将从共享池移除该账号。",
         withdrawContribOk:"已撤回贡献",
@@ -954,7 +1002,15 @@ ${styles()}
         routeSaved:"路由偏好已保存",
         colVisibility:"可见性", colOwner:"所属用户",
         setPrivate:"仅自己", setPublic:"公开池",
-        privateOk:"已设为仅贡献者可用（不进公共池）", publicOk:"已设为公开池（无额外限定时）",
+        privateOk:"已设为仅自己可用（已清空额外成员）",
+        publicOk:"已设为完全公开池（已清空额外成员）",
+        restrictedOk:"已设为指定成员模式（名单保留）",
+        membersSubPublic:"完全公开：进入公共轮询，所有人可用。",
+        membersSubPrivate:"仅自己：只有你能用该席位。",
+        membersSubRestricted:"指定成员：仅名单内用户可用（你始终可用）。可收回成员；添加需管理员。",
+        membersClearForPublic:"将清空所有额外可用成员，并设为完全公开池。确定？",
+        membersClearForPrivate:"将清空所有额外可用成员，并设为仅自己可用。确定？",
+        membersNeedExtras:"指定成员需要至少一名额外用户。请先让管理员添加成员，或从公开/私有模式由管理员配置名单。",
         usePrivateBlocked:"仅贡献者/指定成员账号不能设为公共池当前账号",
         visHintPublic:"进入公共轮询池",
         visHintPrivate:"仅贡献者本人可用",
@@ -978,6 +1034,8 @@ ${styles()}
       en: {
         title:"Account Pool", subtitle:"SuperGrok OAuth pool · credit-aware routing · OpenAI-compatible proxy.",
         refresh:"Refresh", logout:"Logout",
+        cancel:"Cancel", confirmOk:"Confirm", confirmTitle:"Confirm",
+        confirmDelete:"Delete this item?",
         authUser:"Username", authPass:"Password", authPass2:"Confirm password", authSubmit:"Continue",
         authSetupTitle:"Create admin", authSetupSub:"First run: create the admin account. Account pool & proxy are admin-only.",
         authLoginTitle:"Sign in", authLoginSub:"Sign in to the control panel.",
@@ -1013,14 +1071,16 @@ ${styles()}
         billingBaseActive:(u)=>"Active "+u,
         proxySub:"Node outbound only (browser authorize page is separate)",
         logEnabledSub:"Write request rows to disk", logBodiesSub:"Large; debug only",
+        logBodiesOnErrorSub:"Always keep response body on HTTP/business failure (default on)",
         logRetentionSub:"Auto-delete older logs",
         userSettingsSub:"Control public self-signup",
-        allowRegisterSub:"Users can register after admin setup",
+        allowRegisterSub:"After admin setup, users may self-register",
         proxyTitle:"Outbound proxy", proxyAuto:"Auto", proxyDirect:"Direct", proxyCustom:"Custom",
         proxyHintAuto:(src,url)=>"Active: "+(url||"direct")+" (source: "+src+")",
         saveProxy:"Save", proxySaved:"Proxy updated",
-        logSettings:"Request logs", logEnabled:"Enable logging", logBodies:"Store request/response bodies", logRetention:"Retention (days)", saveLog:"Save log settings",
-        logHint:"Default: metadata + tokens only. Bodies are large — enable when debugging.",
+        logSettings:"Request logs", logEnabled:"Enable logging", logBodies:"Store request/response bodies",
+        logBodiesOnError:"Keep bodies on error", logRetention:"Retention (days)", saveLog:"Save log settings",
+        logHint:"Metadata + tokens by default; failed responses can still be kept",
         logSaved:"Log settings saved",
         usageTitle:"Analytics", kpiReq:"Requests", kpiTok:"Total tokens", kpiOk:"Success rate", kpiLat:"Avg latency",
         kpiIn:"Input (uncached)", kpiOut:"Output tokens", kpiCache:"Cached input", kpiReason:"Reasoning", kpiImg:"Image tokens",
@@ -1050,7 +1110,7 @@ ${styles()}
         colDonor:"Donor", colAllowed:"Members", colMembers:"Members", colPublic:"Public", colPrivate:"Private",
         visPublic:"Public pool", visPrivate:"Donor only", visRestricted:"Named members",
         memberDonor:"Donor (always)", memberExtra:"Extra member",
-        membersTitle:"Allowed members", membersSub:"You always have access. Set public/donor-only, or revoke extras. Adding users requires an admin.",
+        membersTitle:"Allowed members", membersSub:"Three modes: public / named members / donor-only. You always have access; admin adds users.",
         membersNone:"Donor only", membersCount:(n)=>n+" members",
         memberRevoke:"Revoke", memberRevokeOk:"Access revoked",
         memberRevokeConfirm:(n)=>"Revoke access for ["+n+"]?",
@@ -1078,17 +1138,24 @@ ${styles()}
         qaContrib:"Share SuperGrok capacity", qaLb:"See top contributors",
         contribKicker:"Community capacity", contribTitle:"Share your SuperGrok seat",
         contribSub:"Link an xAI account you own. Remaining credits join the shared pool — everyone gets more reliable access, and you climb the board.",
-        contribCta:"Contribute an account", contribSeeLb:"View leaderboard",
+        contribCta:"Contribute an account", contribCtaBrowser:"Browser OAuth", contribCtaAuto:"Auto join with token",
+        contribSeeLb:"View leaderboard",
+        pathBrowserTitle:"Browser OAuth", pathBrowserHint:"Open xAI page and approve",
+        pathAutoTitle:"Session token", pathAutoHint:"Paste session JWT · auto authorize",
+        sessionTokenPh:"email|pass|eyJ… or eyJ…",
+        oauthOpenBrowser:"Open authorize URL", oauthRetry:"Retry OAuth",
+        oauthPhaseWaiting:"Waiting for auth", oauthPhaseAuto:"Automating", oauthPhaseFailed:"Failed",
         why1t:"Private to you", why1d:"Only you can see the accounts you linked — status, credits, and usage. Others never see your list.",
         why2t:"Power the pool", why2d:"Idle SuperGrok credits become shared capacity. Credit-aware routing picks healthy seats automatically.",
         why3t:"Climb the board", why3d:"Every successful link counts toward your rank. Admins are excluded — pure community scoreboard.",
         contribHow:"How it works", step1t:"Start OAuth", step1d:"We open an xAI device-code flow. No password is stored by us.",
-        step2t:"Approve in browser", step2d:"Enter the code on accounts.x.ai and authorize SuperGrok access.",
-        step3t:"Join the pool", step3d:"Credits are checked and the seat becomes available for routing.",
+        step2t:"Approve", step2d:"Browser: authorize on accounts.x.ai · Token: backend automates (manual fallback).",
+        step3t:"Join the pool", step3d:"List shows live status. Seat becomes routable when active.",
         mineTitle:"My contributions", mineHint:"Visible only to you",
         statMine:"My seats", statExhausted:"Exhausted", statMyRank:"My rank",
         noContrib:"No contributions yet. Click above to link your first account.",
         contribOk:"Contribution added", contribRankUnranked:"Unranked",
+        contribAutoStarted:"Auto join started — watch status in the list",
         withdrawContrib:"Withdraw",
         withdrawContribConfirm:(n)=>"Withdraw contribution ["+n+"]? It will be removed from the shared pool.",
         withdrawContribOk:"Contribution withdrawn",
@@ -1101,7 +1168,15 @@ ${styles()}
         routeSaved:"Routing preference saved",
         colVisibility:"Visibility", colOwner:"Owner",
         setPrivate:"Donor only", setPublic:"Public pool",
-        privateOk:"Donor only (excluded from public pool)", publicOk:"Public pool (when no extra members)",
+        privateOk:"Donor only (extras cleared)",
+        publicOk:"Fully public pool (allowlist cleared)",
+        restrictedOk:"Named-member mode (list kept)",
+        membersSubPublic:"Public: joins shared pool for everyone.",
+        membersSubPrivate:"Donor only: only you can use this seat.",
+        membersSubRestricted:"Named members: only listed users (you always). Revoke extras here; admin adds users.",
+        membersClearForPublic:"Clear all extra members and make this seat fully public?",
+        membersClearForPrivate:"Clear all extra members and set donor-only?",
+        membersNeedExtras:"Named-member mode needs at least one extra user. Ask an admin to add members first.",
         usePrivateBlocked:"Donor-only / named-member seats cannot be the public-pool current seat",
         visHintPublic:"Joins public round-robin",
         visHintPrivate:"Only the donor can use it",
@@ -1129,7 +1204,7 @@ ${styles()}
     let sessionToken = localStorage.getItem("grok_api_session") || "";
     let currentUser = null; // { id, username, role }
         let routing = { mode: "auto", currentAccountId: null };
-    let meta = { needsSetup: false, allowRegister: true, proxy: null, proxySource: "none", proxyConfigured: "", logRetentionDays: 7, logEnabled: true, logBodies: false, allowRegisterSetting: true, xaiBaseUrl: "https://api.x.ai/v1", upstreamBaseUrlConfigured: "" };
+    let meta = { needsSetup: false, allowRegister: true, proxy: null, proxySource: "none", proxyConfigured: "", logRetentionDays: 7, logEnabled: true, logBodies: false, logBodiesOnError: true, allowRegisterSetting: true, xaiBaseUrl: "https://api.x.ai/v1", upstreamBaseUrlConfigured: "" };
     let pollTimer = null;
     let allUsers = [];
     let accountUsers = [];
@@ -1142,6 +1217,7 @@ ${styles()}
     let accEditId = null;
     let contribPage = 1;
     let contribPollTimer = null;
+    let contribListWatchTimer = null;
     let leaderboardData = null;
     let keyPage = 1;
     let logPage = 1;
@@ -1298,6 +1374,7 @@ ${styles()}
       if ($("proxyHint")) $("proxyHint").textContent = t("proxyHintAuto", src, meta.proxy || "");
       if ($("logEnabled")) $("logEnabled").checked = meta.logEnabled !== false;
       if ($("logBodies")) $("logBodies").checked = meta.logBodies === true;
+      if ($("logBodiesOnError")) $("logBodiesOnError").checked = meta.logBodiesOnError !== false;
       if ($("logRetention") && !$("logRetention").matches(":focus")) $("logRetention").value = meta.logRetentionDays || 7;
       if ($("allowRegister")) $("allowRegister").checked = meta.allowRegisterSetting !== false;
       if ($("upstreamUrl") && !$("upstreamUrl").matches(":focus")) {
@@ -1327,6 +1404,55 @@ ${styles()}
       return sessionToken ? { Authorization: "Bearer " + sessionToken } : {};
     }
     function jsonHeaders() { return { "Content-Type": "application/json", ...headers() }; }
+    let _confirmResolver = null;
+    function closeConfirm(result) {
+      const mask = $("confirmModal");
+      if (mask) mask.classList.remove("show");
+      const okBtn = $("confirmOk");
+      if (okBtn) {
+        okBtn.classList.remove("btn-danger");
+        okBtn.textContent = t("confirmOk");
+      }
+      const r = _confirmResolver;
+      _confirmResolver = null;
+      if (r) r(!!result);
+    }
+    /**
+     * Custom confirm dialog (replaces window.confirm).
+     * @param {string} message
+     * @param {{ title?: string, okText?: string, cancelText?: string, danger?: boolean }} [opts]
+     * @returns {Promise<boolean>}
+     */
+    function confirmDialog(message, opts) {
+      opts = opts || {};
+      return new Promise((resolve) => {
+        // close any prior pending confirm as cancel
+        if (_confirmResolver) {
+          const prev = _confirmResolver;
+          _confirmResolver = null;
+          prev(false);
+        }
+        _confirmResolver = resolve;
+        const title = opts.title != null ? opts.title : t("confirmTitle");
+        const okText = opts.okText != null ? opts.okText : t("confirmOk");
+        const cancelText = opts.cancelText != null ? opts.cancelText : t("cancel");
+        if ($("confirmTitle")) $("confirmTitle").textContent = title;
+        if ($("confirmMsg")) $("confirmMsg").textContent = message || "";
+        if ($("confirmOk")) {
+          $("confirmOk").textContent = okText;
+          $("confirmOk").classList.toggle("btn-danger", !!opts.danger);
+        }
+        if ($("confirmCancel")) $("confirmCancel").textContent = cancelText;
+        if ($("confirmModal")) $("confirmModal").classList.add("show");
+        setTimeout(() => {
+          try {
+            const focusEl = $("confirmOk") || $("confirmCancel");
+            if (focusEl) focusEl.focus();
+          } catch {}
+        }, 30);
+      });
+    }
+
     function showMsg(el, text, type) {
       if (!el) return;
       el.textContent = text;
@@ -2050,7 +2176,7 @@ ${styles()}
       return items.filter((r) =>
         matchQ(r.model, q) || matchQ(r.client, q) || matchQ(r.userAgent, q) ||
         matchQ(r.apiKeyAlias, q) || matchQ(r.accountName, q) || matchQ(r.status, q) ||
-        matchQ(r.id, q)
+        matchQ(r.id, q) || matchQ(r.error, q)
       );
     }
 
@@ -2604,7 +2730,7 @@ ${styles()}
               await fetch("/api/admin/users/" + id, { method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ enabled: btn.getAttribute("data-en") === "1" }) });
             }
             if (act === "del-user") {
-              if (!confirm(id + " ?")) return;
+              if (!(await confirmDialog(t("confirmDelete") + " · " + id, { danger: true }))) return;
               await fetch("/api/admin/users/" + id, { method: "DELETE", headers: headers() });
             }
             await loadUsers();
@@ -2689,10 +2815,10 @@ ${styles()}
           '<div><div class="k" style="color:var(--mute);font-size:12px;margin-bottom:6px">headers</div><pre>' + esc(JSON.stringify(log.headers || {}, null, 2)) + "</pre></div>" +
           (log.request !== undefined
             ? '<div><div class="k" style="color:var(--mute);font-size:12px;margin-bottom:6px">request' + (log.requestTruncated ? " (truncated)" : "") + "</div><pre>" + esc(JSON.stringify(log.request, null, 2)) + "</pre></div>"
-            : '<div class="hint" style="margin:8px 0">request body not stored (logBodies off)</div>') +
+             : '<div class="hint" style="margin:8px 0">request body not stored (logBodies off)</div>') +
           (log.response !== undefined
             ? '<div><div class="k" style="color:var(--mute);font-size:12px;margin-bottom:6px">response' + (log.responseTruncated ? " (truncated)" : "") + "</div><pre>" + esc(typeof log.response === "string" ? log.response : JSON.stringify(log.response ?? null, null, 2)) + "</pre></div>"
-            : '<div class="hint" style="margin:8px 0">response body not stored (logBodies off)</div>');
+            : '<div class="hint" style="margin:8px 0">response body not stored</div>');
         $("logModal").classList.add("show");
       } catch (e) {
         showMsg($("msgLogs"), e.message, "err");
@@ -2705,6 +2831,28 @@ ${styles()}
       if (contribPollTimer) { clearInterval(contribPollTimer); contribPollTimer = null; }
     }
 
+    function stopContribListWatch() {
+      if (contribListWatchTimer) { clearInterval(contribListWatchTimer); contribListWatchTimer = null; }
+    }
+
+    function ensureContribListWatch() {
+      const busy = myAccounts.some((a) => a.status === "pending" || (a.oauth && (a.oauth.phase === "automating" || a.oauth.phase === "waiting_user")));
+      if (busy && !contribListWatchTimer) {
+        contribListWatchTimer = setInterval(() => { loadMyAccounts(); }, 2500);
+      } else if (!busy) {
+        stopContribListWatch();
+      }
+    }
+
+    function oauthPhaseLabel(a) {
+      const p = a.oauth && a.oauth.phase;
+      if (p === "automating") return t("oauthPhaseAuto");
+      if (p === "failed") return t("oauthPhaseFailed");
+      if (p === "waiting_user") return t("oauthPhaseWaiting");
+      if (a.status === "pending") return t("oauthPhaseWaiting");
+      return "";
+    }
+
     function filteredMyAccounts() {
       const q = (($("contribFilterQ") && $("contribFilterQ").value) || "").trim().toLowerCase();
       const st = ($("contribFilterSt") && $("contribFilterSt").value) || "";
@@ -2713,7 +2861,7 @@ ${styles()}
         if (st && a.status !== st) return false;
         if (vis && accVisKey(a) !== vis) return false;
         if (!q) return true;
-        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.lastError, q) || matchQ(myMembersLabel(a), q);
+        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.lastError, q) || matchQ(myMembersLabel(a), q) || matchQ(a.oauth && a.oauth.lastMessage, q);
       });
     }
 
@@ -2721,7 +2869,7 @@ ${styles()}
       const tbody = $("tbodyContrib");
       if (!tbody) return;
       if (!myAccounts.length) {
-        tbody.innerHTML = '<div class="empty-cta"><h3>' + esc(t("noContrib")) + '</h3><p>' + esc(t("mineHint")) + '</p><button class="btn" type="button" id="btnEmptyContrib">' + esc(t("contribCta")) + '</button></div>';
+        tbody.innerHTML = '<div class="empty-cta"><h3>' + esc(t("noContrib")) + '</h3><p>' + esc(t("mineHint")) + '</p><button class="btn" type="button" id="btnEmptyContrib">' + esc(t("contribCtaBrowser")) + '</button></div>';
         if ($("contribPager")) $("contribPager").innerHTML = "";
         const b = $("btnEmptyContrib");
         if (b) b.onclick = () => startContribute();
@@ -2738,11 +2886,28 @@ ${styles()}
       const slice = list.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((a) => {
         const err = a.lastError ? shortErr(a.lastError) : "";
+        const phase = oauthPhaseLabel(a);
+        const oauthMsg = (a.oauth && a.oauth.lastMessage) ? shortErr(a.oauth.lastMessage) : "";
         const membersTxt = myMembersLabel(a);
         const mCount = Array.isArray(a.members) ? a.members.length : 1;
+        const canManual = a.status === "pending" || a.status === "error" || (a.oauth && a.oauth.phase === "failed");
+        const hasUrl = a.oauth && (a.oauth.verificationUriComplete || a.oauth.verificationUri);
+        let acts = "";
+        if (canManual && hasUrl) {
+          acts += '<button class="btn btn-sm" type="button" data-act="c-open" data-id="' + esc(a.id) + '">' + esc(t("oauthOpenBrowser")) + "</button>";
+        }
+        if (canManual) {
+          acts += '<button class="btn btn-secondary btn-sm" type="button" data-act="c-retry" data-id="' + esc(a.id) + '">' + esc(t("oauthRetry")) + "</button>";
+        }
+        if (a.status === "active" || a.status === "exhausted" || a.status === "expired") {
+          acts += '<button class="btn btn-secondary btn-sm" type="button" data-act="c-members" data-id="' + esc(a.id) + '">' + esc(t("membersTitle")) + "</button>";
+          acts += '<button class="btn btn-secondary btn-sm" type="button" data-act="c-credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>";
+        }
+        acts += '<button class="btn btn-danger btn-sm" type="button" data-act="c-del" data-id="' + esc(a.id) + '" data-name="' + esc(a.name || a.id) + '">' + esc(t("withdrawContrib")) + "</button>";
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(a.name) + '</div><div class="mono">' + esc(a.id) + "</div>" +
-          (err ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
+          (phase ? '<div class="oauth-phase">' + esc(phase) + (oauthMsg ? " · " + esc(oauthMsg) : "") + "</div>" : "") +
+          (err && !oauthMsg ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
           "</div>" +
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
           "<div>" + creditCell(a) + "</div>" +
@@ -2753,11 +2918,7 @@ ${styles()}
           '<div class="members-preview">' + esc(membersTxt) + "</div>" +
           "</div>" +
           '<div class="dt-time">' + fmtTime(a.lastUsedAt) + "</div>" +
-          '<div class="dt-actions">' +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="c-members" data-id="' + esc(a.id) + '">' + esc(t("membersTitle")) + "</button>" +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="c-credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>" +
-          '<button class="btn btn-danger btn-sm" type="button" data-act="c-del" data-id="' + esc(a.id) + '" data-name="' + esc(a.name || a.id) + '">' + esc(t("withdrawContrib")) + "</button>" +
-          "</div></div>";
+          '<div class="dt-actions">' + acts + "</div></div>";
       }).join("");
       tbody.querySelectorAll("button[data-act]").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -2766,9 +2927,12 @@ ${styles()}
           if (act === "c-credits") checkMyCredits(id);
           if (act === "c-del") delMyAcc(id, btn.getAttribute("data-name") || id);
           if (act === "c-members") openMyMembers(id);
+          if (act === "c-open") openPendingOAuth(id);
+          if (act === "c-retry") retryPendingOAuth(id);
         });
       });
       paintRouteAccountSelect();
+      ensureContribListWatch();
     }
 
     let myMembersAccId = null;
@@ -2786,13 +2950,26 @@ ${styles()}
       const body = $("myMembersBody");
       const title = $("myMembersTitle");
       if (title) title.textContent = t("membersTitle") + " · " + (a.name || a.id);
-      if ($("myMembersSub")) $("myMembersSub").textContent = t("membersSub");
-      // visibility: public vs private (named-members still can toggle private flag)
-      const visKey = a.private === true ? "private" : "public";
+      const visKey = accVisKey(a);
+      if ($("myMembersSub")) {
+        $("myMembersSub").textContent =
+          visKey === "public" ? t("membersSubPublic")
+            : visKey === "private" ? t("membersSubPrivate")
+            : t("membersSubRestricted");
+      }
       if ($("myMembersVisSeg")) {
         $("myMembersVisSeg").querySelectorAll("button").forEach((b) => {
           b.classList.toggle("on", b.getAttribute("data-mvis") === visKey);
         });
+      }
+      if ($("myMembersVisHint")) {
+        const hints = {
+          public: t("visHintPublic"),
+          private: t("visHintPrivate"),
+          restricted: t("visHintRestricted"),
+        };
+        $("myMembersVisHint").textContent = hints[visKey] || "";
+        $("myMembersVisHint").style.display = "";
       }
       if (body) {
         if (!members.length) {
@@ -2822,26 +2999,64 @@ ${styles()}
       myMembersAccId = null;
       if ($("myMembersModal")) $("myMembersModal").classList.remove("show");
     }
-    async function setMyMembersVis(priv) {
+    /**
+     * Three modes:
+     * - public: private=false, clear allowlist → fully public pool
+     * - private: private=true, clear allowlist → donor only
+     * - restricted: keep (or require) allowlist; private=false (allowlist wins)
+     */
+    async function setMyMembersVis(mode) {
       if (!myMembersAccId) return;
+      const a = myAccounts.find((x) => x.id === myMembersAccId);
+      if (!a) return;
+      const cur = accVisKey(a);
+      if (mode === cur) return;
+      const extras = Array.isArray(a.allowedUserIds) ? a.allowedUserIds.filter(Boolean) : [];
+      const extraCount = extras.length || (Array.isArray(a.members) ? a.members.filter((m) => !m.isDonor).length : 0);
+
+      let body;
+      let okMsg;
+      if (mode === "public") {
+        if (extraCount > 0 && !(await confirmDialog(t("membersClearForPublic"), { danger: true }))) return;
+        body = { private: false, allowedUserIds: null };
+        okMsg = t("publicOk");
+      } else if (mode === "private") {
+        if (extraCount > 0 && !(await confirmDialog(t("membersClearForPrivate"), { danger: true }))) return;
+        body = { private: true, allowedUserIds: null };
+        okMsg = t("privateOk");
+      } else if (mode === "restricted") {
+        if (extraCount === 0) {
+          showMsg($("msgContrib"), t("membersNeedExtras"), "err");
+          return;
+        }
+        // keep existing allowlist; ensure not private so UI shows restricted
+        body = { private: false };
+        okMsg = t("restrictedOk");
+      } else {
+        return;
+      }
       try {
         const res = await fetch("/api/me/accounts/" + encodeURIComponent(myMembersAccId), {
           method: "PATCH", headers: jsonHeaders(),
-          body: JSON.stringify({ private: !!priv }),
+          body: JSON.stringify(body),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || res.statusText);
-        showMsg($("msgContrib"), priv ? t("privateOk") : t("publicOk"), "ok");
+        showMsg($("msgContrib"), okMsg, "ok");
+        if (data.account) {
+          const idx = myAccounts.findIndex((x) => x.id === myMembersAccId);
+          if (idx >= 0) myAccounts[idx] = { ...myAccounts[idx], ...data.account };
+        }
         await loadMyAccounts();
-        const a = myAccounts.find((x) => x.id === myMembersAccId);
-        if (a) paintMyMembersModal(a);
+        const fresh = myAccounts.find((x) => x.id === myMembersAccId);
+        if (fresh) paintMyMembersModal(fresh);
       } catch (e) {
         showMsg($("msgContrib"), e.message || String(e), "err");
       }
     }
     async function revokeMyMember(userId, name) {
       if (!myMembersAccId || !userId) return;
-      if (!confirm(t("memberRevokeConfirm", name || userId))) return;
+      if (!(await confirmDialog(t("memberRevokeConfirm", name || userId), { danger: true }))) return;
       try {
         const res = await fetch("/api/me/accounts/" + encodeURIComponent(myMembersAccId), {
           method: "PATCH", headers: jsonHeaders(),
@@ -2999,59 +3214,137 @@ ${styles()}
       }).join("");
     }
 
-    async function startContribute() {
+    function setContribBusy(busy) {
+      if ($("btnContribAdd")) $("btnContribAdd").disabled = busy;
+      if ($("btnContribStart")) $("btnContribStart").disabled = busy;
+      if ($("btnContribAuto")) $("btnContribAuto").disabled = busy;
+    }
+
+    async function startContribute(opts) {
+      opts = opts || {};
+      const mode = opts.mode === "auto" ? "auto" : "browser";
+      const accountId = opts.accountId || undefined;
+      const sessionToken = opts.sessionToken || (($("contribSessionToken") && $("contribSessionToken").value) || "").trim();
       hideMsg($("msgContrib"));
       stopContribPoll();
-      if ($("btnContribAdd")) $("btnContribAdd").disabled = true;
-      if ($("btnContribStart")) $("btnContribStart").disabled = true;
-      if ($("contribStage")) $("contribStage").classList.remove("show");
+      setContribBusy(true);
+      if ($("contribStage") && mode === "browser" && !accountId) $("contribStage").classList.remove("show");
       try {
+        const body = {
+          name: ($("contribName") && $("contribName").value) || undefined,
+          openBrowser: false,
+          mode,
+        };
+        if (accountId) body.accountId = accountId;
+        if (mode === "auto") body.sessionToken = sessionToken;
         const res = await fetch("/api/me/accounts/oauth", {
           method: "POST", headers: jsonHeaders(),
-          body: JSON.stringify({ name: ($("contribName") && $("contribName").value) || undefined, openBrowser: false }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
         const url = data.verificationUriComplete || data.verificationUri;
-        $("contribUserCode").textContent = data.userCode;
-        $("contribVerifyLink").textContent = data.verificationUri;
-        $("contribVerifyLink").href = url;
-        $("contribPollStatus").textContent = t("waiting");
-        $("contribStage").classList.add("show");
-        // open verification page for the user
-        try { window.open(url, "_blank", "noopener,noreferrer"); } catch {}
+        if (mode === "browser") {
+          if ($("contribUserCode")) $("contribUserCode").textContent = data.userCode;
+          if ($("contribVerifyLink")) {
+            $("contribVerifyLink").textContent = data.verificationUri;
+            $("contribVerifyLink").href = url;
+          }
+          if ($("contribPollStatus")) $("contribPollStatus").textContent = t("waiting");
+          if ($("contribStage")) $("contribStage").classList.add("show");
+          try { window.open(url, "_blank", "noopener,noreferrer"); } catch {}
+        } else {
+          showMsg($("msgContrib"), t("contribAutoStarted"), "ok");
+          if ($("contribSessionToken")) $("contribSessionToken").value = "";
+        }
+        await loadMyAccounts();
         const sessionId = data.sessionId;
         contribPollTimer = setInterval(async () => {
           try {
             const pr = await fetch("/api/me/accounts/oauth/poll?sessionId=" + encodeURIComponent(sessionId), { headers: headers() });
-            const result = await pr.json();
+            const result = await pr.json().catch(() => ({}));
+            await loadMyAccounts();
             if (result.ok) {
               stopContribPoll();
-              $("contribStage").classList.remove("show");
+              if ($("contribStage")) $("contribStage").classList.remove("show");
               showMsg($("msgContrib"), t("contribOk") + ": " + (result.account?.name || result.account?.id), "ok");
               if ($("contribName")) $("contribName").value = "";
-              if ($("btnContribAdd")) $("btnContribAdd").disabled = false;
-              if ($("btnContribStart")) $("btnContribStart").disabled = false;
+              setContribBusy(false);
               await Promise.all([loadMyAccounts(), loadLeaderboardLite()]);
               return;
             }
             if (result.pending) {
-              $("contribPollStatus").textContent = t("waiting") + " " + new Date().toLocaleTimeString();
+              if ($("contribPollStatus")) $("contribPollStatus").textContent = t("waiting") + " " + new Date().toLocaleTimeString();
               return;
             }
             stopContribPoll();
-            if ($("btnContribAdd")) $("btnContribAdd").disabled = false;
-            if ($("btnContribStart")) $("btnContribStart").disabled = false;
-            showMsg($("msgContrib"), result.error || "failed", "err");
+            setContribBusy(false);
+            if (result.error) showMsg($("msgContrib"), result.error, "err");
           } catch {
-            $("contribPollStatus").textContent = t("waiting");
+            if ($("contribPollStatus")) $("contribPollStatus").textContent = t("waiting");
           }
         }, 2000);
       } catch (e) {
         showMsg($("msgContrib"), e.message, "err");
-        if ($("btnContribAdd")) $("btnContribAdd").disabled = false;
-        if ($("btnContribStart")) $("btnContribStart").disabled = false;
+        setContribBusy(false);
       }
+    }
+
+    async function openPendingOAuth(id) {
+      try {
+        const res = await fetch("/api/me/accounts/" + encodeURIComponent(id) + "/oauth/open", {
+          method: "POST", headers: headers(),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        if (data.url) {
+          try { window.open(data.url, "_blank", "noopener,noreferrer"); } catch {}
+        }
+        if (data.userCode && $("contribUserCode")) {
+          $("contribUserCode").textContent = data.userCode;
+          if ($("contribVerifyLink")) {
+            $("contribVerifyLink").textContent = data.url || "";
+            $("contribVerifyLink").href = data.url || "#";
+          }
+          if ($("contribStage")) $("contribStage").classList.add("show");
+        }
+        if (data.sessionId) {
+          stopContribPoll();
+          const sessionId = data.sessionId;
+          contribPollTimer = setInterval(async () => {
+            try {
+              const pr = await fetch("/api/me/accounts/oauth/poll?sessionId=" + encodeURIComponent(sessionId), { headers: headers() });
+              const result = await pr.json().catch(() => ({}));
+              await loadMyAccounts();
+              if (result.ok) {
+                stopContribPoll();
+                if ($("contribStage")) $("contribStage").classList.remove("show");
+                showMsg($("msgContrib"), t("contribOk") + ": " + (result.account?.name || result.account?.id), "ok");
+                await loadLeaderboardLite();
+              } else if (!result.pending) {
+                stopContribPoll();
+                if (result.error) showMsg($("msgContrib"), result.error, "err");
+              }
+            } catch {}
+          }, 2000);
+        }
+        await loadMyAccounts();
+      } catch (e) {
+        showMsg($("msgContrib"), e.message || String(e), "err");
+      }
+    }
+
+    async function retryPendingOAuth(id) {
+      await startContribute({ mode: "browser", accountId: id });
+    }
+
+    async function startContributeAuto() {
+      const token = (($("contribSessionToken") && $("contribSessionToken").value) || "").trim();
+      if (!token) {
+        showMsg($("msgContrib"), t("sessionTokenPh"), "err");
+        return;
+      }
+      await startContribute({ mode: "auto", sessionToken: token });
     }
 
     async function checkMyCredits(id) {
@@ -3069,7 +3362,7 @@ ${styles()}
       try {
         const res = await fetch("/api/me/accounts/" + encodeURIComponent(id), {
           method: "PATCH", headers: jsonHeaders(),
-          body: JSON.stringify({ private: !!priv }),
+          body: JSON.stringify({ private: !!priv, allowedUserIds: null }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
@@ -3095,7 +3388,8 @@ ${styles()}
       const sel = $("routeAccountSel");
       if (!sel) return;
       const cur = sel.value || (currentUser && currentUser.routeAccountId) || "";
-      sel.innerHTML = myAccounts.map((a) =>
+      const opts = myAccounts.filter((a) => a.status === "active" || a.status === "exhausted");
+      sel.innerHTML = opts.map((a) =>
         '<option value="' + esc(a.id) + '"' + (a.id === cur ? " selected" : "") + ">" +
         esc(a.name) + (accVisKey(a) !== "public" ? " · " + accVisLabel(a) : "") + "</option>"
       ).join("") || '<option value="">–</option>';
@@ -3137,7 +3431,7 @@ ${styles()}
     }
 
     async function delMyAcc(id, name) {
-      if (!confirm(t("withdrawContribConfirm", name || id))) return;
+      if (!(await confirmDialog(t("withdrawContribConfirm", name || id), { danger: true }))) return;
       try {
         const res = await fetch("/api/me/accounts/" + encodeURIComponent(id), {
           method: "DELETE",
@@ -3219,7 +3513,7 @@ ${styles()}
       } catch (e) { showMsg($("msg"), e.message, "err"); }
     }
     async function delAcc(id) {
-      if (!confirm(id + " ?")) return;
+      if (!(await confirmDialog(t("confirmDelete") + " · " + id, { danger: true }))) return;
       await fetch("/api/admin/accounts/" + id, { method: "DELETE", headers: headers() });
       await loadAccounts();
     }
@@ -3262,6 +3556,19 @@ ${styles()}
     }
     function closeKeyModal() { keyEditId = null; $("keyModal").classList.remove("show"); }
     if ($("btnCreateKey")) $("btnCreateKey").onclick = openKeyModal;
+    if ($("confirmOk")) $("confirmOk").onclick = () => closeConfirm(true);
+    if ($("confirmCancel")) $("confirmCancel").onclick = () => closeConfirm(false);
+    if ($("confirmModal")) {
+      $("confirmModal").addEventListener("click", (e) => {
+        if (e.target === $("confirmModal")) closeConfirm(false);
+      });
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && $("confirmModal") && $("confirmModal").classList.contains("show")) {
+        e.preventDefault();
+        closeConfirm(false);
+      }
+    });
     if ($("keyCancel")) $("keyCancel").onclick = closeKeyModal;
     if ($("keyModal")) $("keyModal").addEventListener("click", (e) => { if (e.target === $("keyModal")) closeKeyModal(); });
     if ($("logClose")) $("logClose").onclick = () => $("logModal").classList.remove("show");
@@ -3325,7 +3632,7 @@ ${styles()}
       await loadKeys();
     }
     async function delKey(id) {
-      if (!confirm(id + " ?")) return;
+      if (!(await confirmDialog(t("confirmDelete") + " · " + id, { danger: true }))) return;
       await fetch(apiKeysPath() + "/" + id, { method: "DELETE", headers: headers() });
       await loadKeys();
     }
@@ -3457,6 +3764,7 @@ ${styles()}
           body: JSON.stringify({
             logEnabled: $("logEnabled").checked,
             logBodies: $("logBodies").checked,
+            logBodiesOnError: $("logBodiesOnError") ? $("logBodiesOnError").checked : true,
             logRetentionDays: Number($("logRetention").value) || 7,
           }),
         });
@@ -3464,6 +3772,7 @@ ${styles()}
         if (!res.ok) throw new Error(data.error || res.statusText);
         meta.logEnabled = data.settings.logEnabled;
         meta.logBodies = data.settings.logBodies === true;
+        meta.logBodiesOnError = data.settings.logBodiesOnError !== false;
         meta.logRetentionDays = data.settings.logRetentionDays;
         paintProxyUI();
         showMsg($("msgLogs"), t("logSaved"), "ok");
@@ -3494,7 +3803,7 @@ ${styles()}
     if ($("logOk")) $("logOk").onchange = () => { logPage = 1; loadLogs(); };
     if ($("btnLogRefresh")) $("btnLogRefresh").onclick = () => loadLogs();
     if ($("btnLogStrip")) $("btnLogStrip").onclick = async () => {
-      if (!confirm(t("stripLogsConfirm"))) return;
+      if (!(await confirmDialog(t("stripLogsConfirm"), { danger: true }))) return;
       try {
         $("btnLogStrip").disabled = true;
         const res = await fetch("/api/admin/logs/strip-bodies", {
@@ -3510,7 +3819,7 @@ ${styles()}
       finally { if ($("btnLogStrip")) $("btnLogStrip").disabled = false; }
     };
     if ($("btnLogClear")) $("btnLogClear").onclick = async () => {
-      if (!confirm(t("clearLogsConfirm"))) return;
+      if (!(await confirmDialog(t("clearLogsConfirm"), { danger: true }))) return;
       try {
         const res = await fetch("/api/admin/logs", {
           method: "DELETE", headers: jsonHeaders(),
@@ -3536,7 +3845,7 @@ ${styles()}
         const b = e.target.closest("button[data-mvis]");
         if (!b) return;
         const v = b.getAttribute("data-mvis");
-        setMyMembersVis(v === "private");
+        if (v === "public" || v === "private" || v === "restricted") setMyMembersVis(v);
       });
     }
     if ($("accEditDonor")) {
@@ -3584,8 +3893,9 @@ ${styles()}
       });
     }
     if ($("accModal")) $("accModal").addEventListener("click", (e) => { if (e.target === $("accModal")) closeAccEdit(); });
-    if ($("btnContribAdd")) $("btnContribAdd").onclick = startContribute;
-    if ($("btnContribStart")) $("btnContribStart").onclick = startContribute;
+    if ($("btnContribAdd")) $("btnContribAdd").onclick = () => startContribute({ mode: "browser" });
+    if ($("btnContribStart")) $("btnContribStart").onclick = () => startContribute({ mode: "browser" });
+    if ($("btnContribAuto")) $("btnContribAuto").onclick = () => startContributeAuto();
     if ($("btnContribRefresh")) $("btnContribRefresh").onclick = () => { hideMsg($("msgContrib")); loadMyAccounts(); loadMyRouting(); loadLeaderboardLite(); };
     if ($("routeScopeSeg")) $("routeScopeSeg").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-rscope]");
