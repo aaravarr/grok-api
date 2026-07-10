@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
+import { listAccounts, listApiKeys } from "../account/store.js";
 import { config } from "../config.js";
 import { loadSettings } from "../settings.js";
 import { randomId } from "../utils.js";
@@ -151,6 +152,38 @@ function slimLogForList(r: RequestLog): RequestLog {
   const { request: _req, response: _res, requestTruncated: _rt, responseTruncated: _rst, ...rest } =
     r;
   return rest;
+}
+
+/**
+ * Resolve live account names + API key aliases for display
+ * (historical logs store snapshot names that can go stale after rename).
+ */
+export async function withLiveDisplayNames(
+  logs: RequestLog[],
+): Promise<RequestLog[]> {
+  if (!logs.length) return logs;
+  const [accounts, keys] = await Promise.all([listAccounts(), listApiKeys()]);
+  const nameById = new Map(accounts.map((a) => [a.id, a.name]));
+  const aliasById = new Map(keys.map((k) => [k.id, k.alias || k.keyPrefix]));
+  return logs.map((r) => {
+    let next = r;
+    if (r.accountId) {
+      const live = nameById.get(r.accountId);
+      if (live && live !== r.accountName) next = { ...next, accountName: live };
+    }
+    if (r.apiKeyId) {
+      const live = aliasById.get(r.apiKeyId);
+      if (live && live !== r.apiKeyAlias) next = { ...next, apiKeyAlias: live };
+    }
+    return next;
+  });
+}
+
+/** @deprecated use withLiveDisplayNames */
+export async function withLiveAccountNames(
+  logs: RequestLog[],
+): Promise<RequestLog[]> {
+  return withLiveDisplayNames(logs);
 }
 
 function stripBodiesFromEntry(r: RequestLog): { entry: RequestLog; changed: boolean } {

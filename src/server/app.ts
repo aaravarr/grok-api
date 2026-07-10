@@ -51,6 +51,7 @@ import {
   listRequestLogs,
   logsDiskInfo,
   stripLogBodies,
+  withLiveDisplayNames,
 } from "../usage/logger.js";
 import {
   captureJsonResponse,
@@ -408,7 +409,8 @@ export function createApp() {
       apiKeyIds: keyIds,
       ok,
     });
-    const items = result.items.map((item) => ({
+    const named = await withLiveDisplayNames(result.items);
+    const items = named.map((item) => ({
       ...item,
       request: undefined,
       response: undefined,
@@ -428,7 +430,8 @@ export function createApp() {
     if (log.userId !== user.id && !(log.apiKeyId && keyIds.has(log.apiKeyId))) {
       return c.json({ error: "not found" }, 404);
     }
-    return c.json({ log });
+    const [live] = await withLiveDisplayNames([log]);
+    return c.json({ log: live || log });
   });
 
   app.get("/api/me/usage", async (c) => {
@@ -1233,7 +1236,8 @@ export function createApp() {
     const okRaw = c.req.query("ok");
     const ok = okRaw === "true" ? true : okRaw === "false" ? false : undefined;
     const result = await listRequestLogs({ page, limit, day, model, accountId, apiKeyId, userId, ok });
-    const items = result.items.map((item) => ({
+    const named = await withLiveDisplayNames(result.items);
+    const items = named.map((item) => ({
       ...item,
       request: undefined,
       response: undefined,
@@ -1247,7 +1251,8 @@ export function createApp() {
   app.get("/api/admin/logs/:id", async (c) => {
     const log = await getRequestLog(c.req.param("id"));
     if (!log) return c.json({ error: "not found" }, 404);
-    return c.json({ log });
+    const [live] = await withLiveDisplayNames([log]);
+    return c.json({ log: live || log });
   });
 
   app.delete("/api/admin/logs", async (c) => {

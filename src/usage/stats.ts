@@ -321,14 +321,13 @@ export async function computeUsageStats(
 
     if (log.accountId) {
       const accKey = log.accountId;
+      // Prefer live account name so renames show up in usage charts
       const accLabel =
-        log.accountName || accountNameById.get(accKey) || accKey.slice(0, 8);
+        accountNameById.get(accKey) || log.accountName || accKey.slice(0, 8);
       if (!byAccountMap.has(accKey)) byAccountMap.set(accKey, emptyBucket(accKey, accLabel));
-      else if (
-        byAccountMap.get(accKey)!.label === accKey.slice(0, 8) &&
-        (log.accountName || accountNameById.get(accKey))
-      ) {
-        byAccountMap.get(accKey)!.label = log.accountName || accountNameById.get(accKey)!;
+      else {
+        const live = accountNameById.get(accKey);
+        if (live) byAccountMap.get(accKey)!.label = live;
       }
       add(byAccountMap.get(accKey)!, log);
     } else {
@@ -339,8 +338,13 @@ export async function computeUsageStats(
 
     if (log.apiKeyId) {
       const keyId = log.apiKeyId;
-      const keyLabel = log.apiKeyAlias || keyAliasById.get(keyId) || keyId.slice(0, 8);
+      // Prefer live key alias so renames show up in usage charts
+      const keyLabel = keyAliasById.get(keyId) || log.apiKeyAlias || keyId.slice(0, 8);
       if (!byKeyMap.has(keyId)) byKeyMap.set(keyId, emptyBucket(keyId, keyLabel));
+      else {
+        const live = keyAliasById.get(keyId);
+        if (live) byKeyMap.get(keyId)!.label = live;
+      }
       add(byKeyMap.get(keyId)!, log);
     } else {
       const missKey = "__no_key__";
