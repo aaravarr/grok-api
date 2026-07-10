@@ -21,9 +21,15 @@ import {
   updateAccount,
   updateApiKey,
   verifyApiKey,
+  renameAccountsToDefault,
 } from "../account/store.js";
-import { getDeviceSession, pollDeviceLogin, startDeviceLogin } from "../account/oauth.js";
-import { enqueueSessionOAuth } from "../account/session-oauth.js";
+import {
+  fetchXaiUserinfo,
+  getDeviceSession,
+  pollDeviceLogin,
+  startDeviceLogin,
+} from "../account/oauth.js";
+import { getValidAccessToken } from "../account/token.js";
 import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
 import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js";
@@ -493,24 +499,17 @@ export function createApp() {
   });
 
   /**
-   * Dual-path contribute OAuth:
-   * - mode=browser (default): open device URL; seat appears as pending in list
-   * - mode=auto: body.sessionToken required; backend automates authorize (async)
-   * - accountId: rebind existing pending/error seat (manual retry)
+   * Browser device-code OAuth:
+   * - creates pending seat in list
+   * - accountId: rebind existing pending/error seat (retry)
    */
   app.post("/api/me/accounts/oauth", async (c) => {
     const user = c.get("user")!;
     const body = (await c.req.json().catch(() => ({}))) as {
       name?: string;
       openBrowser?: boolean;
-      mode?: "browser" | "auto";
-      sessionToken?: string;
       accountId?: string;
     };
-    const mode = body.mode === "auto" ? "auto" : "browser";
-    if (mode === "auto" && !body.sessionToken?.trim()) {
-      return c.json({ error: "auto 模式需要 sessionToken" }, 400);
-    }
     if (body.accountId) {
       const existing = await getAccount(body.accountId);
       if (!existing || existing.donorUserId !== user.id) {
@@ -522,20 +521,10 @@ export function createApp() {
         name: body.name?.trim() || undefined,
         openBrowser: false,
         donorUserId: user.id,
-        mode,
         accountId: body.accountId,
       });
-      if (mode === "auto" && body.sessionToken) {
-        enqueueSessionOAuth({
-          accountId: session.accountId,
-          sessionToken: body.sessionToken.trim(),
-          verificationUrl:
-            session.verificationUriComplete || session.verificationUri,
-        });
-      }
       const acc = await getAccount(session.accountId);
       return c.json({
-        mode,
         sessionId: session.sessionId,
         accountId: session.accountId,
         userCode: session.userCode,
@@ -543,10 +532,7 @@ export function createApp() {
         verificationUriComplete: session.verificationUriComplete,
         expiresIn: session.expiresIn,
         account: acc ? publicAccount(acc) : null,
-        instructions:
-          mode === "auto"
-            ? "自动授权已启动，请在列表中查看状态"
-            : `打开 ${session.verificationUri}，输入代码 ${session.userCode}`,
+        instructions: `打开 ${session.verificationUri}，输入代码 ${session.userCode}`,
       });
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
@@ -936,11 +922,9 @@ export function createApp() {
         donorUserId,
         private: body.private === true,
         allowedUserIds,
-        mode: "browser",
       });
       const acc = await getAccount(session.accountId);
       return c.json({
-        mode: "browser",
         sessionId: session.sessionId,
         accountId: session.accountId,
         userCode: session.userCode,
@@ -978,6 +962,77 @@ export function createApp() {
       });
     }
     return c.json({ ok: false, pending: false, error: result.error }, 400);
+  });
+
+  /** Bulk rename selected seats to email/username (or legacy default). */
+  app.post("/api/admin/accounts/rename-default", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { ids?: string[] };
+    if (!Array.isArray(body.ids) || !body.ids.length) {
+      return c.json({ error: "ids 须为非空数组" }, 400);
+    }
+    const ids = [
+      ...new Set(body.ids.map((x) => (typeof x === "string" ? x.trim() : "")).filter(Boolean)),
+    ];
+    if (!ids.length) return c.json({ error: "ids 须为非空数组" }, 400);
+    if (ids.length > 200) return c.json({ error: "一次最多 200 个" }, 400);
+    const result = await renameAccountsToDefault(ids);
+    const routing = await getRouting();
+    return c.json({
+      updated: result.updated,
+      accounts: result.accounts.map((a) => publicAccount(a, routing.currentAccountId)),
+    });
+  });
+
+  /** Refresh OIDC profile (email/username) and optionally rename to identity. */
+  app.post("/api/admin/accounts/:id/profile", async (c) => {
+    const id = c.req.param("id");
+    const body = (await c.req.json().catch(() => ({}))) as { rename?: boolean };
+    const acc = await getAccount(id);
+    if (!acc) return c.json({ error: "not found" }, 404);
+    if (acc.status === "pending" || !acc.tokens?.refresh) {
+      return c.json({ error: "账号尚未完成 OAuth" }, 400);
+    }
+    try {
+      const access = await getValidAccessToken(id);
+      const profile = await fetchXaiUserinfo(access);
+      const rename = body.rename !== false;
+      let name = acc.name;
+      if (rename && (profile.email || profile.xaiUsername)) {
+        const all = await listAccounts();
+        const taken = new Set(
+          all
+            .filter((a) => a.id !== id)
+            .map((a) => a.name.trim().toLowerCase())
+            .filter(Boolean),
+        );
+        const base =
+          (profile.email || "").trim() ||
+          (profile.xaiUsername || "").trim() ||
+          acc.name;
+        name = base;
+        if (taken.has(name.toLowerCase())) {
+          for (let n = 2; n < 1000; n++) {
+            const cand = `${base}-${n}`;
+            if (!taken.has(cand.toLowerCase())) {
+              name = cand;
+              break;
+            }
+          }
+        }
+      }
+      const updated = await updateAccount(id, {
+        email: profile.email ?? null,
+        xaiUsername: profile.xaiUsername ?? null,
+        name,
+      });
+      const routing = await getRouting();
+      return c.json({
+        account: updated ? publicAccount(updated, routing.currentAccountId) : null,
+        profile,
+      });
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
+    }
   });
 
   app.patch("/api/admin/accounts/:id", async (c) => {

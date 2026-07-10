@@ -1,18 +1,10 @@
 export type AccountStatus = "active" | "exhausted" | "expired" | "error" | "pending";
 
-/** How the seat is being authorized */
-export type OAuthMode = "browser" | "auto";
-
 /** Progress of in-flight device-code authorization */
-export type OAuthPhase =
-  | "waiting_user"
-  | "automating"
-  | "failed"
-  | "authorized";
+export type OAuthPhase = "waiting_user" | "failed" | "authorized";
 
 export interface AccountOAuthMeta {
   sessionId: string;
-  mode: OAuthMode;
   phase: OAuthPhase;
   userCode: string;
   verificationUri: string;
@@ -54,6 +46,10 @@ export interface Account {
   lastError?: string;
   note?: string;
   credits?: CreditSnapshot;
+  /** xAI account email from OIDC userinfo (if granted) */
+  email?: string | null;
+  /** xAI display / preferred username from userinfo */
+  xaiUsername?: string | null;
   /** App user who contributed this xAI account (null/undefined = admin-managed pool) */
   donorUserId?: string | null;
   /**

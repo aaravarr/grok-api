@@ -2,7 +2,7 @@ import open from "open";
 import { config } from "../config.js";
 import { outboundFetch } from "../proxy.js";
 import { getOAuthEndpoints } from "../settings.js";
-import type { Account, AccountOAuthMeta, OAuthMode, TokenResponse } from "../types.js";
+import type { Account, AccountOAuthMeta, TokenResponse } from "../types.js";
 import { now, randomId, sleep } from "../utils.js";
 import {
   activatePendingAccount,
@@ -38,7 +38,6 @@ export interface DeviceSession {
   donorUserId?: string | null;
   private?: boolean;
   allowedUserIds?: string[] | null;
-  mode: OAuthMode;
 }
 
 interface DeviceCodeResponse {
@@ -88,6 +87,40 @@ async function requestDeviceCode(): Promise<DeviceCodeResponse> {
     throw new Error("device code 响应缺少 device_code / user_code / verification_uri");
   }
   return data;
+}
+
+export type XaiUserProfile = {
+  email?: string | null;
+  xaiUsername?: string | null;
+};
+
+/** Fetch OIDC userinfo (email / name). Best-effort — never throws for missing fields. */
+export async function fetchXaiUserinfo(accessToken: string): Promise<XaiUserProfile> {
+  try {
+    const ep = await getOAuthEndpoints();
+    const res = await outboundFetch(ep.userinfoUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "User-Agent": "grok-api/1.0",
+      },
+    });
+    if (!res.ok) return {};
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const email =
+      typeof data.email === "string" && data.email.trim()
+        ? data.email.trim()
+        : null;
+    const xaiUsername =
+      (typeof data.preferred_username === "string" && data.preferred_username.trim()) ||
+      (typeof data.nickname === "string" && data.nickname.trim()) ||
+      (typeof data.name === "string" && data.name.trim()) ||
+      null;
+    return { email, xaiUsername: xaiUsername || null };
+  } catch {
+    return {};
+  }
 }
 
 async function pollOnce(
@@ -179,11 +212,16 @@ function startPolling(sessionId: string): void {
           throw new Error("missing pending account");
         }
 
-        const account = await activatePendingAccount(accountId, {
-          access: tokens.access_token,
-          refresh: tokens.refresh_token ?? "",
-          expires: now() + (tokens.expires_in ?? 3600) * 1000,
-        });
+        const profile = await fetchXaiUserinfo(tokens.access_token);
+        const account = await activatePendingAccount(
+          accountId,
+          {
+            access: tokens.access_token,
+            refresh: tokens.refresh_token ?? "",
+            expires: now() + (tokens.expires_in ?? 3600) * 1000,
+          },
+          { ...profile, rename: true },
+        );
         if (!account) {
           throw new Error("pending account missing");
         }
@@ -232,7 +270,6 @@ export async function startDeviceLogin(opts?: {
   donorUserId?: string | null;
   private?: boolean;
   allowedUserIds?: string[] | null;
-  mode?: OAuthMode;
   /** Existing pending seat to rebind (manual retry) */
   accountId?: string;
 }): Promise<{
@@ -242,9 +279,7 @@ export async function startDeviceLogin(opts?: {
   verificationUri: string;
   verificationUriComplete?: string;
   expiresIn: number;
-  mode: OAuthMode;
 }> {
-  const mode: OAuthMode = opts?.mode === "auto" ? "auto" : "browser";
   const device = await requestDeviceCode();
   const expiresMs = positiveSecondsToMs(device.expires_in, DEFAULT_EXPIRES_MS);
   const intervalMs = Math.max(
@@ -267,18 +302,16 @@ export async function startDeviceLogin(opts?: {
     donorUserId: opts?.donorUserId ?? null,
     private: opts?.private === true,
     allowedUserIds: opts?.allowedUserIds ?? null,
-    mode,
   };
 
   const oauthMeta: AccountOAuthMeta = {
     sessionId: session.id,
-    mode,
-    phase: mode === "auto" ? "automating" : "waiting_user",
+    phase: "waiting_user",
     userCode: session.userCode,
     verificationUri: session.verificationUri,
     verificationUriComplete: session.verificationUriComplete,
     expiresAt,
-    lastMessage: mode === "auto" ? "自动授权进行中…" : "等待浏览器授权…",
+    lastMessage: "等待浏览器授权…",
   };
 
   let account: Account;
@@ -316,7 +349,7 @@ export async function startDeviceLogin(opts?: {
   startPolling(session.id);
 
   const openUrl = device.verification_uri_complete ?? device.verification_uri;
-  if (opts?.openBrowser !== false && mode === "browser") {
+  if (opts?.openBrowser !== false) {
     try {
       await open(openUrl);
     } catch {
@@ -333,7 +366,6 @@ export async function startDeviceLogin(opts?: {
     verificationUri: session.verificationUri,
     verificationUriComplete: session.verificationUriComplete,
     expiresIn: Math.floor(expiresMs / 1000),
-    mode,
   };
 }
 
@@ -358,20 +390,6 @@ export async function pollDeviceLogin(sessionId: string): Promise<OAuthResult> {
     return { ok: false, error: session.error ?? "授权失败" };
   }
   return { ok: false, error: "等待用户授权中", pending: true };
-}
-
-/** Mark automation progress on the pending seat (does not finish OAuth). */
-export async function setOAuthAutomationPhase(
-  accountId: string,
-  phase: AccountOAuthMeta["phase"],
-  message?: string,
-): Promise<void> {
-  await patchOAuth(accountId, {
-    phase,
-    lastMessage: message,
-    lastError: phase === "failed" ? message : undefined,
-    status: phase === "failed" ? "error" : "pending",
-  });
 }
 
 export async function refreshTokens(

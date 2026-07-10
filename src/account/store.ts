@@ -103,6 +103,34 @@ function slugUsername(raw: string): string {
   return s || "user";
 }
 
+/** Prefer email, then username; keep readable (allow @ . _). */
+export function identityLabel(input: {
+  email?: string | null;
+  xaiUsername?: string | null;
+  fallback?: string;
+}): string {
+  const email = (input.email || "").trim();
+  if (email) return email.slice(0, 80);
+  const user = (input.xaiUsername || "").trim();
+  if (user) return user.slice(0, 64);
+  const fb = (input.fallback || "").trim();
+  return fb ? fb.slice(0, 64) : "account";
+}
+
+function uniqueNameAmong(
+  desired: string,
+  taken: Set<string>,
+  selfId?: string,
+): string {
+  const base = desired.trim() || "account";
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; n < 1000; n++) {
+    const cand = `${base}-${n}`;
+    if (!taken.has(cand.toLowerCase())) return cand;
+  }
+  return `${base}-${randomId(4)}`;
+}
+
 function normalizeAllowedUserIds(v: unknown): string[] | null {
   if (v == null) return null;
   if (!Array.isArray(v)) return null;
@@ -128,6 +156,107 @@ function nextAccountName(
     return `contrib-${donorSlug || "user"}-${n}`;
   }
   return `account-${store.accounts.length + 1}`;
+}
+
+/**
+ * Default display name: email → xaiUsername → legacy contrib/account pattern.
+ */
+export function defaultNameForAccount(
+  store: AccountsStore,
+  acc: Account,
+  slugByDonorId: Map<string, string>,
+  takenNames: Set<string>,
+): string {
+  const identity = identityLabel({
+    email: acc.email,
+    xaiUsername: acc.xaiUsername,
+  });
+  if (acc.email || acc.xaiUsername) {
+    const name = uniqueNameAmong(identity, takenNames, acc.id);
+    takenNames.add(name.toLowerCase());
+    return name;
+  }
+  // legacy fallback without profile
+  let name: string;
+  if (acc.donorUserId) {
+    const siblings = store.accounts
+      .filter((a) => a.donorUserId === acc.donorUserId)
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.createdAt || 0) - (b.createdAt || 0) || a.id.localeCompare(b.id),
+      );
+    const idx = Math.max(0, siblings.findIndex((a) => a.id === acc.id)) + 1;
+    const slug =
+      slugByDonorId.get(acc.donorUserId) ||
+      slugUsername(acc.donorUserId.slice(0, 6));
+    name = `contrib-${slug}-${idx}`;
+  } else {
+    const siblings = store.accounts
+      .filter((a) => !a.donorUserId)
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.createdAt || 0) - (b.createdAt || 0) || a.id.localeCompare(b.id),
+      );
+    const idx = Math.max(0, siblings.findIndex((a) => a.id === acc.id)) + 1;
+    name = `account-${idx}`;
+  }
+  name = uniqueNameAmong(name, takenNames, acc.id);
+  takenNames.add(name.toLowerCase());
+  return name;
+}
+
+/** Rename selected accounts to email/username (or legacy default). */
+export async function renameAccountsToDefault(
+  ids: string[],
+): Promise<{ updated: number; accounts: Account[] }> {
+  const idSet = new Set(ids.map((x) => String(x || "").trim()).filter(Boolean));
+  if (!idSet.size) return { updated: 0, accounts: [] };
+
+  const storeSnap = await loadStore();
+  const donorIds = [
+    ...new Set(
+      storeSnap.accounts
+        .filter((a) => idSet.has(a.id) && a.donorUserId)
+        .map((a) => a.donorUserId as string),
+    ),
+  ];
+  const slugByDonorId = new Map<string, string>();
+  for (const did of donorIds) {
+    const donor = await getUser(did);
+    slugByDonorId.set(did, slugUsername(donor?.username || did.slice(0, 6)));
+  }
+
+  return mutate(async (store) => {
+    const changed: Account[] = [];
+    let updated = 0;
+    const t = now();
+    // names of accounts not being renamed stay reserved
+    const taken = new Set(
+      store.accounts
+        .filter((a) => !idSet.has(a.id))
+        .map((a) => a.name.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    // stable order for -2 -3 suffix
+    const targets = store.accounts
+      .filter((a) => idSet.has(a.id))
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.createdAt || 0) - (b.createdAt || 0) || a.id.localeCompare(b.id),
+      );
+    for (const acc of targets) {
+      const nextName = defaultNameForAccount(store, acc, slugByDonorId, taken);
+      if (acc.name === nextName) continue;
+      acc.name = nextName;
+      acc.updatedAt = t;
+      changed.push({ ...acc });
+      updated += 1;
+    }
+    return { updated, accounts: changed };
+  });
 }
 
 /** Placeholder seat while device OAuth is in progress (not routable). */
@@ -214,19 +343,52 @@ export async function addAccount(input: {
 export async function activatePendingAccount(
   id: string,
   tokens: { access: string; refresh: string; expires: number },
+  profile?: { email?: string | null; xaiUsername?: string | null; rename?: boolean },
 ): Promise<Account | undefined> {
   return mutate((store) => {
     const idx = store.accounts.findIndex((a) => a.id === id);
     if (idx < 0) return undefined;
     const cur = store.accounts[idx]!;
+    const email =
+      profile?.email !== undefined ? profile.email : cur.email ?? null;
+    const xaiUsername =
+      profile?.xaiUsername !== undefined
+        ? profile.xaiUsername
+        : cur.xaiUsername ?? null;
+    let name = cur.name;
+    // Auto-rename when still placeholder / pending-style name
+    const shouldRename =
+      profile?.rename !== false &&
+      (profile?.email ||
+        profile?.xaiUsername ||
+        !cur.name ||
+        /^contrib-/i.test(cur.name) ||
+        /^account-\d+$/i.test(cur.name) ||
+        cur.status === "pending");
+    if (shouldRename && (email || xaiUsername)) {
+      const taken = new Set(
+        store.accounts
+          .filter((a) => a.id !== id)
+          .map((a) => a.name.trim().toLowerCase())
+          .filter(Boolean),
+      );
+      name = uniqueNameAmong(
+        identityLabel({ email, xaiUsername, fallback: cur.name }),
+        taken,
+        id,
+      );
+    }
     const next: Account = {
       ...cur,
+      name,
       status: "active",
       tokens: {
         access: tokens.access,
         refresh: tokens.refresh,
         expires: tokens.expires,
       },
+      email: email || null,
+      xaiUsername: xaiUsername || null,
       oauth: null,
       lastError: undefined,
       updatedAt: now(),
@@ -250,6 +412,8 @@ export async function updateAccount(
       | "lastError"
       | "lastUsedAt"
       | "useCount"
+      | "email"
+      | "xaiUsername"
       | "tokens"
       | "credits"
       | "donorUserId"
@@ -641,6 +805,8 @@ export function publicAccount(a: Account, currentId?: string | null) {
     useCount: a.useCount,
     lastError: a.lastError,
     note: a.note,
+    email: a.email ?? null,
+    xaiUsername: a.xaiUsername ?? null,
     expiresAt: a.tokens.expires,
     hasRefresh: Boolean(a.tokens.refresh),
     isCurrent: currentId ? a.id === currentId : false,
@@ -650,7 +816,6 @@ export function publicAccount(a: Account, currentId?: string | null) {
     oauth: a.oauth
       ? {
           sessionId: a.oauth.sessionId,
-          mode: a.oauth.mode,
           phase: a.oauth.phase,
           userCode: a.oauth.userCode,
           verificationUri: a.oauth.verificationUri,

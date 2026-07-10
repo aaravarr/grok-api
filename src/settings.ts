@@ -146,6 +146,7 @@ export async function getOAuthEndpoints(): Promise<{
   tokenUrl: string;
   deviceAuthorizationUrl: string;
   authorizeUrl: string;
+  userinfoUrl: string;
   base: string;
   viaJump: boolean;
 }> {
@@ -155,6 +156,7 @@ export async function getOAuthEndpoints(): Promise<{
   return {
     tokenUrl: `${base}/oauth2/token`,
     deviceAuthorizationUrl: `${base}/oauth2/device/code`,
+    userinfoUrl: `${base}/oauth2/userinfo`,
     authorizeUrl: config.oauth.authorizeUrl,
     base,
     viaJump,

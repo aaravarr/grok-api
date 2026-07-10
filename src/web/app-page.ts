@@ -376,7 +376,7 @@ ${styles()}
             <h1 data-i18n="contribTitle">Share your SuperGrok seat</h1>
             <p data-i18n="contribSub">Link an xAI account you own. Its remaining credits join the shared pool — everyone gets more reliable access, and you climb the contributor board.</p>
             <div class="contrib-cta-row">
-              <button class="btn" type="button" id="btnContribStart" data-i18n="contribCtaBrowser">Browser OAuth</button>
+              <button class="btn" type="button" id="btnContribStart" data-i18n="contribCta">Contribute an account</button>
               <button class="btn btn-secondary" type="button" data-goto="leaderboard" data-i18n="contribSeeLb">View leaderboard</button>
               <span class="mono" id="contribMineCount" style="color:var(--mute)">–</span>
             </div>
@@ -407,27 +407,13 @@ ${styles()}
               <input id="contribName" class="input" data-i18n-placeholder="accNamePh" style="max-width:200px" />
             </div>
             <div class="panel-bd">
-              <div class="contrib-paths">
-                <div class="contrib-path">
-                  <div class="contrib-path-hd">
-                    <strong data-i18n="pathBrowserTitle">Browser OAuth</strong>
-                    <span class="mono" data-i18n="pathBrowserHint">Open xAI page and approve</span>
-                  </div>
-                  <button class="btn" type="button" id="btnContribAdd" data-i18n="contribCtaBrowser">Browser OAuth</button>
-                </div>
-                <div class="contrib-path">
-                  <div class="contrib-path-hd">
-                    <strong data-i18n="pathAutoTitle">Session token</strong>
-                    <span class="mono" data-i18n="pathAutoHint">Paste session JWT · auto authorize</span>
-                  </div>
-                  <textarea id="contribSessionToken" class="input block" rows="2" data-i18n-placeholder="sessionTokenPh" placeholder="email|pass|eyJ… or eyJ…" style="min-height:64px;resize:vertical;font-family:var(--mono);font-size:12px"></textarea>
-                  <button class="btn btn-secondary" type="button" id="btnContribAuto" data-i18n="contribCtaAuto" style="margin-top:8px">Auto join pool</button>
-                </div>
+              <div class="panel-hd" style="border:0;padding:0 0 12px;background:transparent">
+                <button class="btn" type="button" id="btnContribAdd" data-i18n="contribCta">Contribute an account</button>
               </div>
-              <div class="steps" style="margin-top:14px">
+              <div class="steps">
                 <div class="step"><div class="n">01</div><strong data-i18n="step1t">Start OAuth</strong><span data-i18n="step1d">We open an xAI device-code flow. No password is stored by us.</span></div>
-                <div class="step"><div class="n">02</div><strong data-i18n="step2t">Approve</strong><span data-i18n="step2d">Browser: authorize on accounts.x.ai · Token: backend automates (fallback to manual).</span></div>
-                <div class="step"><div class="n">03</div><strong data-i18n="step3t">Join the pool</strong><span data-i18n="step3d">Seat status updates live in your list. Failed auto can open browser manually.</span></div>
+                <div class="step"><div class="n">02</div><strong data-i18n="step2t">Approve in browser</strong><span data-i18n="step2d">Enter the code on accounts.x.ai and authorize SuperGrok access.</span></div>
+                <div class="step"><div class="n">03</div><strong data-i18n="step3t">Join the pool</strong><span data-i18n="step3d">Seat status updates live in your list when authorization completes.</span></div>
               </div>
               <div id="contribStage" class="oauth-stage">
                 <div class="label" style="color:var(--mute);font-size:12px;margin-bottom:10px" data-i18n="deviceHint">Enter this Device Code:</div>
@@ -952,6 +938,8 @@ ${styles()}
         colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟",
         routing:"路由", modeAuto:"自动", modeManual:"手动",
         accNamePh:"账号备注（可选）", addAccount:"添加账号",
+        accSyncName:"同步名称",
+        accSyncNameOk:"已按邮箱/用户名更新名称",
         accDonorNone:"无贡献者", accDonorLabel:"贡献者",
         accAllowedLabel:"额外可用成员", accAllowedHint:"贡献者始终可用且不可取消；此处只配置额外成员。清空额外成员=仅贡献者（若为私有）或公共池规则",
         accAllowedClear:"清除额外成员", accAllowedNone:"暂无用户",
@@ -995,24 +983,20 @@ ${styles()}
         qaContrib:"分享 SuperGrok 容量", qaLb:"查看贡献排行",
         contribKicker:"社区容量", contribTitle:"分享你的 SuperGrok 席位",
         contribSub:"绑定你拥有的 xAI 账号。剩余额度会进入共享池——大家更稳，你也能登上贡献榜。",
-        contribCta:"贡献一个账号", contribCtaBrowser:"浏览器授权", contribCtaAuto:"Token 自动入池",
+        contribCta:"贡献一个账号",
         contribSeeLb:"查看贡献榜",
-        pathBrowserTitle:"浏览器 OAuth", pathBrowserHint:"打开 xAI 页面完成授权",
-        pathAutoTitle:"Session Token", pathAutoHint:"粘贴会话 JWT，后端自动点授权",
-        sessionTokenPh:"email|pass|eyJ… 或 eyJ…",
         oauthOpenBrowser:"打开授权页", oauthRetry:"重新发起",
-        oauthPhaseWaiting:"等待授权", oauthPhaseAuto:"自动授权中", oauthPhaseFailed:"授权失败",
+        oauthPhaseWaiting:"等待授权", oauthPhaseFailed:"授权失败",
         why1t:"仅你可见", why1d:"你绑定的账号状态、额度与调用记录只对你开放，其他用户看不到列表。",
         why2t:"点亮账号池", why2d:"闲置的 SuperGrok 额度变成共享容量。额度感知路由会自动挑选健康席位。",
         why3t:"冲榜荣誉", why3d:"每次成功绑定都会计入排名。管理员不参与榜单，纯粹的社区排行。",
         contribHow:"如何贡献", step1t:"发起 OAuth", step1d:"走 xAI 设备码流程，我们不保存你的密码。",
-        step2t:"完成授权", step2d:"浏览器：在 accounts.x.ai 授权；Token：后端自动点同意（失败可改手动）。",
+        step2t:"浏览器授权", step2d:"在 accounts.x.ai 输入代码，授权 SuperGrok 访问。",
         step3t:"进入池子", step3d:"列表实时显示状态，成功后席位参与路由。",
         mineTitle:"我的贡献", mineHint:"仅自己可见",
         statMine:"我的席位", statExhausted:"已耗尽", statMyRank:"我的排名",
         noContrib:"还没有贡献。点上方按钮绑定第一个账号。",
         contribOk:"贡献成功", contribRankUnranked:"未上榜",
-        contribAutoStarted:"已启动自动入池，请在列表查看状态",
         withdrawContrib:"撤回",
         withdrawContribConfirm:(n)=>"确定撤回贡献「"+n+"」？将从共享池移除该账号。",
         withdrawContribOk:"已撤回贡献",
@@ -1122,6 +1106,8 @@ ${styles()}
         colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency",
         routing:"Routing", modeAuto:"Auto", modeManual:"Manual",
         accNamePh:"Account note (optional)", addAccount:"Add account",
+        accSyncName:"Sync name",
+        accSyncNameOk:"Name updated from email/username",
         accDonorNone:"No donor", accDonorLabel:"Donor",
         accAllowedLabel:"Extra members", accAllowedHint:"Donor always has access and cannot be removed. Clear extras only.",
         accAllowedClear:"Clear extras", accAllowedNone:"No users",
@@ -1165,24 +1151,20 @@ ${styles()}
         qaContrib:"Share SuperGrok capacity", qaLb:"See top contributors",
         contribKicker:"Community capacity", contribTitle:"Share your SuperGrok seat",
         contribSub:"Link an xAI account you own. Remaining credits join the shared pool — everyone gets more reliable access, and you climb the board.",
-        contribCta:"Contribute an account", contribCtaBrowser:"Browser OAuth", contribCtaAuto:"Auto join with token",
+        contribCta:"Contribute an account",
         contribSeeLb:"View leaderboard",
-        pathBrowserTitle:"Browser OAuth", pathBrowserHint:"Open xAI page and approve",
-        pathAutoTitle:"Session token", pathAutoHint:"Paste session JWT · auto authorize",
-        sessionTokenPh:"email|pass|eyJ… or eyJ…",
         oauthOpenBrowser:"Open authorize URL", oauthRetry:"Retry OAuth",
-        oauthPhaseWaiting:"Waiting for auth", oauthPhaseAuto:"Automating", oauthPhaseFailed:"Failed",
+        oauthPhaseWaiting:"Waiting for auth", oauthPhaseFailed:"Failed",
         why1t:"Private to you", why1d:"Only you can see the accounts you linked — status, credits, and usage. Others never see your list.",
         why2t:"Power the pool", why2d:"Idle SuperGrok credits become shared capacity. Credit-aware routing picks healthy seats automatically.",
         why3t:"Climb the board", why3d:"Every successful link counts toward your rank. Admins are excluded — pure community scoreboard.",
         contribHow:"How it works", step1t:"Start OAuth", step1d:"We open an xAI device-code flow. No password is stored by us.",
-        step2t:"Approve", step2d:"Browser: authorize on accounts.x.ai · Token: backend automates (manual fallback).",
+        step2t:"Approve in browser", step2d:"Enter the code on accounts.x.ai and authorize SuperGrok access.",
         step3t:"Join the pool", step3d:"List shows live status. Seat becomes routable when active.",
         mineTitle:"My contributions", mineHint:"Visible only to you",
         statMine:"My seats", statExhausted:"Exhausted", statMyRank:"My rank",
         noContrib:"No contributions yet. Click above to link your first account.",
         contribOk:"Contribution added", contribRankUnranked:"Unranked",
-        contribAutoStarted:"Auto join started — watch status in the list",
         withdrawContrib:"Withdraw",
         withdrawContribConfirm:(n)=>"Withdraw contribution ["+n+"]? It will be removed from the shared pool.",
         withdrawContribOk:"Contribution withdrawn",
@@ -2036,6 +2018,17 @@ ${styles()}
       });
     }
 
+    function statusLabel(st) {
+      if (lang === "zh") {
+        if (st === "active") return "可用";
+        if (st === "exhausted") return "耗尽";
+        if (st === "expired") return "过期";
+        if (st === "error") return "错误";
+        if (st === "pending") return "待授权";
+      }
+      return st;
+    }
+
     function renderAccounts() {
       const tbody = $("tbody");
       if (!tbody) return;
@@ -2053,9 +2046,11 @@ ${styles()}
         const err = a.lastError ? shortErr(a.lastError) : "";
         const isPriv = accIsPrivate(a);
         const useDisabled = isPriv ? (" disabled title='" + esc(t("usePrivateBlocked")) + "'") : "";
+        const identity = a.email || a.xaiUsername || "";
         return '<div class="dt-row' + (cur ? " current" : "") + (isPriv ? " is-private" : "") + '">' +
           '<div><div class="name">' + esc(a.name) + '</div>' +
           '<div class="mono">' + esc(a.id) + "</div>" +
+          (identity && identity !== a.name ? '<div class="mono" style="font-size:11px">' + esc(identity) + "</div>" : "") +
           ((cur || a.donorUserId)
             ? '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">' +
               (cur ? '<span class="badge current">' + esc(t("current")) + "</span>" : "") +
@@ -2064,7 +2059,7 @@ ${styles()}
             : "") +
           (err ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
           "</div>" +
-          '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
+          '<div title="' + esc(a.status) + '"><span class="badge ' + esc(a.status) + '">' + esc(statusLabel(a.status)) + "</span></div>" +
           '<div title="' + esc(accVisHint(a)) + '"><span class="badge ' + accVisBadgeClass(a) + '">' + esc(accVisLabel(a)) + "</span></div>" +
           '<div><div class="name">' + esc(accDonorLabel(a)) + '</div>' +
           (a.donorUserId ? '<div class="mono" style="font-size:11px">' + esc(a.donorUserId.slice(0, 8)) + "</div>" : "") +
@@ -2077,6 +2072,7 @@ ${styles()}
           '<button class="btn btn-secondary btn-sm" type="button" data-act="use" data-id="' + esc(a.id) + '"' + useDisabled + '>' + esc(t("use")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="edit" data-id="' + esc(a.id) + '">' + esc(t("accEdit")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>" +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="syncname" data-id="' + esc(a.id) + '">' + esc(t("accSyncName")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="reset" data-id="' + esc(a.id) + '">' + esc(t("reset")) + "</button>" +
           '<button class="btn btn-danger btn-sm" type="button" data-act="del" data-id="' + esc(a.id) + '">' + esc(t("del")) + "</button>" +
           "</div></div>";
@@ -2089,6 +2085,7 @@ ${styles()}
           if (act === "use") useAcc(id);
           if (act === "edit") openAccEdit(id);
           if (act === "credits") checkCredits(id);
+          if (act === "syncname") refreshAccProfile(id);
           if (act === "reset") resetAcc(id);
           if (act === "del") delAcc(id);
         });
@@ -2905,7 +2902,7 @@ ${styles()}
     }
 
     function ensureContribListWatch() {
-      const busy = myAccounts.some((a) => a.status === "pending" || (a.oauth && (a.oauth.phase === "automating" || a.oauth.phase === "waiting_user")));
+      const busy = myAccounts.some((a) => a.status === "pending" || (a.oauth && a.oauth.phase === "waiting_user"));
       if (busy && !contribListWatchTimer) {
         contribListWatchTimer = setInterval(() => { loadMyAccounts(); }, 2500);
       } else if (!busy) {
@@ -2915,7 +2912,6 @@ ${styles()}
 
     function oauthPhaseLabel(a) {
       const p = a.oauth && a.oauth.phase;
-      if (p === "automating") return t("oauthPhaseAuto");
       if (p === "failed") return t("oauthPhaseFailed");
       if (p === "waiting_user") return t("oauthPhaseWaiting");
       if (a.status === "pending") return t("oauthPhaseWaiting");
@@ -2938,7 +2934,7 @@ ${styles()}
       const tbody = $("tbodyContrib");
       if (!tbody) return;
       if (!myAccounts.length) {
-        tbody.innerHTML = '<div class="empty-cta"><h3>' + esc(t("noContrib")) + '</h3><p>' + esc(t("mineHint")) + '</p><button class="btn" type="button" id="btnEmptyContrib">' + esc(t("contribCtaBrowser")) + '</button></div>';
+        tbody.innerHTML = '<div class="empty-cta"><h3>' + esc(t("noContrib")) + '</h3><p>' + esc(t("mineHint")) + '</p><button class="btn" type="button" id="btnEmptyContrib">' + esc(t("contribCta")) + '</button></div>';
         if ($("contribPager")) $("contribPager").innerHTML = "";
         const b = $("btnEmptyContrib");
         if (b) b.onclick = () => startContribute();
@@ -3286,26 +3282,21 @@ ${styles()}
     function setContribBusy(busy) {
       if ($("btnContribAdd")) $("btnContribAdd").disabled = busy;
       if ($("btnContribStart")) $("btnContribStart").disabled = busy;
-      if ($("btnContribAuto")) $("btnContribAuto").disabled = busy;
     }
 
     async function startContribute(opts) {
       opts = opts || {};
-      const mode = opts.mode === "auto" ? "auto" : "browser";
       const accountId = opts.accountId || undefined;
-      const sessionToken = opts.sessionToken || (($("contribSessionToken") && $("contribSessionToken").value) || "").trim();
       hideMsg($("msgContrib"));
       stopContribPoll();
       setContribBusy(true);
-      if ($("contribStage") && mode === "browser" && !accountId) $("contribStage").classList.remove("show");
+      if ($("contribStage") && !accountId) $("contribStage").classList.remove("show");
       try {
         const body = {
           name: ($("contribName") && $("contribName").value) || undefined,
           openBrowser: false,
-          mode,
         };
         if (accountId) body.accountId = accountId;
-        if (mode === "auto") body.sessionToken = sessionToken;
         const res = await fetch("/api/me/accounts/oauth", {
           method: "POST", headers: jsonHeaders(),
           body: JSON.stringify(body),
@@ -3313,19 +3304,14 @@ ${styles()}
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
         const url = data.verificationUriComplete || data.verificationUri;
-        if (mode === "browser") {
-          if ($("contribUserCode")) $("contribUserCode").textContent = data.userCode;
-          if ($("contribVerifyLink")) {
-            $("contribVerifyLink").textContent = data.verificationUri;
-            $("contribVerifyLink").href = url;
-          }
-          if ($("contribPollStatus")) $("contribPollStatus").textContent = t("waiting");
-          if ($("contribStage")) $("contribStage").classList.add("show");
-          try { window.open(url, "_blank", "noopener,noreferrer"); } catch {}
-        } else {
-          showMsg($("msgContrib"), t("contribAutoStarted"), "ok");
-          if ($("contribSessionToken")) $("contribSessionToken").value = "";
+        if ($("contribUserCode")) $("contribUserCode").textContent = data.userCode;
+        if ($("contribVerifyLink")) {
+          $("contribVerifyLink").textContent = data.verificationUri;
+          $("contribVerifyLink").href = url;
         }
+        if ($("contribPollStatus")) $("contribPollStatus").textContent = t("waiting");
+        if ($("contribStage")) $("contribStage").classList.add("show");
+        try { window.open(url, "_blank", "noopener,noreferrer"); } catch {}
         await loadMyAccounts();
         const sessionId = data.sessionId;
         contribPollTimer = setInterval(async () => {
@@ -3404,16 +3390,7 @@ ${styles()}
     }
 
     async function retryPendingOAuth(id) {
-      await startContribute({ mode: "browser", accountId: id });
-    }
-
-    async function startContributeAuto() {
-      const token = (($("contribSessionToken") && $("contribSessionToken").value) || "").trim();
-      if (!token) {
-        showMsg($("msgContrib"), t("sessionTokenPh"), "err");
-        return;
-      }
-      await startContribute({ mode: "auto", sessionToken: token });
+      await startContribute({ accountId: id });
     }
 
     async function checkMyCredits(id) {
@@ -3585,6 +3562,21 @@ ${styles()}
       if (!(await confirmDialog(t("confirmDelete") + " · " + id, { danger: true }))) return;
       await fetch("/api/admin/accounts/" + id, { method: "DELETE", headers: headers() });
       await loadAccounts();
+    }
+
+    async function refreshAccProfile(id) {
+      try {
+        const res = await fetch("/api/admin/accounts/" + encodeURIComponent(id) + "/profile", {
+          method: "POST", headers: jsonHeaders(),
+          body: JSON.stringify({ rename: true }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        showMsg($("msg"), t("accSyncNameOk") + (data.account?.name ? ": " + data.account.name : ""), "ok");
+        await loadAccounts();
+      } catch (e) {
+        showMsg($("msg"), e.message || String(e), "err");
+      }
     }
     async function resetAcc(id) {
       await fetch("/api/admin/accounts/" + id + "/reset", { method: "POST", headers: headers() });
@@ -3972,9 +3964,8 @@ ${styles()}
       });
     }
     if ($("accModal")) $("accModal").addEventListener("click", (e) => { if (e.target === $("accModal")) closeAccEdit(); });
-    if ($("btnContribAdd")) $("btnContribAdd").onclick = () => startContribute({ mode: "browser" });
-    if ($("btnContribStart")) $("btnContribStart").onclick = () => startContribute({ mode: "browser" });
-    if ($("btnContribAuto")) $("btnContribAuto").onclick = () => startContributeAuto();
+    if ($("btnContribAdd")) $("btnContribAdd").onclick = () => startContribute();
+    if ($("btnContribStart")) $("btnContribStart").onclick = () => startContribute();
     if ($("btnContribRefresh")) $("btnContribRefresh").onclick = () => { hideMsg($("msgContrib")); loadMyAccounts(); loadMyRouting(); loadLeaderboardLite(); };
     if ($("routeScopeSeg")) $("routeScopeSeg").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-rscope]");

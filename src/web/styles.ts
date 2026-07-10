@@ -69,6 +69,8 @@ export function styles(): string {
     .card-ft{padding:10px 16px;border-top:1px solid var(--hairline);background:#fff}
 
     .panel{border:1px solid var(--hairline);border-radius:var(--radius-lg);background:#fff;box-shadow:var(--shadow);overflow:hidden;width:100%;max-width:100%}
+    /* allow table horizontal scroll inside panel without clipping the scrollbar track oddly */
+    .panel > .dt{border-radius:0 0 var(--radius-lg) var(--radius-lg)}
     .panel-hd{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--hairline);background:var(--canvas-soft)}
     .panel-hd .spacer{flex:1}
     .panel-bd{padding:18px;min-width:0}
@@ -217,11 +219,14 @@ export function styles(): string {
     .dt-body > .dt-row:last-child{border-bottom:0}
     .dt-row.clickable{cursor:pointer}
     .dt-empty{padding:40px 16px;text-align:center;color:var(--mute);font-size:13px}
-    .dt-actions{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:flex-start;overflow:hidden}
+    .dt-actions{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:flex-start;overflow:visible}
     .dt-actions .btn{flex-shrink:0}
     .dt-time{display:flex;flex-direction:column;align-items:flex-start;gap:2px;overflow:hidden;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--mute)}
     .dt-time-main{white-space:nowrap}
-    .dt-accounts{--dt-min:1180px;--dt-cols:minmax(140px,1.3fr) 80px 80px minmax(90px,.9fr) minmax(100px,1fr) minmax(90px,1fr) 48px 110px 300px}
+    /* actions col wide enough for: 使用 编辑 额度 同步名称 恢复 删除 */
+    .dt-accounts{--dt-min:1380px;--dt-cols:minmax(140px,1.2fr) 92px 92px minmax(90px,.85fr) minmax(90px,.9fr) minmax(90px,.9fr) 48px 110px 460px}
+    .dt-accounts .badge{max-width:none;overflow:visible;text-overflow:clip}
+    .dt-accounts .dt-row > div:last-child,.dt-accounts .dt-head > div:last-child{overflow:visible}
     .dt-users{--dt-min:880px;--dt-cols:minmax(140px,1.4fr) 88px 88px minmax(110px,1.1fr) 120px 244px}
     .dt-keys{--dt-min:800px;--dt-cols:minmax(120px,1.2fr) minmax(100px,1fr) 88px 140px 56px 200px}
     .dt-keys.has-owner{--dt-min:920px;--dt-cols:minmax(110px,1.1fr) minmax(90px,.9fr) minmax(90px,.9fr) 88px 130px 52px 200px}
@@ -251,11 +256,6 @@ export function styles(): string {
     .badge.pending{background:var(--link-bg);color:var(--link-deep);border-color:#b6d4ff}
     .badge.exhausted{background:var(--violet-bg);color:var(--violet);border-color:#d8ccf1}
     .badge.expired,.badge.error{background:var(--error-bg);color:var(--error);border-color:#f0b8bb}
-    .contrib-paths{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    @media(max-width:720px){.contrib-paths{grid-template-columns:1fr}}
-    .contrib-path{border:1px solid var(--hairline);border-radius:12px;padding:12px 14px;background:var(--canvas-soft)}
-    .contrib-path-hd{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
-    .contrib-path-hd strong{font-size:13px;color:var(--ink)}
     .oauth-phase{font-size:11px;color:var(--mute);margin-top:2px;line-height:1.3}
     .badge.current{background:var(--link-bg);color:var(--link-deep);border-color:#b6d4ff}
     .mono{font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -493,7 +493,7 @@ export function styles(): string {
       .log-meta{grid-template-columns:1fr}
       /* keep actions on one line so row width stays locked to --dt-min */
       .dt-actions{flex-wrap:nowrap}
-      .dt-accounts{--dt-min:940px;--dt-cols:minmax(140px,1.3fr) 80px 84px minmax(90px,1fr) 48px 110px 280px}
+      .dt-accounts{--dt-min:1200px;--dt-cols:minmax(130px,1.2fr) 88px 88px minmax(90px,1fr) 48px 100px 460px}
       .dt-users{--dt-min:820px;--dt-cols:minmax(130px,1.2fr) 80px 80px minmax(100px,1fr) 110px 240px}
       .dt-keys{--dt-min:760px;--dt-cols:minmax(110px,1.1fr) minmax(100px,1fr) 80px 120px 48px 200px}
       .dt-keys.has-owner{--dt-min:880px;--dt-cols:minmax(100px,1fr) minmax(90px,.9fr) minmax(80px,.8fr) 80px 110px 48px 200px}
