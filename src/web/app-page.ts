@@ -301,9 +301,9 @@ ${styles()}
                   <span class="field-label" data-i18n="usageGran">Bucket</span>
                   <div class="seg" id="granSeg">
                     <button type="button" data-gran="auto" class="on" data-i18n="granAuto">Auto</button>
-                    <button type="button" data-gran="minute" data-i18n="granMinute">Min</button>
-                    <button type="button" data-gran="hour" data-i18n="granHour">Hour</button>
-                    <button type="button" data-gran="day" data-i18n="granDay">Day</button>
+                    <button type="button" data-gran="minute" data-i18n="granMinute">1m</button>
+                    <button type="button" data-gran="hour" data-i18n="granHour">1h</button>
+                    <button type="button" data-gran="day" data-i18n="granDay">1d</button>
                   </div>
                 </div>
               </div>
@@ -939,7 +939,8 @@ ${styles()}
         kpiIn:"输入(未缓存)", kpiOut:"输出 Token", kpiCache:"缓存输入", kpiReason:"推理 Token", kpiImg:"图片 Token",
         chartDay:"Token 趋势", chartTokMix:"Token 构成", chartModel:"模型分布", chartAccount:"按账号", chartKey:"按密钥（总 Token）",
         usageRange:"时间范围", usageGran:"时间粒度",
-        granAuto:"自动", granMinute:"分钟", granHour:"小时", granDay:"天",
+        granAuto:"自动", granMinute:"1m", granHour:"1h", granDay:"1d",
+        granMinuteLong:"分钟", granHourLong:"小时", granDayLong:"天",
         usageRangeHint:(r,g,n)=>"最近 "+r+" · 按"+g+" · "+n+" 个桶",
         chartKeyInOut:"按密钥 · 输入/输出",
         chartReq:"请求数", chartTok:"总 Token", chartIn:"输入(未缓存)", chartOut:"输出", chartCache:"缓存输入", chartReason:"推理",
@@ -1108,7 +1109,8 @@ ${styles()}
         kpiIn:"Input (uncached)", kpiOut:"Output tokens", kpiCache:"Cached input", kpiReason:"Reasoning", kpiImg:"Image tokens",
         chartDay:"Tokens over time", chartTokMix:"Token mix", chartModel:"Model distribution", chartAccount:"By account", chartKey:"By API key (total)",
         usageRange:"Range", usageGran:"Bucket",
-        granAuto:"Auto", granMinute:"Min", granHour:"Hour", granDay:"Day",
+        granAuto:"Auto", granMinute:"1m", granHour:"1h", granDay:"1d",
+        granMinuteLong:"minute", granHourLong:"hour", granDayLong:"day",
         usageRangeHint:(r,g,n)=>"Last "+r+" · by "+g+" · "+n+" buckets",
         chartKeyInOut:"By key · in / out",
         chartReq:"Requests", chartTok:"Total", chartIn:"Input (uncached)", chartOut:"Output", chartCache:"Cached input", chartReason:"Reasoning",
@@ -2799,8 +2801,8 @@ ${styles()}
         });
       }
       if ($("usageRangeHint") && stats) {
-        const granKey = stats.granularity === "minute" ? "granMinute"
-          : stats.granularity === "hour" ? "granHour" : "granDay";
+        const granKey = stats.granularity === "minute" ? "granMinuteLong"
+          : stats.granularity === "hour" ? "granHourLong" : "granDayLong";
         const n = (stats.byDay && stats.byDay.length) || 0;
         $("usageRangeHint").textContent = t("usageRangeHint", usageRange, t(granKey), n);
       }

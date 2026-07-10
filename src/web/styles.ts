@@ -525,7 +525,11 @@ export function styles(): string {
       .top-actions .seg button{padding:0 8px;font-size:12px}
       .top-actions #btnRefresh{display:none}
       .stats{grid-template-columns:1fr 1fr;gap:8px}
-      .usage-kpis,.usage-kpis.compact{grid-template-columns:1fr 1fr}
+      .usage-kpis,.usage-kpis.compact{grid-template-columns:1fr 1fr;gap:8px}
+      .usage-kpis .kpi{padding:12px}
+      .usage-kpis .kpi .n{font-size:18px;letter-spacing:-.5px}
+      .chart-card{min-height:0;padding:12px}
+      .chart-wrap{height:210px}
       .quick-actions,.quick-actions.user-only{grid-template-columns:1fr}
       .panel-hd .input{width:100%;max-width:none!important;flex:1 1 100%}
       .panel-hd .btn{flex:1 1 auto}
@@ -640,14 +644,33 @@ export function styles(): string {
     }
     .usage-hd{align-items:flex-start;flex-wrap:wrap;gap:12px}
     .usage-controls{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;justify-content:flex-end}
-    .usage-ctrl{display:flex;flex-direction:column;gap:4px}
+    .usage-ctrl{display:flex;flex-direction:column;gap:4px;min-width:0}
     .usage-ctrl .field-label{font-size:11px;color:var(--mute);font-weight:500}
-    .usage-ctrl .seg button{padding:0 10px;font-size:12px;height:28px}
-    @media(max-width:720px){
-      .usage-controls{width:100%}
-      .usage-ctrl{flex:1;min-width:140px}
-      .usage-ctrl .seg{width:100%}
-      .usage-ctrl .seg button{flex:1}
+    .usage-ctrl .seg{max-width:100%}
+    .usage-ctrl .seg button{padding:0 10px;font-size:12px;height:28px;white-space:nowrap;flex:0 0 auto}
+    @media(max-width:960px){
+      .usage-hd{flex-direction:column;align-items:stretch}
+      .usage-hd .spacer{display:none}
+      .usage-controls{
+        width:100%;flex-direction:column;align-items:stretch;gap:10px;
+        justify-content:flex-start;
+      }
+      .usage-ctrl{width:100%}
+      .usage-ctrl .seg{
+        display:flex;width:100%;max-width:100%;
+        overflow-x:auto;-webkit-overflow-scrolling:touch;
+        scrollbar-width:none;
+      }
+      .usage-ctrl .seg::-webkit-scrollbar{display:none}
+      .usage-ctrl .seg button{
+        flex:1 0 auto;min-width:0;padding:0 8px;font-size:12px;height:32px;
+      }
+    }
+    @media(max-width:420px){
+      .usage-ctrl .seg button{padding:0 6px;font-size:11px}
+      .usage-kpis .kpi .n{font-size:18px;line-height:1.2}
+      .usage-kpis .kpi{padding:12px 10px}
+      .chart-wrap{height:220px;min-height:220px}
     }
     .member-list{display:grid;gap:8px;max-height:min(360px,50vh);overflow:auto;margin:4px 0 8px}
     .member-row{

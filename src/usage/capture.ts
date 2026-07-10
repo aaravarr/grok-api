@@ -207,10 +207,7 @@ export function extractBodyError(payload: unknown): string | undefined {
     return o.message.trim().slice(0, 500);
   }
 
-  // chat.completion with empty choices + content filter
-  if (Array.isArray(o.choices) && o.choices.length === 0 && o.object) {
-    return "empty choices";
-  }
+  // content_filter is a real failure; empty choices alone is not
   if (Array.isArray(o.choices)) {
     for (const ch of o.choices) {
       if (!ch || typeof ch !== "object") continue;
