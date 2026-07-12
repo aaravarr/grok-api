@@ -13,7 +13,7 @@ import {
 export type UserRole = "admin" | "user";
 
 /** Per-user outbound routing preference for /v1 proxy */
-export type RouteScope = "public" | "mine" | "account";
+export type RouteScope = "auto" | "public" | "mine" | "account";
 
 export interface User {
   id: string;
@@ -26,8 +26,9 @@ export interface User {
   /** Accumulated totalTokens consumed */
   tokenUsed: number;
   /**
-   * public = shared pool (admin + non-private contrib)
-   * mine = only accounts donated by this user
+   * auto = any seat this user may use (public + allowlisted + own donations)
+   * public = shared pool only (+ seats where user is allowlisted)
+   * mine = only accounts donated by this user (or allowlisted for them)
    * account = pin to routeAccountId
    */
   routeScope: RouteScope;
@@ -65,8 +66,8 @@ function emptyStore(): UsersStore {
 }
 
 function normalizeRouteScope(v: unknown): RouteScope {
-  if (v === "mine" || v === "account" || v === "public") return v;
-  return "public";
+  if (v === "auto" || v === "mine" || v === "account" || v === "public") return v;
+  return "auto";
 }
 
 function normalizeUser(raw: Partial<User> & Pick<User, "id" | "username" | "passwordHash" | "role">): User {
@@ -144,7 +145,7 @@ export function publicUser(u: User) {
     tokenQuota,
     tokenUsed,
     tokenRemaining: tokenQuota == null ? null : Math.max(0, tokenQuota - tokenUsed),
-    routeScope: u.routeScope ?? "public",
+    routeScope: u.routeScope ?? "auto",
     routeAccountId: u.routeAccountId ?? null,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
@@ -211,7 +212,7 @@ export async function setupAdmin(input: {
       enabled: true,
       tokenQuota: null,
       tokenUsed: 0,
-      routeScope: "public",
+      routeScope: "auto",
       routeAccountId: null,
       createdAt: t,
       updatedAt: t,
@@ -251,7 +252,7 @@ export async function registerUser(input: {
       enabled: true,
       tokenQuota: null,
       tokenUsed: 0,
-      routeScope: "public",
+      routeScope: "auto",
       routeAccountId: null,
       createdAt: t,
       updatedAt: t,

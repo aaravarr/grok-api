@@ -28,7 +28,7 @@ const EXHAUSTED_THRESHOLD = 0.5; // remaining percent
 
 /**
  * Route to one account.
- * - Respects caller routeScope (public / mine / account) and private flags.
+ * - Respects caller routeScope (auto / public / mine / account) and private flags.
  * - Only checks credits for the candidate currently being considered.
  * - Global admin auto/manual still applies within the eligible pool.
  */
@@ -43,12 +43,12 @@ export async function routeAccount(opts?: {
   const callerUserId = opts?.callerUserId ?? null;
   const routing = await getRouting();
 
-  let scope: RouteScope = "public";
+  let scope: RouteScope = "auto";
   let pinnedId: string | null = null;
   if (callerUserId) {
     const user = await getUser(callerUserId);
     if (user) {
-      scope = user.routeScope ?? "public";
+      scope = user.routeScope ?? "auto";
       pinnedId = user.routeAccountId ?? null;
     }
   }
@@ -56,7 +56,7 @@ export async function routeAccount(opts?: {
   const all = await listAccounts();
   const eligible = filterAccountsForCaller(all, {
     callerUserId,
-    scope: opts?.preferredId ? "public" : scope,
+    scope,
     accountId: opts?.preferredId ? null : pinnedId,
   });
   // preferred header: still must pass private/ownership/allowlist checks
@@ -68,7 +68,7 @@ export async function routeAccount(opts?: {
     }
     // public pool: only shared seats, or seats where caller is allowlisted
     if (scope === "public" && !isPublicPoolAccount(pref) && !isUserAllowedOnAccount(pref, callerUserId)) {
-      throw new Error("公共号池不能使用私有/限定账号，请改用「仅自己号池」或「指定账号」");
+      throw new Error("公共号池不能使用私有/限定账号，请改用「自动」或「仅自己号池」或「指定账号」");
     }
     // mine: own donations or seats allowlisted for caller
     if (scope === "mine") {
@@ -79,6 +79,7 @@ export async function routeAccount(opts?: {
         throw new Error("当前路由模式为「仅自己号池」，不能指定其他账号");
       }
     }
+    // auto: any seat the caller may use (already checked via canUserUseAccount)
     return useAccount(opts.preferredId, checkCredits);
   }
 

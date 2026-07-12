@@ -513,7 +513,8 @@ ${styles()}
                 <div class="route-field">
                   <label class="field-label" data-i18n="routeScopeLabel">Route mode</label>
                   <div class="seg" id="routeScopeSeg">
-                    <button type="button" data-rscope="public" class="on" data-i18n="routePublic">Public pool</button>
+                    <button type="button" data-rscope="auto" class="on" data-i18n="routeAuto">Auto</button>
+                    <button type="button" data-rscope="public" data-i18n="routePublic">Public pool</button>
                     <button type="button" data-rscope="mine" data-i18n="routeMine">My seats only</button>
                     <button type="button" data-rscope="account" data-i18n="routeAccount">Pin account</button>
                   </div>
@@ -523,7 +524,7 @@ ${styles()}
                   <select id="routeAccountSel" class="select" style="width:100%;min-width:0"></select>
                 </div>
               </div>
-              <div class="route-hint" id="routeScopeHint" data-i18n="routePublicHint">Use admin + public contributed seats (others' private seats excluded).</div>
+              <div class="route-hint" id="routeScopeHint" data-i18n="routeAutoHint">Use every seat you can access: public, allowlisted, and your own donations.</div>
             </div>
           </div>
 
@@ -1085,7 +1086,8 @@ ${styles()}
         withdrawContribOk:"已撤回贡献",
         routeTitle:"API 路由", routeHint:"对你的 API 密钥生效", saveRoute:"保存路由",
         routeScopeLabel:"路由模式", routeAccountLabel:"指定席位",
-        routePublic:"公共号池", routeMine:"仅自己号池", routeAccount:"指定账号",
+        routeAuto:"自动", routePublic:"公共号池", routeMine:"仅自己号池", routeAccount:"指定账号",
+        routeAutoHint:"使用你有权访问的全部席位：公共池 + 指定给你的 + 自己贡献的。",
         routePublicHint:"仅使用公开席位（管理员账号 + 公开贡献）。私有号不会进入公共轮询。",
         routeMineHint:"只使用你贡献的账号。没有可用席位时请求会失败。",
         routeAccountHint:"固定走下方选中的账号（须有权使用）。",
@@ -1267,7 +1269,8 @@ ${styles()}
         withdrawContribOk:"Contribution withdrawn",
         routeTitle:"API routing", routeHint:"Applies to your API keys", saveRoute:"Save routing",
         routeScopeLabel:"Route mode", routeAccountLabel:"Pinned seat",
-        routePublic:"Public pool", routeMine:"My seats only", routeAccount:"Pin account",
+        routeAuto:"Auto", routePublic:"Public pool", routeMine:"My seats only", routeAccount:"Pin account",
+        routeAutoHint:"Use every seat you can access: public, allowlisted, and your own donations.",
         routePublicHint:"Public seats only (admin + public contributions). Private seats never join public RR.",
         routeMineHint:"Only accounts you contributed. Requests fail if none are available.",
         routeAccountHint:"Always use the selected account (must be allowed for you).",
@@ -3728,7 +3731,7 @@ ${styles()}
       } catch (e) { showMsg($("msgContrib"), e.message || String(e), "err"); }
     }
 
-    let routeScope = "public";
+    let routeScope = "auto";
 
     function paintRouteScopeUI() {
       if (!$("routeScopeSeg")) return;
@@ -3737,7 +3740,8 @@ ${styles()}
       if ($("routeScopeHint")) {
         $("routeScopeHint").textContent =
           routeScope === "mine" ? t("routeMineHint") :
-          routeScope === "account" ? t("routeAccountHint") : t("routePublicHint");
+          routeScope === "account" ? t("routeAccountHint") :
+          routeScope === "public" ? t("routePublicHint") : t("routeAutoHint");
       }
     }
 
@@ -3757,7 +3761,7 @@ ${styles()}
         const res = await fetch("/api/me/routing", { headers: headers() });
         if (!res.ok) return;
         const data = await res.json();
-        routeScope = data.routeScope || "public";
+        routeScope = data.routeScope || "auto";
         if (currentUser) {
           currentUser.routeScope = routeScope;
           currentUser.routeAccountId = data.routeAccountId || null;
@@ -4281,7 +4285,7 @@ ${styles()}
     if ($("routeScopeSeg")) $("routeScopeSeg").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-rscope]");
       if (!b) return;
-      routeScope = b.dataset.rscope || "public";
+      routeScope = b.dataset.rscope || "auto";
       paintRouteScopeUI();
     });
     if ($("btnSaveRoute")) $("btnSaveRoute").onclick = () => saveMyRouting();

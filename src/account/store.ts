@@ -506,7 +506,8 @@ export function isPublicPoolAccount(acc: Account): boolean {
 
 /**
  * Accounts eligible for a caller's route scope.
- * - public: shared seats + allowlisted seats + own donations
+ * - auto: any seat the caller may use (public + allowlisted + own donations)
+ * - public: shared seats + seats where caller is allowlisted
  * - mine: donated by caller, or caller is on allowedUserIds
  * - account: single id if allowed
  */
@@ -514,11 +515,11 @@ export function filterAccountsForCaller(
   accounts: Account[],
   opts: {
     callerUserId?: string | null;
-    scope?: "public" | "mine" | "account";
+    scope?: "auto" | "public" | "mine" | "account";
     accountId?: string | null;
   },
 ): Account[] {
-  const scope = opts.scope ?? "public";
+  const scope = opts.scope ?? "auto";
   const uid = opts.callerUserId ?? null;
 
   if (scope === "account" && opts.accountId) {
@@ -535,8 +536,13 @@ export function filterAccountsForCaller(
     );
   }
 
+  if (scope === "auto") {
+    // everything the caller is allowed to route through
+    return accounts.filter((a) => canUserUseAccount(a, uid));
+  }
+
   // public shared seats + seats where caller is an extra allowlisted member
-  // (donor private/allowlist seats stay under mine/account scope)
+  // (donor private seats stay under mine/account/auto scope)
   return accounts.filter(
     (a) => isPublicPoolAccount(a) || isUserAllowedOnAccount(a, uid),
   );

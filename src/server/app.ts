@@ -274,7 +274,7 @@ export function createApp() {
   app.get("/api/me/routing", async (c) => {
     const user = c.get("user")!;
     return c.json({
-      routeScope: user.routeScope ?? "public",
+      routeScope: user.routeScope ?? "auto",
       routeAccountId: user.routeAccountId ?? null,
     });
   });
@@ -286,8 +286,14 @@ export function createApp() {
       routeAccountId?: string | null;
     };
     const scope = body.routeScope;
-    if (scope !== undefined && scope !== "public" && scope !== "mine" && scope !== "account") {
-      return c.json({ error: "routeScope 须为 public | mine | account" }, 400);
+    if (
+      scope !== undefined &&
+      scope !== "auto" &&
+      scope !== "public" &&
+      scope !== "mine" &&
+      scope !== "account"
+    ) {
+      return c.json({ error: "routeScope 须为 auto | public | mine | account" }, 400);
     }
     let routeAccountId =
       body.routeAccountId !== undefined
@@ -295,7 +301,7 @@ export function createApp() {
           ? String(body.routeAccountId)
           : null
         : undefined;
-    const nextScope = scope ?? user.routeScope ?? "public";
+    const nextScope = scope ?? user.routeScope ?? "auto";
     if (nextScope === "account") {
       const pin = routeAccountId !== undefined ? routeAccountId : user.routeAccountId;
       if (!pin) return c.json({ error: "指定账号模式需要 routeAccountId" }, 400);
@@ -1331,7 +1337,7 @@ async function requireAdmin(c: Context<{ Variables: Variables }>, next: Next) {
       enabled: true,
       tokenQuota: null,
       tokenUsed: 0,
-      routeScope: "public",
+      routeScope: "auto",
       routeAccountId: null,
       createdAt: 0,
       updatedAt: 0,
