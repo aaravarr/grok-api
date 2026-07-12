@@ -1670,11 +1670,22 @@ ${styles()}
       return 5;
     }
 
+    /** public → restricted (allowlist) → private (donor-only) */
+    function accountVisRank(a) {
+      const k = accVisKey(a);
+      if (k === "public") return 0;
+      if (k === "restricted") return 1;
+      return 2;
+    }
+
     function sortAccounts(list) {
       return [...list].sort((a, b) => {
         const ra = accountStatusRank(a.status);
         const rb = accountStatusRank(b.status);
         if (ra !== rb) return ra - rb;
+        const va = accountVisRank(a);
+        const vb = accountVisRank(b);
+        if (va !== vb) return va - vb;
         const ta = a.createdAt || a.updatedAt || 0;
         const tb = b.createdAt || b.updatedAt || 0;
         return tb - ta;
