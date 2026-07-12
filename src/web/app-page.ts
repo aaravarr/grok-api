@@ -1647,10 +1647,38 @@ ${styles()}
       if ($("curlSeg")) $("curlSeg").querySelectorAll("button").forEach((btn) => btn.classList.toggle("on", btn.dataset.ep === curlEp));
     }
 
+    function currentAccountLabel() {
+      const id = routing.currentAccountId;
+      if (!id) return "–";
+      const a = allAccounts.find((x) => x.id === id);
+      if (!a) return id;
+      return a.email || a.name || a.xaiUsername || id;
+    }
+
     function paintMode() {
       if (!$("modeSeg")) return;
       $("modeSeg").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.mode === routing.mode));
-      if ($("currentLabel")) $("currentLabel").textContent = "Current: " + (routing.currentAccountId || "–") + " · " + routing.mode;
+      if ($("currentLabel")) $("currentLabel").textContent = "Current: " + currentAccountLabel() + " · " + routing.mode;
+    }
+
+    function accountStatusRank(st) {
+      if (st === "active") return 0;
+      if (st === "pending") return 1;
+      if (st === "exhausted") return 2;
+      if (st === "error") return 3;
+      if (st === "expired") return 4;
+      return 5;
+    }
+
+    function sortAccounts(list) {
+      return [...list].sort((a, b) => {
+        const ra = accountStatusRank(a.status);
+        const rb = accountStatusRank(b.status);
+        if (ra !== rb) return ra - rb;
+        const ta = a.createdAt || a.updatedAt || 0;
+        const tb = b.createdAt || b.updatedAt || 0;
+        return tb - ta;
+      });
     }
 
     function shortErr(s) {
@@ -2115,13 +2143,15 @@ ${styles()}
       const q = (($("accFilterQ") && $("accFilterQ").value) || "").trim().toLowerCase();
       const st = ($("accFilterSt") && $("accFilterSt").value) || "";
       const vis = ($("accFilterVis") && $("accFilterVis").value) || "";
-      return allAccounts.filter((a) => {
+      const filtered = allAccounts.filter((a) => {
         if (st && a.status !== st) return false;
         if (vis && accVisKey(a) !== vis) return false;
         if (!q) return true;
-        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.donorUserId, q) ||
-          matchQ(a.donorUsername, q) || matchQ(accAllowedLabel(a), q) || matchQ(a.lastError, q);
+        return matchQ(a.name, q) || matchQ(a.id, q) || matchQ(a.email, q) || matchQ(a.xaiUsername, q) ||
+          matchQ(a.donorUserId, q) || matchQ(a.donorUsername, q) || matchQ(accAllowedLabel(a), q) ||
+          matchQ(a.lastError, q);
       });
+      return sortAccounts(filtered);
     }
 
     function statusLabel(st) {
@@ -2869,11 +2899,11 @@ ${styles()}
       if (!res.ok) { showMsg($("msg"), "HTTP " + res.status, "err"); return; }
       const data = await res.json();
       routing = data.routing || routing;
+      allAccounts = data.accounts || [];
+      accountUsers = data.users || accountUsers;
       paintMode();
       if ($("sTotal")) $("sTotal").textContent = data.stats.total;
       if ($("sActive")) $("sActive").textContent = data.stats.active;
-      allAccounts = data.accounts || [];
-      accountUsers = data.users || accountUsers;
       fillUserSelect($("accDonor"));
       const maxPage = Math.max(1, Math.ceil(allAccounts.length / PAGE_SIZE));
       if (accPage > maxPage) accPage = maxPage;
