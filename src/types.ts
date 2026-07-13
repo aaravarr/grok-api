@@ -42,6 +42,8 @@ export interface Account {
   createdAt: number;
   updatedAt: number;
   lastUsedAt?: number;
+  /** Last successful proactive/on-demand token refresh time */
+  lastRefreshedAt?: number;
   useCount: number;
   lastError?: string;
   note?: string;

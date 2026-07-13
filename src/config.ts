@@ -16,6 +16,12 @@ export const config = {
     deviceAuthorizationUrl: "https://auth.x.ai/oauth2/device/code",
     scope: "openid profile email offline_access grok-cli:access api:access",
     refreshSkewMs: 120_000,
+    /** Proactive refresh if idle for this long (lastUsedAt/createdAt). */
+    proactiveIdleMs: 2 * 24 * 60 * 60 * 1000,
+    /** Stop proactive refresh once seat is older than this since createdAt. */
+    proactiveMaxAgeMs: 7 * 24 * 60 * 60 * 1000,
+    /** How often to scan for idle seats needing proactive refresh. */
+    proactiveCheckMs: 13 * 60 * 1000,
   },
   xai: {
     baseUrl: process.env.XAI_BASE_URL ?? "https://api.x.ai/v1",

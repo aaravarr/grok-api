@@ -497,7 +497,15 @@ export function createApp() {
         };
       }),
       stats: {
+        // list length (includes pending/error placeholders)
         total: accounts.length,
+        // completed contributions only (affects "my seats" / rank-related UI)
+        contributed: accounts.filter(
+          (a) =>
+            a.status !== "pending" &&
+            a.status !== "error" &&
+            Boolean(a.tokens?.refresh),
+        ).length,
         active: accounts.filter((a) => a.status === "active").length,
         pending: accounts.filter((a) => a.status === "pending").length,
         exhausted: accounts.filter((a) => a.status === "exhausted").length,

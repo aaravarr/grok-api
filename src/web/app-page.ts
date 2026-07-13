@@ -1104,6 +1104,8 @@ ${styles()}
         membersClearForPrivate:"将清空所有额外可用成员，并设为仅自己可用。确定？",
         membersNeedExtras:"指定成员需要至少一名额外用户。请先让管理员添加成员，或从公开/私有模式由管理员配置名单。",
         usePrivateBlocked:"仅贡献者/指定成员账号不能设为公共池当前账号",
+        usePendingBlocked:"账号尚未完成 OAuth 授权，不能使用",
+        useNotActiveBlocked:"账号未处于可用状态，不能设为当前账号",
         visHintPublic:"进入公共轮询池",
         visHintPrivate:"仅贡献者本人可用",
         visHintRestricted:"仅名单内成员可用（含贡献者）",
@@ -1287,6 +1289,8 @@ ${styles()}
         membersClearForPrivate:"Clear all extra members and set donor-only?",
         membersNeedExtras:"Named-member mode needs at least one extra user. Ask an admin to add members first.",
         usePrivateBlocked:"Donor-only / named-member seats cannot be the public-pool current seat",
+        usePendingBlocked:"OAuth not finished — cannot use this seat",
+        useNotActiveBlocked:"Seat is not active — cannot set as current",
         visHintPublic:"Joins public round-robin",
         visHintPrivate:"Only the donor can use it",
         visHintRestricted:"Only listed members (incl. donor)",
@@ -2195,7 +2199,12 @@ ${styles()}
         const cur = a.isCurrent;
         const err = a.lastError ? shortErr(a.lastError) : "";
         const isPriv = accIsPrivate(a);
-        const useDisabled = isPriv ? (" disabled title='" + esc(t("usePrivateBlocked")) + "'") : "";
+        const pending = a.status === "pending" || !a.hasRefresh;
+        let useTitle = "";
+        if (pending) useTitle = t("usePendingBlocked");
+        else if (a.status !== "active") useTitle = t("useNotActiveBlocked");
+        else if (isPriv) useTitle = t("usePrivateBlocked");
+        const useDisabled = useTitle ? (" disabled title='" + esc(useTitle) + "'") : "";
         const identity = a.email || a.xaiUsername || "";
         return '<div class="dt-row' + (cur ? " current" : "") + (isPriv ? " is-private" : "") + '">' +
           '<div><div class="name">' + esc(a.name) + '</div>' +
@@ -3461,11 +3470,14 @@ ${styles()}
         const data = await res.json();
         myAccounts = data.accounts || [];
         const st = data.stats || {};
-        if ($("cTotal")) $("cTotal").textContent = st.total ?? myAccounts.length;
+        const contributed =
+          st.contributed ??
+          myAccounts.filter((a) => a.status !== "pending" && a.status !== "error" && a.hasRefresh).length;
+        if ($("cTotal")) $("cTotal").textContent = contributed;
         if ($("cActive")) $("cActive").textContent = st.active ?? 0;
         if ($("cExhausted")) $("cExhausted").textContent = st.exhausted ?? 0;
-        if ($("contribMineCount")) $("contribMineCount").textContent = t("lbSeats", st.total ?? myAccounts.length);
-        if ($("ovMine")) $("ovMine").textContent = String(st.total ?? myAccounts.length);
+        if ($("contribMineCount")) $("contribMineCount").textContent = t("lbSeats", contributed);
+        if ($("ovMine")) $("ovMine").textContent = String(contributed);
         const maxPage = Math.max(1, Math.ceil(myAccounts.length / PAGE_SIZE));
         if (contribPage > maxPage) contribPage = maxPage;
         renderMyAccounts();
@@ -3854,6 +3866,12 @@ ${styles()}
     async function useAcc(id) {
       try {
         const acc = allAccounts.find((a) => a.id === id);
+        if (acc && (acc.status === "pending" || !acc.hasRefresh)) {
+          throw new Error(t("usePendingBlocked"));
+        }
+        if (acc && acc.status !== "active") {
+          throw new Error(t("useNotActiveBlocked"));
+        }
         if (acc && accIsPrivate(acc)) throw new Error(t("usePrivateBlocked"));
         const res = await fetch("/api/admin/routing/current", { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ accountId: id }) });
         const data = await res.json();

@@ -378,6 +378,7 @@ export async function activatePendingAccount(
         id,
       );
     }
+    const t = now();
     const next: Account = {
       ...cur,
       name,
@@ -391,7 +392,8 @@ export async function activatePendingAccount(
       xaiUsername: xaiUsername || null,
       oauth: null,
       lastError: undefined,
-      updatedAt: now(),
+      lastRefreshedAt: t,
+      updatedAt: t,
     };
     store.accounts[idx] = next;
     if (!store.routing.currentAccountId && isPublicPoolAccount(next)) {
@@ -411,6 +413,7 @@ export async function updateAccount(
       | "note"
       | "lastError"
       | "lastUsedAt"
+      | "lastRefreshedAt"
       | "useCount"
       | "email"
       | "xaiUsername"
@@ -490,7 +493,10 @@ export function canUserUseAccount(
   acc: Account,
   callerUserId: string | null | undefined,
 ): boolean {
-  if (acc.status === "pending" || !acc.tokens?.refresh) return false;
+  // incomplete OAuth / invalid seats never route
+  if (acc.status === "pending" || acc.status === "error" || !acc.tokens?.refresh) {
+    return false;
+  }
   if (isAccountDonor(acc, callerUserId)) return true;
   if (hasAllowedUsers(acc)) {
     return isUserAllowedOnAccount(acc, callerUserId);
@@ -499,9 +505,14 @@ export function canUserUseAccount(
   return true;
 }
 
-/** Shared/public pool only — never private or allowlist-restricted seats. */
+/**
+ * Shared/public pool only — never private/allowlist, and never incomplete OAuth.
+ * Visibility label "公开池" for unfinished seats should not imply routable pool membership.
+ */
 export function isPublicPoolAccount(acc: Account): boolean {
-  return acc.private !== true && !hasAllowedUsers(acc);
+  if (acc.private === true || hasAllowedUsers(acc)) return false;
+  if (acc.status === "pending" || !acc.tokens?.refresh) return false;
+  return true;
 }
 
 /**
@@ -532,7 +543,9 @@ export function filterAccountsForCaller(
   if (scope === "mine") {
     if (!uid) return [];
     return accounts.filter(
-      (a) => a.donorUserId === uid || isUserAllowedOnAccount(a, uid),
+      (a) =>
+        canUserUseAccount(a, uid) &&
+        (a.donorUserId === uid || isUserAllowedOnAccount(a, uid)),
     );
   }
 
@@ -544,7 +557,9 @@ export function filterAccountsForCaller(
   // public shared seats + seats where caller is an extra allowlisted member
   // (donor private seats stay under mine/account/auto scope)
   return accounts.filter(
-    (a) => isPublicPoolAccount(a) || isUserAllowedOnAccount(a, uid),
+    (a) =>
+      canUserUseAccount(a, uid) &&
+      (isPublicPoolAccount(a) || isUserAllowedOnAccount(a, uid)),
   );
 }
 
@@ -629,6 +644,14 @@ export async function setCurrentAccount(id: string | null): Promise<RoutingState
     if (id) {
       const acc = store.accounts.find((a) => a.id === id);
       if (!acc) throw new Error(`account not found: ${id}`);
+      if (acc.status === "pending" || !acc.tokens?.refresh) {
+        throw new Error("账号尚未完成 OAuth 授权，不能设为当前账号");
+      }
+      if (acc.status !== "active") {
+        throw new Error(
+          `账号状态为 ${acc.status}，不能设为公共池当前账号（需可用）`,
+        );
+      }
       // Global admin routing is the public pool — restricted seats cannot be selected
       if (!isPublicPoolAccount(acc)) {
         throw new Error("不能将私有/限定账号设为公共池当前账号，请改用公开账号");
@@ -954,8 +977,14 @@ export async function buildLeaderboard(
   for (const a of accounts) {
     const uid = a.donorUserId;
     if (!uid || adminUserIds.has(uid)) continue;
-    // pending / incomplete OAuth seats do not count on leaderboard
-    if (a.status === "pending" || !a.tokens?.refresh) continue;
+    // unfinished OAuth / SuperGrok-reject / no refresh → never rank
+    if (
+      a.status === "pending" ||
+      a.status === "error" ||
+      !a.tokens?.refresh
+    ) {
+      continue;
+    }
     totalDonated += 1;
     const isPriv = a.private === true || hasAllowedUsers(a);
     if (isPriv) totalPrivate += 1;

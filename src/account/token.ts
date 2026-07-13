@@ -32,6 +32,7 @@ export async function getValidAccessToken(accountId: string): Promise<string> {
       const tokens = await refreshTokens(account.tokens.refresh);
       await updateAccount(accountId, {
         tokens,
+        lastRefreshedAt: now(),
         status: account.status === "error" ? "active" : account.status,
         lastError: undefined,
       });

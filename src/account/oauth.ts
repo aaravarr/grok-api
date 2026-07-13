@@ -213,15 +213,56 @@ function startPolling(sessionId: string): void {
         }
 
         const profile = await fetchXaiUserinfo(tokens.access_token);
-        const account = await activatePendingAccount(
-          accountId,
-          {
-            access: tokens.access_token,
-            refresh: tokens.refresh_token ?? "",
-            expires: now() + (tokens.expires_in ?? 3600) * 1000,
-          },
-          { ...profile, rename: true },
-        );
+        const tokenPayload = {
+          access: tokens.access_token,
+          refresh: tokens.refresh_token ?? "",
+          expires: now() + (tokens.expires_in ?? 3600) * 1000,
+        };
+
+        // SuperGrok gate BEFORE activate — unfinished / non-SuperGrok never join public pool
+        try {
+          const { checkSuperGrokWithAccessToken } = await import("./billing.js");
+          const { setCredits, markStatus, updateAccount } = await import("./store.js");
+          const check = await checkSuperGrokWithAccessToken(tokens.access_token);
+          if (!check.ok) {
+            const reason = check.reason || "非 SuperGrok 账号";
+            await updateAccount(accountId, {
+              tokens: tokenPayload,
+              email: profile.email ?? null,
+              xaiUsername: profile.xaiUsername ?? null,
+              credits: check.credits,
+              status: "error",
+              lastError: reason,
+              oauth: null,
+            });
+            current.status = "error";
+            current.error = reason;
+            current.accountId = accountId;
+            return;
+          }
+          await setCredits(accountId, check.credits);
+        } catch (e) {
+          const msg =
+            "SuperGrok 校验失败: " + (e instanceof Error ? e.message : String(e));
+          const { updateAccount } = await import("./store.js");
+          await updateAccount(accountId, {
+            tokens: tokenPayload,
+            email: profile.email ?? null,
+            xaiUsername: profile.xaiUsername ?? null,
+            status: "error",
+            lastError: msg,
+            oauth: null,
+          });
+          current.status = "error";
+          current.error = msg;
+          current.accountId = accountId;
+          return;
+        }
+
+        const account = await activatePendingAccount(accountId, tokenPayload, {
+          ...profile,
+          rename: true,
+        });
         if (!account) {
           throw new Error("pending account missing");
         }

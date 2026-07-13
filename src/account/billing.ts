@@ -16,6 +16,38 @@ export interface BillingConfig {
   billingPeriodStart?: string;
   billingPeriodEnd?: string;
   isUnifiedBillingUser?: boolean;
+  subscriptionTier?: string;
+  plan?: string;
+  planName?: string;
+  tier?: string;
+  product?: string;
+}
+
+export type SuperGrokCheck = {
+  ok: boolean;
+  reason?: string;
+  credits: CreditSnapshot;
+};
+
+function pickTier(cfg: BillingConfig, body: unknown): string | undefined {
+  const direct =
+    cfg.subscriptionTier ||
+    cfg.plan ||
+    cfg.planName ||
+    cfg.tier ||
+    cfg.product ||
+    cfg.currentPeriod?.type;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  const products = cfg.productUsage?.map((p) => p.product).filter(Boolean);
+  if (products?.length) return products.join(",");
+  if (body && typeof body === "object") {
+    const o = body as Record<string, unknown>;
+    for (const k of ["subscriptionTier", "plan", "planName", "tier", "product"]) {
+      const v = o[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+  }
+  return undefined;
 }
 
 function parseCredits(body: { config?: BillingConfig }, checkedAt: number): CreditSnapshot {
@@ -32,9 +64,82 @@ function parseCredits(body: { config?: BillingConfig }, checkedAt: number): Cred
     prepaidBalance: cfg.prepaidBalance?.val,
     onDemandCap: cfg.onDemandCap?.val,
     onDemandUsed: cfg.onDemandUsed?.val,
+    subscriptionTier: pickTier(cfg, body),
     checkedAt,
     raw: body,
   };
+}
+
+/**
+ * SuperGrok entitlement heuristic from billing payload.
+ * Prefer explicit tier/product names; fall back to usable credit period signals.
+ */
+export function isSuperGrokCredits(credits: CreditSnapshot): { ok: boolean; reason?: string } {
+  const tier = (credits.subscriptionTier || credits.periodType || "").toLowerCase();
+  const blob = JSON.stringify(credits.raw ?? {}).toLowerCase();
+  const products = (credits.productUsage || [])
+    .map((p) => String(p.product || "").toLowerCase())
+    .join(" ");
+
+  const hay = `${tier} ${products} ${blob}`;
+  if (
+    /supergrok|super_grok|super-grok|super grok|grok\s*pro|pro\s*plan|premium/.test(hay)
+  ) {
+    return { ok: true };
+  }
+
+  // Free / non-entitled markers
+  if (/\bfree\b|free_plan|no[_-]?subscription|unsubscribed|not[_-]?subscribed/.test(hay)) {
+    return { ok: false, reason: "非 SuperGrok 订阅（free）" };
+  }
+
+  // Usable SuperGrok-style credits: period + product usage or prepaid / remaining
+  if (
+    credits.productUsage?.length ||
+    (typeof credits.prepaidBalance === "number" && credits.prepaidBalance > 0) ||
+    (typeof credits.creditUsagePercent === "number" &&
+      Number.isFinite(credits.creditUsagePercent) &&
+      (credits.periodType || credits.periodStart || credits.periodEnd))
+  ) {
+    return { ok: true };
+  }
+
+  // Bare 0% usage with no period/products is weak — treat as not SuperGrok
+  if (
+    credits.creditUsagePercent === 0 &&
+    !credits.periodType &&
+    !credits.productUsage?.length &&
+    !(typeof credits.prepaidBalance === "number" && credits.prepaidBalance > 0)
+  ) {
+    return { ok: false, reason: "未检测到 SuperGrok 额度/订阅" };
+  }
+
+  // Default: billing succeeded with a usage meter → accept
+  if (Number.isFinite(credits.creditUsagePercent)) {
+    return { ok: true };
+  }
+  return { ok: false, reason: "无法确认 SuperGrok 资格" };
+}
+
+async function fetchBillingJson(accessToken: string): Promise<{ config?: BillingConfig }> {
+  const billingUrl = await getBillingUrl();
+  const res = await outboundFetch(billingUrl, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "User-Agent": "grok-api/1.0",
+    },
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`billing HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
+  try {
+    return JSON.parse(text) as { config?: BillingConfig };
+  } catch {
+    throw new Error("billing response is not JSON");
+  }
 }
 
 /** Fetch credits for a single account. Never batch-check all accounts. */
@@ -54,26 +159,21 @@ export async function fetchAccountCredits(
   }
 
   const access = await getValidAccessToken(accountId);
-  const billingUrl = await getBillingUrl();
-  const res = await outboundFetch(billingUrl, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${access}`,
-      Accept: "application/json",
-      "User-Agent": "grok-api/1.0",
-    },
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`billing HTTP ${res.status}: ${text.slice(0, 200)}`);
-  }
-  let json: { config?: BillingConfig };
-  try {
-    json = JSON.parse(text) as { config?: BillingConfig };
-  } catch {
-    throw new Error("billing response is not JSON");
-  }
+  const json = await fetchBillingJson(access);
   const snap = parseCredits(json, now());
   await setCredits(accountId, snap);
   return snap;
+}
+
+/**
+ * Validate SuperGrok using a raw access token (OAuth just finished; account may be pending).
+ * Does not go through getValidAccessToken.
+ */
+export async function checkSuperGrokWithAccessToken(
+  accessToken: string,
+): Promise<SuperGrokCheck> {
+  const json = await fetchBillingJson(accessToken);
+  const credits = parseCredits(json, now());
+  const verdict = isSuperGrokCredits(credits);
+  return { ok: verdict.ok, reason: verdict.reason, credits };
 }
