@@ -448,7 +448,9 @@ export function createApp() {
     const hours = hoursRaw != null && hoursRaw !== "" ? Number(hoursRaw) : undefined;
     const gran = c.req.query("granularity");
     const granularity =
-      gran === "day" || gran === "hour" || gran === "minute" ? gran : undefined;
+      gran === "day" || gran === "hour" || gran === "minute" || gran === "5m"
+        ? gran
+        : undefined;
     const myKeys = await listApiKeys(user.id);
     const stats = await computeUsageStats({
       days,
@@ -1352,7 +1354,9 @@ export function createApp() {
     const hours = hoursRaw != null && hoursRaw !== "" ? Number(hoursRaw) : undefined;
     const gran = c.req.query("granularity");
     const granularity =
-      gran === "day" || gran === "hour" || gran === "minute" ? gran : undefined;
+      gran === "day" || gran === "hour" || gran === "minute" || gran === "5m"
+        ? gran
+        : undefined;
     const userId = c.req.query("userId") || undefined;
     const stats = await computeUsageStats({
       days,

@@ -2,7 +2,7 @@ import { listAccounts, listApiKeys } from "../account/store.js";
 import { readLogsSince } from "./logger.js";
 import type { RequestLog, TokenUsage } from "./types.js";
 
-export type UsageGranularity = "day" | "hour" | "minute";
+export type UsageGranularity = "day" | "hour" | "minute" | "5m";
 
 export interface TokenTotals {
   promptTokens: number;
@@ -224,6 +224,7 @@ function summaryOf(
 const STEP_MS: Record<UsageGranularity, number> = {
   day: 86_400_000,
   hour: 3_600_000,
+  "5m": 300_000,
   minute: 60_000,
 };
 
@@ -231,6 +232,7 @@ const STEP_MS: Record<UsageGranularity, number> = {
 const MAX_BUCKETS: Record<UsageGranularity, number> = {
   day: 90,
   hour: 168, // 7d
+  "5m": 288, // 24h
   minute: 720, // 12h
 };
 
@@ -246,6 +248,16 @@ function floorTs(ts: number, gran: UsageGranularity): number {
   if (gran === "hour") {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime();
   }
+  if (gran === "5m") {
+    const m = Math.floor(d.getMinutes() / 5) * 5;
+    return new Date(
+      d.getFullYear(),
+      d.getMonth(),
+      d.getDate(),
+      d.getHours(),
+      m,
+    ).getTime();
+  }
   return new Date(
     d.getFullYear(),
     d.getMonth(),
@@ -256,7 +268,7 @@ function floorTs(ts: number, gran: UsageGranularity): number {
 }
 
 export function bucketKeyFromTs(ts: number, gran: UsageGranularity): string {
-  const d = new Date(ts);
+  const d = new Date(floorTs(ts, gran));
   const y = d.getFullYear();
   const mo = pad2(d.getMonth() + 1);
   const da = pad2(d.getDate());
@@ -275,7 +287,7 @@ export function bucketLabelFromKey(key: string, gran: UsageGranularity): string 
     const m = key.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2})$/);
     if (m) return `${m[2]}-${m[3]} ${m[4]}:00`;
   }
-  if (gran === "minute") {
+  if (gran === "minute" || gran === "5m") {
     const m = key.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
     if (m) return `${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
   }
@@ -296,15 +308,20 @@ function resolveWindow(query: UsageStatsQuery): {
     rangeHours = days * 24;
   }
 
-  // auto: minute only for very short windows (≤2h); 6h/24h → hour; longer → day
+  // auto: ≤1h → 5m; ≤2h → 1m; ≤72h → hour; longer → day
   let gran: UsageGranularity =
-    query.granularity === "hour" || query.granularity === "minute" || query.granularity === "day"
+    query.granularity === "hour" ||
+    query.granularity === "minute" ||
+    query.granularity === "5m" ||
+    query.granularity === "day"
       ? query.granularity
-      : rangeHours <= 2
-        ? "minute"
-        : rangeHours <= 72
-          ? "hour"
-          : "day";
+      : rangeHours <= 1
+        ? "5m"
+        : rangeHours <= 2
+          ? "minute"
+          : rangeHours <= 72
+            ? "hour"
+            : "day";
 
   // clamp range so we don't exceed max buckets for granularity
   const maxH = (MAX_BUCKETS[gran] * STEP_MS[gran]) / 3_600_000;

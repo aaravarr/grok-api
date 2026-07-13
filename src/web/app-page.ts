@@ -367,8 +367,8 @@ ${styles()}
                   <div class="seg" id="rangeSeg">
                     <button type="button" data-range="1h">1h</button>
                     <button type="button" data-range="6h">6h</button>
-                    <button type="button" data-range="24h">24h</button>
-                    <button type="button" data-range="7d" class="on">7d</button>
+                    <button type="button" data-range="24h" class="on">24h</button>
+                    <button type="button" data-range="7d">7d</button>
                     <button type="button" data-range="30d">30d</button>
                   </div>
                 </div>
@@ -377,6 +377,7 @@ ${styles()}
                   <div class="seg" id="granSeg">
                     <button type="button" data-gran="auto" class="on" data-i18n="granAuto">Auto</button>
                     <button type="button" data-gran="minute" data-i18n="granMinute">1m</button>
+                    <button type="button" data-gran="5m" data-i18n="gran5m">5m</button>
                     <button type="button" data-gran="hour" data-i18n="granHour">1h</button>
                     <button type="button" data-gran="day" data-i18n="granDay">1d</button>
                   </div>
@@ -1075,8 +1076,8 @@ ${styles()}
         kpiIn:"输入(未缓存)", kpiOut:"输出 Token", kpiCache:"缓存输入", kpiReason:"推理 Token", kpiImg:"图片 Token",
         chartDay:"Token 趋势", chartTokMix:"Token 构成", chartModel:"模型分布", chartAccount:"按账号", chartKey:"按密钥（总 Token）",
         usageRange:"时间范围", usageGran:"时间粒度",
-        granAuto:"自动", granMinute:"1m", granHour:"1h", granDay:"1d",
-        granMinuteLong:"分钟", granHourLong:"小时", granDayLong:"天",
+        granAuto:"自动", granMinute:"1m", gran5m:"5m", granHour:"1h", granDay:"1d",
+        granMinuteLong:"分钟", gran5mLong:"5 分钟", granHourLong:"小时", granDayLong:"天",
         usageRangeHint:(r,g,n)=>"最近 "+r+" · 按"+g+" · "+n+" 个桶",
         chartKeyInOut:"按密钥 · 输入/输出",
         chartReq:"请求数", chartTok:"总 Token", chartIn:"输入(未缓存)", chartOut:"输出", chartCache:"缓存输入", chartReason:"推理",
@@ -1278,8 +1279,8 @@ ${styles()}
         kpiIn:"Input (uncached)", kpiOut:"Output tokens", kpiCache:"Cached input", kpiReason:"Reasoning", kpiImg:"Image tokens",
         chartDay:"Tokens over time", chartTokMix:"Token mix", chartModel:"Model distribution", chartAccount:"By account", chartKey:"By API key (total)",
         usageRange:"Range", usageGran:"Bucket",
-        granAuto:"Auto", granMinute:"1m", granHour:"1h", granDay:"1d",
-        granMinuteLong:"minute", granHourLong:"hour", granDayLong:"day",
+        granAuto:"Auto", granMinute:"1m", gran5m:"5m", granHour:"1h", granDay:"1d",
+        granMinuteLong:"minute", gran5mLong:"5 min", granHourLong:"hour", granDayLong:"day",
         usageRangeHint:(r,g,n)=>"Last "+r+" · by "+g+" · "+n+" buckets",
         chartKeyInOut:"By key · in / out",
         chartReq:"Requests", chartTok:"Total", chartIn:"Input (uncached)", chartOut:"Output", chartCache:"Cached input", chartReason:"Reasoning",
@@ -1427,8 +1428,8 @@ ${styles()}
     let logTotal = 0;
     let logDays = [];
     let lastLogItems = [];
-    let usageRange = "7d"; // 1h | 6h | 24h | 7d | 30d
-    let usageGran = "auto"; // auto | minute | hour | day
+    let usageRange = "24h"; // 1h | 6h | 24h | 7d | 30d
+    let usageGran = "auto"; // auto | minute | 5m | hour | day
     let charts = { day: null, model: null, account: null, key: null, overview: null, ovModel: null, ovReq: null, tokMix: null, keyInOut: null };
     let lastStats = null;
 
@@ -2467,7 +2468,7 @@ ${styles()}
           (showOwner ? '<div><div class="name">' + esc(owner) + '</div><div class="mono">' + esc(k.userId || "") + "</div></div>" : "") +
           '<div><span class="badge ' + (st === "active" ? "active" : "error") + '">' + st + "</span></div>" +
           '<div class="dt-time">' + (k.expiresAt ? fmtTime(k.expiresAt) : t("never")) + "</div>" +
-          '<div class="mono">' + k.useCount + "</div>" +
+          '<div class="mono dt-num" title="' + esc(String(k.useCount ?? 0)) + '">' + esc(fmtNum(k.useCount ?? 0)) + "</div>" +
           '<div class="dt-actions">' +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="editkey" data-id="' + esc(k.id) + '">' + esc(t("editKey")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="toggle" data-id="' + esc(k.id) + '" data-en="' + (k.enabled ? "0" : "1") + '">' +
@@ -2559,7 +2560,8 @@ ${styles()}
       if (!hasLogTtft(r)) {
         return '<span class="mute" title="' + esc(t("ttftLegacyHint")) + '">' + esc(t("ttftLegacyShort")) + "</span>";
       }
-      return esc(fmtTtft(r));
+      const txt = fmtTtft(r);
+      return '<span title="' + esc(txt) + '">' + esc(txt) + "</span>";
     }
     function fmtRate(n, digits) {
       if (n == null || !Number.isFinite(Number(n)) || Number(n) <= 0) return "–";
@@ -2616,6 +2618,9 @@ ${styles()}
         const stCls = r.ok ? "active" : "error";
         const client = clientLabel(r);
         const uaTip = r.userAgent ? ' title="' + esc(r.userAgent) + '"' : "";
+        const latTxt = r.latencyMs != null ? r.latencyMs + "ms" : "–";
+        const accTxt = r.accountName || r.accountId || "–";
+        const keyTxt = r.apiKeyAlias || r.apiKeyId || "–";
         return '<div class="dt-row clickable" data-id="' + esc(r.id) + '">' +
           '<div class="dt-time"><div class="dt-time-main">' + esc(fmtTime(r.ts)) + "</div>" +
           (r.stream ? '<span class="badge">stream</span>' : "") + "</div>" +
@@ -2624,12 +2629,12 @@ ${styles()}
           "</div>" +
           '<div><div class="name">' + esc(r.model || "–") + '</div><div class="mono">' + esc(r.mode) + "</div></div>" +
           '<div><span class="badge ' + stCls + '">' + esc(r.status) + "</span></div>" +
-          '<div class="mono" style="white-space:nowrap">' + tok + "</div>" +
-          '<div class="mono">' + (r.latencyMs != null ? r.latencyMs + "ms" : "–") + "</div>" +
-          '<div class="mono">' + fmtTtftCell(r) + "</div>" +
-          '<div class="mono">' + fmtTpsCell(r) + "</div>" +
-          (showAcc ? '<div class="mono">' + esc(r.accountName || r.accountId || "–") + "</div>" : "") +
-          '<div class="mono">' + esc(r.apiKeyAlias || r.apiKeyId || "–") + "</div>" +
+          '<div class="mono" style="white-space:nowrap" title="' + esc(tok) + '">' + tok + "</div>" +
+          '<div class="mono dt-num" title="' + esc(latTxt) + '">' + esc(latTxt) + "</div>" +
+          '<div class="mono dt-num">' + fmtTtftCell(r) + "</div>" +
+          '<div class="mono dt-num">' + fmtTpsCell(r) + "</div>" +
+          (showAcc ? '<div class="mono" title="' + esc(accTxt) + '">' + esc(accTxt) + "</div>" : "") +
+          '<div class="mono" title="' + esc(keyTxt) + '">' + esc(keyTxt) + "</div>" +
           "</div>";
       }).join("");
       tbody.querySelectorAll(".dt-row[data-id]").forEach((tr) => {
@@ -2649,8 +2654,8 @@ ${styles()}
           $("ovUserPill").textContent = "–";
         }
       }
-      if ($("ovRangePill")) $("ovRangePill").textContent = t("ovUsageSub", usageRange || "7d");
-      if ($("ovUsageSub")) $("ovUsageSub").textContent = t("ovUsageSub", usageRange || "7d");
+      if ($("ovRangePill")) $("ovRangePill").textContent = t("ovUsageSub", usageRange || "24h");
+      if ($("ovUsageSub")) $("ovUsageSub").textContent = t("ovUsageSub", usageRange || "24h");
     }
 
     function renderOverviewRecent(items) {
@@ -3350,7 +3355,7 @@ ${styles()}
     function usageQueryParams() {
       const qs = new URLSearchParams();
       const map = { "1h": 1, "6h": 6, "24h": 24, "7d": 7 * 24, "30d": 30 * 24 };
-      const hours = map[usageRange] != null ? map[usageRange] : 7 * 24;
+      const hours = map[usageRange] != null ? map[usageRange] : 24;
       qs.set("hours", String(hours));
       if (usageGran && usageGran !== "auto") qs.set("granularity", usageGran);
       return qs;
@@ -3368,6 +3373,7 @@ ${styles()}
       }
       if ($("usageRangeHint") && stats) {
         const granKey = stats.granularity === "minute" ? "granMinuteLong"
+          : stats.granularity === "5m" ? "gran5mLong"
           : stats.granularity === "hour" ? "granHourLong" : "granDayLong";
         const n = (stats.byDay && stats.byDay.length) || 0;
         $("usageRangeHint").textContent = t("usageRangeHint", usageRange, t(granKey), n);
@@ -4644,11 +4650,19 @@ ${styles()}
     if ($("rangeSeg")) $("rangeSeg").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-range]");
       if (!b) return;
-      usageRange = b.getAttribute("data-range") || "7d";
+      usageRange = b.getAttribute("data-range") || "24h";
       // sensible default granularity when switching range
-      if (usageGran === "auto") { /* keep auto */ }
-      else if (usageRange === "1h" || usageRange === "6h") usageGran = usageGran === "day" ? "auto" : usageGran;
-      else if (usageRange === "30d" && usageGran === "minute") usageGran = "auto";
+      if (usageRange === "1h") {
+        // 1h defaults to 5m; user may switch to 1m manually
+        if (usageGran === "auto" || usageGran === "hour" || usageGran === "day") usageGran = "5m";
+      } else if (usageGran === "minute" || usageGran === "5m") {
+        // fine buckets only make sense on short windows
+        if (usageRange === "6h" || usageRange === "24h" || usageRange === "7d" || usageRange === "30d") {
+          usageGran = "auto";
+        }
+      } else if (usageGran === "day" && (usageRange === "1h" || usageRange === "6h")) {
+        usageGran = "auto";
+      }
       loadUsage();
     });
     if ($("granSeg")) $("granSeg").addEventListener("click", (e) => {
