@@ -51,6 +51,8 @@ export interface AppendLogInput {
   status: number;
   ok: boolean;
   latencyMs: number;
+  /** TTFT from request start to first upstream byte */
+  firstTokenMs?: number;
   error?: string;
   request?: unknown;
   requestTruncated?: boolean;

@@ -28,6 +28,13 @@ export interface UsageBucket extends TokenTotals {
   fail: number;
   latencySum: number;
   avgLatencyMs: number;
+  /** Sum of (latencyMs - firstTokenMs) only for logs with firstTokenMs */
+  genLatencySum: number;
+  /** completion+reasoning tokens only for logs with firstTokenMs (TPS numerator) */
+  genTokensForTps: number;
+  firstTokenSum: number;
+  firstTokenCount: number;
+  avgFirstTokenMs: number;
 }
 
 export interface UsageStatsQuery {
@@ -55,14 +62,21 @@ export interface UsageStats {
     fail: number;
     avgLatencyMs: number;
     /**
-     * TPS = sum(completionTokens + reasoningTokens) / sum(latencyMs)/1000
-     * over ALL requests in the window (including failed; zero-token fails still count latency).
+     * TPS only from logs that have firstTokenMs:
+     * sum(completion + reasoning) / sum(latencyMs - firstTokenMs) / 1000.
+     * Older logs without TTFT are excluded from TPS (still count in requests/tokens KPIs).
      */
     avgTps: number;
     /** Same as avgTps (compat alias) */
     avgReqTps: number;
-    /** Sum of latencyMs across all requests (for TPS denominator) */
+    /** Sum of end-to-end latencyMs (all requests) */
     latencySumMs: number;
+    /** Sum of generation latency (e2e − TTFT), TTFT-only sample */
+    genLatencySumMs: number;
+    /** Average TTFT over logs that recorded firstTokenMs */
+    avgFirstTokenMs: number | null;
+    /** How many requests contributed to avgTps / avgFirstTokenMs */
+    tpsSampleCount: number;
   } & TokenTotals;
   /** Time series at selected granularity (kept name byDay for API compat). */
   byDay: UsageBucket[];
@@ -98,8 +112,29 @@ function emptyBucket(key: string, label: string): UsageBucket {
     fail: 0,
     latencySum: 0,
     avgLatencyMs: 0,
+    genLatencySum: 0,
+    genTokensForTps: 0,
+    firstTokenSum: 0,
+    firstTokenCount: 0,
+    avgFirstTokenMs: 0,
     ...emptyTokens(),
   };
+}
+
+function hasTtft(log: { firstTokenMs?: number }): boolean {
+  return log.firstTokenMs != null && Number.isFinite(Number(log.firstTokenMs));
+}
+
+/** Generation time for TPS: only when TTFT is recorded (latency − TTFT). */
+export function genLatencyMs(log: {
+  latencyMs?: number;
+  firstTokenMs?: number;
+}): number {
+  if (!hasTtft(log)) return 0;
+  const lat = Number(log.latencyMs) || 0;
+  if (!(lat > 0)) return 0;
+  const f = Math.max(0, Number(log.firstTokenMs));
+  return Math.max(0, lat - Math.min(f, lat));
 }
 
 function addTokens(b: TokenTotals, u: TokenUsage) {
@@ -123,11 +158,23 @@ function add(b: UsageBucket, log: RequestLog) {
   if (log.ok) b.ok += 1;
   else b.fail += 1;
   b.latencySum += log.latencyMs || 0;
+  if (hasTtft(log)) {
+    b.genLatencySum += genLatencyMs(log);
+    b.firstTokenSum += Number(log.firstTokenMs);
+    b.firstTokenCount += 1;
+    if (log.usage) {
+      b.genTokensForTps +=
+        (log.usage.completionTokens ?? 0) + (log.usage.reasoningTokens ?? 0);
+    }
+  }
   if (log.usage) addTokens(b, log.usage);
 }
 
 function finalize(b: UsageBucket) {
   b.avgLatencyMs = b.requests ? Math.round(b.latencySum / b.requests) : 0;
+  b.avgFirstTokenMs = b.firstTokenCount
+    ? Math.round(b.firstTokenSum / b.firstTokenCount)
+    : 0;
 }
 
 function sortBuckets(arr: UsageBucket[]): UsageBucket[] {
@@ -138,13 +185,14 @@ function summaryOf(
   b: UsageBucket,
   _windowMs: number,
 ): UsageStats["summary"] {
-  // TPS = all gen tokens / all request latency (not wall-clock window)
+  // TPS only from TTFT-instrumented logs
   const latencySumMs = b.latencySum || 0;
-  const latencySec = latencySumMs > 0 ? latencySumMs / 1000 : 0;
-  const genTok = (b.completionTokens || 0) + (b.reasoningTokens || 0);
+  const genLatencySumMs = b.genLatencySum || 0;
+  const genSec = genLatencySumMs > 0 ? genLatencySumMs / 1000 : 0;
+  const genTok = b.genTokensForTps || 0;
   const avgTps =
-    latencySec > 0 && genTok > 0
-      ? Math.round((genTok / latencySec) * 100) / 100
+    genSec > 0 && genTok > 0
+      ? Math.round((genTok / genSec) * 100) / 100
       : 0;
   return {
     requests: b.requests,
@@ -154,6 +202,9 @@ function summaryOf(
     avgTps,
     avgReqTps: avgTps,
     latencySumMs,
+    genLatencySumMs,
+    avgFirstTokenMs: b.firstTokenCount > 0 ? b.avgFirstTokenMs : null,
+    tpsSampleCount: b.firstTokenCount,
     promptTokens: b.promptTokens,
     completionTokens: b.completionTokens,
     totalTokens: b.totalTokens,

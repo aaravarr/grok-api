@@ -395,6 +395,7 @@ ${styles()}
               <div class="usage-kpis compact" style="margin-top:-4px;margin-bottom:14px">
                 <div class="kpi"><div class="n" id="uOk">–</div><div class="l" data-i18n="kpiOk">Success rate</div></div>
                 <div class="kpi"><div class="n" id="uLat">–</div><div class="l" data-i18n="kpiLat">Avg latency</div></div>
+                <div class="kpi"><div class="n" id="uTtft">–</div><div class="l" data-i18n="kpiTtft">Avg TTFT</div></div>
                 <div class="kpi"><div class="n" id="uTps">–</div><div class="l" data-i18n="kpiTps">Avg TPS</div></div>
                 <div class="kpi"><div class="n" id="uImg">–</div><div class="l" data-i18n="kpiImg">Image tokens</div></div>
               </div>
@@ -436,6 +437,7 @@ ${styles()}
                 <div data-i18n="colStatus">Status</div>
                 <div data-i18n="colTokens">Tokens</div>
                 <div data-i18n="colLatency">Latency</div>
+                <div data-i18n="colTtft">TTFT</div>
                 <div data-i18n="colTps">TPS</div>
                 <div data-i18n="colAccount" data-admin-only>Account</div>
                 <div data-i18n="colKey">Key</div>
@@ -1061,7 +1063,15 @@ ${styles()}
         logHint:"默认只记元数据与 Token；失败时仍可保留响应体便于排查",
         logSaved:"日志设置已保存",
         usageTitle:"分析", kpiReq:"请求数", kpiTok:"总 Token", kpiOk:"成功率", kpiLat:"平均延迟",
-        kpiTps:"平均 TPS",
+        kpiTtft:"平均首字", kpiTps:"平均 TPS",
+        ttftLegacyHint:"旧日志未记录首字延迟",
+        ttftLegacyShort:"未记录",
+        tpsNoTtftHint:"旧日志无 TTFT，不计入看板 TPS",
+        tpsLegacyHint:"按整段耗时估算（未扣首字）",
+        ttftSampleHint:(n,t)=>"基于 "+n+"/"+t+" 条有 TTFT 的请求",
+        ttftNoSampleHint:"窗口内暂无带 TTFT 的请求",
+        tpsSampleHint:(n,t)=>"仅统计有 TTFT 的 "+n+"/"+t+" 条 · 已排除首字时间",
+        tpsNoSampleHint:"窗口内暂无带 TTFT 的请求，看板 TPS 不可用",
         kpiIn:"输入(未缓存)", kpiOut:"输出 Token", kpiCache:"缓存输入", kpiReason:"推理 Token", kpiImg:"图片 Token",
         chartDay:"Token 趋势", chartTokMix:"Token 构成", chartModel:"模型分布", chartAccount:"按账号", chartKey:"按密钥（总 Token）",
         usageRange:"时间范围", usageGran:"时间粒度",
@@ -1075,7 +1085,7 @@ ${styles()}
         stripLogs:"精简正文", stripLogsConfirm:"将从历史日志中删除请求/响应正文（保留元数据与 Token），是否继续？",
         logsStripped:(n,b)=>"已精简 "+n+" 条 · 释放约 "+b,
         logDetail:"请求详情", allDays:"全部日期", noLogs:"暂无请求日志",
-        colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟", colTps:"TPS",
+        colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟", colTtft:"首字", colTps:"TPS",
         routing:"路由", modeAuto:"自动", modeManual:"手动",
         accNamePh:"账号备注（可选）", addAccount:"添加账号",
         accSyncName:"同步名称",
@@ -1256,7 +1266,15 @@ ${styles()}
         logHint:"Metadata + tokens by default; failed responses can still be kept",
         logSaved:"Log settings saved",
         usageTitle:"Analytics", kpiReq:"Requests", kpiTok:"Total tokens", kpiOk:"Success rate", kpiLat:"Avg latency",
-        kpiTps:"Avg TPS",
+        kpiTtft:"Avg TTFT", kpiTps:"Avg TPS",
+        ttftLegacyHint:"Legacy log — TTFT not recorded",
+        ttftLegacyShort:"n/a",
+        tpsNoTtftHint:"No TTFT — excluded from board TPS",
+        tpsLegacyHint:"Estimated with full latency (TTFT not subtracted)",
+        ttftSampleHint:(n,t)=>"From "+n+"/"+t+" requests with TTFT",
+        ttftNoSampleHint:"No TTFT samples in this window",
+        tpsSampleHint:(n,t)=>"From "+n+"/"+t+" requests with TTFT · TTFT excluded",
+        tpsNoSampleHint:"No TTFT samples — board TPS unavailable",
         kpiIn:"Input (uncached)", kpiOut:"Output tokens", kpiCache:"Cached input", kpiReason:"Reasoning", kpiImg:"Image tokens",
         chartDay:"Tokens over time", chartTokMix:"Token mix", chartModel:"Model distribution", chartAccount:"By account", chartKey:"By API key (total)",
         usageRange:"Range", usageGran:"Bucket",
@@ -1270,7 +1288,7 @@ ${styles()}
         stripLogs:"Strip bodies", stripLogsConfirm:"Remove request/response bodies from historical logs (keep metadata + tokens). Continue?",
         logsStripped:(n,b)=>"Stripped "+n+" rows · saved ~"+b,
         logDetail:"Request detail", allDays:"All days", noLogs:"No request logs yet",
-        colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency", colTps:"TPS",
+        colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency", colTtft:"TTFT", colTps:"TPS",
         routing:"Routing", modeAuto:"Auto", modeManual:"Manual",
         accNamePh:"Account note (optional)", addAccount:"Add account",
         accSyncName:"Sync name",
@@ -2499,14 +2517,49 @@ ${styles()}
       const reason = Number(u.reasoningTokens) || 0;
       return out + reason;
     }
-    /** Per-request generation speed: (completion+reasoning) / (latencyMs/1000) */
+    /** Generation ms excluding TTFT when firstTokenMs is present */
+    function logGenLatencyMs(r) {
+      const lat = r && r.latencyMs != null ? Number(r.latencyMs) : 0;
+      if (!(lat > 0)) return 0;
+      const ttft = r && r.firstTokenMs != null ? Number(r.firstTokenMs) : NaN;
+      if (!Number.isFinite(ttft) || ttft < 0) return lat;
+      return Math.max(0, lat - Math.min(ttft, lat));
+    }
+    function hasLogTtft(r) {
+      return r && r.firstTokenMs != null && Number.isFinite(Number(r.firstTokenMs));
+    }
+    function fmtTtft(r) {
+      if (!hasLogTtft(r)) return "–";
+      return Math.round(Number(r.firstTokenMs)) + "ms";
+    }
+    /**
+     * Per-request TPS:
+     * - with TTFT: (completion+reasoning) / (latency − TTFT)
+     * - legacy: (completion+reasoning) / full latency (still showable on the row)
+     */
     function fmtReqTps(r) {
       const tok = logGenTokens(r && r.usage);
-      const ms = r && r.latencyMs != null ? Number(r.latencyMs) : 0;
+      const ms = hasLogTtft(r)
+        ? logGenLatencyMs(r)
+        : (r && r.latencyMs != null ? Number(r.latencyMs) : 0);
       if (!(tok > 0) || !(ms > 0)) return "–";
       const tps = tok / (ms / 1000);
       if (!Number.isFinite(tps)) return "–";
       return (tps >= 100 ? Math.round(tps) : Math.round(tps * 10) / 10) + "";
+    }
+    function fmtTpsCell(r) {
+      const v = fmtReqTps(r);
+      if (v === "–") return "–";
+      if (!hasLogTtft(r)) {
+        return '<span title="' + esc(t("tpsLegacyHint")) + '">' + esc(v) + "</span>";
+      }
+      return esc(v);
+    }
+    function fmtTtftCell(r) {
+      if (!hasLogTtft(r)) {
+        return '<span class="mute" title="' + esc(t("ttftLegacyHint")) + '">' + esc(t("ttftLegacyShort")) + "</span>";
+      }
+      return esc(fmtTtft(r));
     }
     function fmtRate(n, digits) {
       if (n == null || !Number.isFinite(Number(n)) || Number(n) <= 0) return "–";
@@ -2573,7 +2626,8 @@ ${styles()}
           '<div><span class="badge ' + stCls + '">' + esc(r.status) + "</span></div>" +
           '<div class="mono" style="white-space:nowrap">' + tok + "</div>" +
           '<div class="mono">' + (r.latencyMs != null ? r.latencyMs + "ms" : "–") + "</div>" +
-          '<div class="mono">' + esc(fmtReqTps(r)) + "</div>" +
+          '<div class="mono">' + fmtTtftCell(r) + "</div>" +
+          '<div class="mono">' + fmtTpsCell(r) + "</div>" +
           (showAcc ? '<div class="mono">' + esc(r.accountName || r.accountId || "–") + "</div>" : "") +
           '<div class="mono">' + esc(r.apiKeyAlias || r.apiKeyId || "–") + "</div>" +
           "</div>";
@@ -3336,7 +3390,21 @@ ${styles()}
         if ($("uTok")) $("uTok").textContent = fmtNum(s.totalTokens);
         if ($("uOk")) $("uOk").textContent = s.requests ? Math.round((s.ok / s.requests) * 100) + "%" : "–";
         if ($("uLat")) $("uLat").textContent = s.avgLatencyMs != null ? s.avgLatencyMs + "ms" : "–";
-        if ($("uTps")) $("uTps").textContent = fmtRate(s.avgTps != null ? s.avgTps : s.avgReqTps);
+        if ($("uTtft")) {
+          $("uTtft").textContent =
+            s.avgFirstTokenMs != null && s.avgFirstTokenMs > 0 ? s.avgFirstTokenMs + "ms" : "–";
+          $("uTtft").title =
+            s.tpsSampleCount > 0
+              ? t("ttftSampleHint", s.tpsSampleCount, s.requests)
+              : t("ttftNoSampleHint");
+        }
+        if ($("uTps")) {
+          $("uTps").textContent = fmtRate(s.avgTps != null ? s.avgTps : s.avgReqTps);
+          $("uTps").title =
+            s.tpsSampleCount > 0
+              ? t("tpsSampleHint", s.tpsSampleCount, s.requests)
+              : t("tpsNoSampleHint");
+        }
         if ($("uImg")) $("uImg").textContent = fmtNum(s.imageTokens);
         paintUsageControls(data.stats);
 
@@ -3398,7 +3466,16 @@ ${styles()}
           '<div><div class="k">user-agent</div><div class="v">' + esc(log.userAgent || "–") + "</div></div>" +
           '<div><div class="k">model</div><div class="v">' + esc(log.model || "–") + (log.reasoningEffort ? " · effort=" + esc(log.reasoningEffort) : "") + "</div></div>" +
           '<div><div class="k">status</div><div class="v">' + esc(log.status) + " · " + (log.ok ? "ok" : "fail") + " · " + esc(log.latencyMs) + "ms" + (log.stream ? " · stream" : "") + "</div></div>" +
-          '<div><div class="k">tps</div><div class="v">' + esc(fmtReqTps(log)) + "</div></div>" +
+          '<div><div class="k">ttft</div><div class="v">' +
+          (hasLogTtft(log)
+            ? esc(fmtTtft(log))
+            : '<span class="mute">' + esc(t("ttftLegacyHint")) + "</span>") +
+          "</div></div>" +
+          '<div><div class="k">tps</div><div class="v">' +
+          (hasLogTtft(log)
+            ? esc(fmtReqTps(log)) + ' <span class="mute">(ex TTFT)</span>'
+            : esc(fmtReqTps(log)) + ' <span class="mute">(' + esc(t("tpsLegacyHint")) + ")</span>") +
+          "</div></div>" +
           '<div><div class="k">account</div><div class="v">' + esc(log.accountName || "–") + " / " + esc(log.accountId || "–") + "</div></div>" +
           '<div><div class="k">' + esc(lang === "zh" ? "密钥" : "api key") + '</div><div class="v">' + esc(log.apiKeyAlias || "–") + " / " + esc(log.apiKeyId || "–") + "</div></div>" +
           '<div style="grid-column:1/-1"><div class="k">tokens</div><div class="v">' + esc(fmtUsageDetail(u)) + "</div></div>" +

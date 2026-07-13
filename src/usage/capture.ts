@@ -133,6 +133,8 @@ export interface CaptureResult {
   responseTruncated?: boolean;
   usage?: TokenUsage;
   error?: string;
+  /** Absolute Date.now() when first upstream byte was read (for TTFT) */
+  firstByteAt?: number;
 }
 
 /**
@@ -233,10 +235,12 @@ export async function captureJsonResponse(
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
+  let firstByteAt: number | undefined;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     if (value) {
+      if (firstByteAt == null && value.byteLength > 0) firstByteAt = Date.now();
       chunks.push(value);
       total += value.byteLength;
     }
@@ -247,7 +251,10 @@ export async function captureJsonResponse(
     const json = JSON.parse(text) as unknown;
     const usage = extractUsage(json);
     if (bytes.byteLength <= MAX_CAPTURE_BYTES) {
-      return { bytes, result: { response: json, responseTruncated: false, usage } };
+      return {
+        bytes,
+        result: { response: json, responseTruncated: false, usage, firstByteAt },
+      };
     }
     return {
       bytes,
@@ -260,6 +267,7 @@ export async function captureJsonResponse(
         },
         responseTruncated: true,
         usage,
+        firstByteAt,
       },
     };
   } catch {
@@ -269,6 +277,7 @@ export async function captureJsonResponse(
       result: {
         response: truncated ? text.slice(0, 8000) : text,
         responseTruncated: truncated,
+        firstByteAt,
       },
     };
   }
@@ -288,11 +297,13 @@ export function teeAndCapture(
     const chunks: Uint8Array[] = [];
     let total = 0;
     let truncated = false;
+    let firstByteAt: number | undefined;
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         if (!value) continue;
+        if (firstByteAt == null && value.byteLength > 0) firstByteAt = Date.now();
         if (total < MAX_CAPTURE_BYTES) {
           const room = MAX_CAPTURE_BYTES - total;
           if (value.byteLength <= room) {
@@ -316,9 +327,13 @@ export function teeAndCapture(
       } catch {
         // keep text (SSE)
       }
-      onComplete({ response, responseTruncated: truncated, usage });
+      onComplete({ response, responseTruncated: truncated, usage, firstByteAt });
     } catch (e) {
-      onComplete({ error: e instanceof Error ? e.message : String(e), responseTruncated: truncated });
+      onComplete({
+        error: e instanceof Error ? e.message : String(e),
+        responseTruncated: truncated,
+        firstByteAt,
+      });
     }
   })();
   return client;

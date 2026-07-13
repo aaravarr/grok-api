@@ -1560,12 +1560,20 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
       return new Response(result.body, { status: result.status, headers });
     }
 
+    const ttftMs = (firstByteAt?: number) => {
+      if (firstByteAt == null || !Number.isFinite(firstByteAt)) return undefined;
+      const ms = Math.max(0, Math.round(firstByteAt - t0));
+      return Number.isFinite(ms) ? ms : undefined;
+    };
+
     if (isSse) {
       const clientBody = teeAndCapture(result.body, (captured) => {
         if (shouldCharge) chargeUserTokens(apiKeyUserId, captured.usage);
         if (logging) {
           const bodyError = extractBodyError(captured.response) || captured.error;
           const picked = pickResponse(result.status, captured, bodyError);
+          const latencyMs = Date.now() - t0;
+          const firstTokenMs = ttftMs(captured.firstByteAt);
           void appendRequestLog({
             ...baseLog,
             stream: true,
@@ -1573,7 +1581,9 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
             accountName: result.accountName,
             status: result.status,
             ok: picked.ok,
-            latencyMs: Date.now() - t0,
+            latencyMs,
+            firstTokenMs:
+              firstTokenMs != null && firstTokenMs <= latencyMs ? firstTokenMs : undefined,
             response: picked.response,
             responseTruncated: picked.responseTruncated,
             usage: captured.usage,
@@ -1589,6 +1599,8 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
     if (logging) {
       const bodyError = extractBodyError(captured.response) || captured.error;
       const picked = pickResponse(result.status, captured, bodyError);
+      const latencyMs = Date.now() - t0;
+      const firstTokenMs = ttftMs(captured.firstByteAt);
       void appendRequestLog({
         ...baseLog,
         stream: false,
@@ -1596,7 +1608,9 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
         accountName: result.accountName,
         status: result.status,
         ok: picked.ok,
-        latencyMs: Date.now() - t0,
+        latencyMs,
+        firstTokenMs:
+          firstTokenMs != null && firstTokenMs <= latencyMs ? firstTokenMs : undefined,
         response: picked.response,
         responseTruncated: picked.responseTruncated,
         usage: captured.usage,

@@ -42,7 +42,13 @@ export interface RequestLog {
   accountName?: string;
   status: number;
   ok: boolean;
+  /** End-to-end time from proxy accept to response complete */
   latencyMs: number;
+  /**
+   * Time to first upstream byte (TTFT), stream only when measurable.
+   * Absent on older logs / non-stream without progressive body.
+   */
+  firstTokenMs?: number;
   error?: string;
   /** Full request body (may be truncated). Omitted when logBodies is off. */
   request?: unknown;
