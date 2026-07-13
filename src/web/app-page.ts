@@ -1196,7 +1196,7 @@ ${styles()}
         contribSub:"绑定你拥有的 xAI 账号。剩余额度会进入共享池——大家更稳，你也能登上贡献榜。",
         contribCta:"贡献一个账号",
         contribSeeLb:"查看贡献榜",
-        oauthOpenBrowser:"打开授权页", oauthRetry:"重新发起",
+        oauthOpenBrowser:"打开授权页", oauthRetry:"重新发起", oauthReauth:"重新授权",
         oauthPhaseWaiting:"等待授权", oauthPhaseFailed:"授权失败",
         why1t:"仅你可见", why1d:"你绑定的账号状态、额度与调用记录只对你开放，其他用户看不到列表。",
         why2t:"点亮账号池", why2d:"闲置的 SuperGrok 额度变成共享容量。额度感知路由会自动挑选健康席位。",
@@ -1406,7 +1406,7 @@ ${styles()}
         contribSub:"Link an xAI account you own. Remaining credits join the shared pool — everyone gets more reliable access, and you climb the board.",
         contribCta:"Contribute an account",
         contribSeeLb:"View leaderboard",
-        oauthOpenBrowser:"Open authorize URL", oauthRetry:"Retry OAuth",
+        oauthOpenBrowser:"Open authorize URL", oauthRetry:"Retry OAuth", oauthReauth:"Re-authorize",
         oauthPhaseWaiting:"Waiting for auth", oauthPhaseFailed:"Failed",
         why1t:"Private to you", why1d:"Only you can see the accounts you linked — status, credits, and usage. Others never see your list.",
         why2t:"Power the pool", why2d:"Idle SuperGrok credits become shared capacity. Credit-aware routing picks healthy seats automatically.",
@@ -2467,6 +2467,9 @@ ${styles()}
           '<div class="mono">' + a.useCount + "</div>" +
           '<div class="dt-time">' + fmtTime(a.lastUsedAt) + "</div>" +
           '<div class="dt-actions">' +
+          (a.status === "expired" || a.status === "pending" || a.status === "error"
+            ? '<button class="btn btn-sm" type="button" data-act="reauth" data-id="' + esc(a.id) + '">' + esc(t("oauthReauth")) + "</button>"
+            : "") +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="use" data-id="' + esc(a.id) + '"' + useDisabled + '>' + esc(t("use")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="edit" data-id="' + esc(a.id) + '">' + esc(t("accEdit")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>" +
@@ -2486,6 +2489,7 @@ ${styles()}
           if (act === "syncname") refreshAccProfile(id);
           if (act === "reset") resetAcc(id);
           if (act === "del") delAcc(id);
+          if (act === "reauth") reauthAdminAcc(id);
         });
       });
     }
@@ -3746,14 +3750,15 @@ ${styles()}
         const oauthMsg = (a.oauth && a.oauth.lastMessage) ? shortErr(a.oauth.lastMessage) : "";
         const membersTxt = myMembersLabel(a);
         const mCount = Array.isArray(a.members) ? a.members.length : 1;
-        const canManual = a.status === "pending" || a.status === "error" || (a.oauth && a.oauth.phase === "failed");
+        const canManual = a.status === "pending" || a.status === "error" || a.status === "expired" || (a.oauth && a.oauth.phase === "failed");
         const hasUrl = a.oauth && (a.oauth.verificationUriComplete || a.oauth.verificationUri);
         let acts = "";
         if (canManual && hasUrl) {
           acts += '<button class="btn btn-sm" type="button" data-act="c-open" data-id="' + esc(a.id) + '">' + esc(t("oauthOpenBrowser")) + "</button>";
         }
         if (canManual) {
-          acts += '<button class="btn btn-secondary btn-sm" type="button" data-act="c-retry" data-id="' + esc(a.id) + '">' + esc(t("oauthRetry")) + "</button>";
+          acts += '<button class="btn btn-secondary btn-sm" type="button" data-act="c-retry" data-id="' + esc(a.id) + '">' +
+            esc(a.status === "expired" ? t("oauthReauth") : t("oauthRetry")) + "</button>";
         }
         if (a.status === "active" || a.status === "exhausted" || a.status === "expired") {
           acts += '<button class="btn btn-secondary btn-sm" type="button" data-act="c-members" data-id="' + esc(a.id) + '">' + esc(t("membersTitle")) + "</button>";
@@ -4484,6 +4489,60 @@ ${styles()}
         }, 2000);
       } catch (e) {
         showMsg($("msg"), e.message, "err"); $("btnAdd").disabled = false;
+      }
+    }
+
+    async function reauthAdminAcc(id) {
+      hideMsg($("msg")); stopPoll();
+      if ($("btnAdd")) $("btnAdd").disabled = true;
+      $("codeBox").classList.remove("show");
+      try {
+        const acc = allAccounts.find((a) => a.id === id);
+        const res = await fetch("/api/admin/accounts/oauth", {
+          method: "POST", headers: jsonHeaders(),
+          body: JSON.stringify({
+            accountId: id,
+            name: acc?.name,
+            openBrowser: true,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        const url = data.verificationUriComplete || data.verificationUri;
+        $("userCode").textContent = data.userCode;
+        $("verifyLink").textContent = data.verificationUri;
+        $("verifyLink").href = url;
+        $("pollStatus").textContent = t("waiting");
+        $("codeBox").classList.add("show");
+        await loadAccounts();
+        const sessionId = data.sessionId;
+        pollTimer = setInterval(async () => {
+          try {
+            const pr = await fetch("/api/admin/accounts/oauth/poll?sessionId=" + encodeURIComponent(sessionId), { headers: headers() });
+            const result = await pr.json();
+            if (result.ok) {
+              stopPoll(); $("codeBox").classList.remove("show");
+              showMsg($("msg"), t("addOk") + ": " + (result.account?.name || result.account?.id), "ok");
+              if ($("btnAdd")) $("btnAdd").disabled = false;
+              await loadAccounts();
+              return;
+            }
+            if (result.pending) {
+              $("pollStatus").textContent = t("waiting") + " " + new Date().toLocaleTimeString();
+              return;
+            }
+            stopPoll();
+            if ($("btnAdd")) $("btnAdd").disabled = false;
+            showMsg($("msg"), result.error || "failed", "err");
+            await loadAccounts();
+          } catch {
+            $("pollStatus").textContent = t("waiting");
+          }
+        }, 2000);
+      } catch (e) {
+        showMsg($("msg"), e.message || String(e), "err");
+        if ($("btnAdd")) $("btnAdd").disabled = false;
+        await loadAccounts();
       }
     }
 

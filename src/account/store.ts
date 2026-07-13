@@ -456,6 +456,18 @@ export async function updateAccount(
       );
     }
     store.accounts[idx] = next;
+    // Drop current pointer if seat is no longer routable (e.g. re-auth / expired)
+    if (
+      store.routing.currentAccountId === id &&
+      (next.status === "pending" ||
+        next.status === "error" ||
+        next.status === "expired" ||
+        !next.tokens?.refresh)
+    ) {
+      store.routing.currentAccountId =
+        store.accounts.find((a) => a.id !== id && a.status === "active" && isPublicPoolAccount(a))
+          ?.id ?? null;
+    }
     return store.accounts[idx];
   });
 }

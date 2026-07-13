@@ -524,7 +524,7 @@ export function createApp() {
   /**
    * Browser device-code OAuth:
    * - creates pending seat in list
-   * - accountId: rebind existing pending/error seat (retry)
+   * - accountId: rebind existing pending/error/expired seat (retry / re-auth)
    */
   app.post("/api/me/accounts/oauth", async (c) => {
     const user = c.get("user")!;
@@ -979,8 +979,33 @@ export function createApp() {
       donorUserId?: string | null;
       private?: boolean;
       allowedUserIds?: string[] | null;
+      /** Rebind existing pending/error/expired seat */
+      accountId?: string;
     };
     try {
+      if (body.accountId) {
+        const existing = await getAccount(body.accountId);
+        if (!existing) return c.json({ error: "account not found" }, 404);
+        const session = await startDeviceLogin({
+          name: body.name?.trim() || existing.name,
+          openBrowser: body.openBrowser !== false,
+          donorUserId: existing.donorUserId ?? null,
+          private: existing.private === true,
+          allowedUserIds: existing.allowedUserIds ?? null,
+          accountId: existing.id,
+        });
+        const acc = await getAccount(session.accountId);
+        return c.json({
+          sessionId: session.sessionId,
+          accountId: session.accountId,
+          userCode: session.userCode,
+          verificationUri: session.verificationUri,
+          verificationUriComplete: session.verificationUriComplete,
+          expiresIn: session.expiresIn,
+          account: acc ? publicAccount(acc) : null,
+          instructions: `打开 ${session.verificationUri}，输入代码 ${session.userCode}`,
+        });
+      }
       let donorUserId: string | null = null;
       if (body.donorUserId) {
         const donor = await getUser(String(body.donorUserId));

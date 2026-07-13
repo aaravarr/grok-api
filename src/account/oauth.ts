@@ -311,7 +311,7 @@ export async function startDeviceLogin(opts?: {
   donorUserId?: string | null;
   private?: boolean;
   allowedUserIds?: string[] | null;
-  /** Existing pending seat to rebind (manual retry) */
+  /** Existing pending/error/expired seat to rebind (manual retry / re-auth) */
   accountId?: string;
 }): Promise<{
   sessionId: string;
@@ -359,13 +359,19 @@ export async function startDeviceLogin(opts?: {
   if (opts?.accountId) {
     const existing = await getAccount(opts.accountId);
     if (!existing) throw new Error("account not found");
-    if (existing.status !== "pending" && existing.status !== "error") {
-      throw new Error("only pending/error seats can restart OAuth");
+    if (
+      existing.status !== "pending" &&
+      existing.status !== "error" &&
+      existing.status !== "expired"
+    ) {
+      throw new Error("only pending/error/expired seats can restart OAuth");
     }
     const updated = await updateAccount(opts.accountId, {
       status: "pending",
       oauth: oauthMeta,
       lastError: oauthMeta.lastMessage,
+      // clear stale tokens so the seat is clearly non-routable until re-auth finishes
+      tokens: { access: "", refresh: "", expires: 0 },
       name: opts.name?.trim() || existing.name,
       private: opts.private !== undefined ? opts.private === true : existing.private,
       allowedUserIds:
