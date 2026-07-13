@@ -73,25 +73,42 @@ ${styles()}
           </div>
         </div>
         <div class="top-actions">
-          <div class="lang-seg" id="langSeg" role="group" aria-label="Language">
-            <button type="button" data-lang="zh">中文</button>
-            <button type="button" data-lang="en">EN</button>
+          <div class="tb-menu" id="langMenu">
+            <button class="icon-btn lang-icon-btn" id="btnLang" type="button" aria-haspopup="menu" aria-expanded="false" title="Language">
+              <span class="lang-icon" aria-hidden="true">
+                <span class="lang-icon-zh">文</span>
+                <span class="lang-icon-en">A</span>
+              </span>
+            </button>
+            <div class="tb-pop" id="langPop" role="menu" hidden>
+              <button type="button" class="tb-item" role="menuitem" data-lang="zh"><span>中文</span><span class="tb-check" data-check="zh"></span></button>
+              <button type="button" class="tb-item" role="menuitem" data-lang="en"><span>English</span><span class="tb-check" data-check="en"></span></button>
+            </div>
           </div>
-          <div class="topbar-divider" aria-hidden="true"></div>
-          <div class="user-chip" id="userChip" style="display:none">
-            <span class="user-avatar" id="userAvatar" aria-hidden="true">–</span>
-            <span class="user-meta">
-              <strong id="userName">–</strong>
-              <span id="userRole" class="user-role"></span>
-            </span>
+
+          <div class="tb-menu user-menu" id="userMenu" style="display:none">
+            <button class="user-chip" id="userChip" type="button" aria-haspopup="menu" aria-expanded="false">
+              <span class="user-avatar" id="userAvatar" aria-hidden="true">–</span>
+              <span class="user-meta">
+                <strong id="userName">–</strong>
+                <span id="userRole" class="user-role"></span>
+              </span>
+              <svg class="user-caret" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <div class="tb-pop user-pop" id="userPop" role="menu" hidden>
+              <div class="tb-user-hd">
+                <span class="user-avatar sm" id="userAvatarMenu" aria-hidden="true">–</span>
+                <div class="tb-user-meta">
+                  <strong id="userNameMenu">–</strong>
+                  <span id="userRoleMenu">–</span>
+                </div>
+              </div>
+              <div class="tb-sep"></div>
+              <button type="button" class="tb-item danger" id="btnLogout" role="menuitem" data-i18n="logout">Logout</button>
+            </div>
           </div>
-          <button class="icon-btn" id="btnRefresh" type="button" aria-label="Refresh" title="Refresh">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M13.5 8a5.5 5.5 0 1 1-1.4-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M13.5 3.2v3.3h-3.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <button class="btn btn-ghost btn-sm topbar-logout" id="btnLogout" type="button" data-i18n="logout">Logout</button>
         </div>
       </header>
 
@@ -1500,6 +1517,12 @@ ${styles()}
       return typeof v === "function" ? v(...args) : (v ?? k);
     };
 
+    function closeTopMenus() {
+      document.querySelectorAll(".tb-menu.open").forEach((m) => m.classList.remove("open"));
+      document.querySelectorAll(".tb-pop").forEach((p) => { p.hidden = true; });
+      if ($("btnLang")) $("btnLang").setAttribute("aria-expanded", "false");
+      if ($("userChip")) $("userChip").setAttribute("aria-expanded", "false");
+    }
     function isAdmin() { return currentUser && currentUser.role === "admin"; }
     function apiKeysPath() { return isAdmin() ? "/api/admin/keys" : "/api/me/keys"; }
     function apiLogsPath() { return isAdmin() ? "/api/admin/logs" : "/api/me/logs"; }
@@ -1566,16 +1589,19 @@ ${styles()}
       if (qa) qa.classList.toggle("user-only", !admin);
       document.querySelectorAll(".dt-logs").forEach((el) => el.classList.toggle("no-account", !admin));
       if (currentUser) {
-        $("userChip").style.display = "inline-flex";
-        $("userName").textContent = currentUser.username;
-        $("userRole").textContent = currentUser.role === "admin" ? t("roleAdmin") : t("roleUser");
-        if ($("userAvatar")) {
-          const ch = String(currentUser.username || "?").trim().charAt(0) || "?";
-          $("userAvatar").textContent = ch.toUpperCase();
-        }
-        $("userChip").title = currentUser.username + " · " + (currentUser.role === "admin" ? t("roleAdmin") : t("roleUser"));
+        if ($("userMenu")) $("userMenu").style.display = "inline-flex";
+        const roleTxt = currentUser.role === "admin" ? t("roleAdmin") : t("roleUser");
+        const ch = (String(currentUser.username || "?").trim().charAt(0) || "?").toUpperCase();
+        if ($("userName")) $("userName").textContent = currentUser.username;
+        if ($("userRole")) $("userRole").textContent = roleTxt;
+        if ($("userAvatar")) $("userAvatar").textContent = ch;
+        if ($("userNameMenu")) $("userNameMenu").textContent = currentUser.username;
+        if ($("userRoleMenu")) $("userRoleMenu").textContent = roleTxt;
+        if ($("userAvatarMenu")) $("userAvatarMenu").textContent = ch;
+        if ($("userChip")) $("userChip").title = currentUser.username + " · " + roleTxt;
       } else {
-        $("userChip").style.display = "none";
+        if ($("userMenu")) $("userMenu").style.display = "none";
+        closeTopMenus();
       }
       paintOverviewChrome();
     }
@@ -1607,7 +1633,12 @@ ${styles()}
       document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
       document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.getAttribute("data-i18n")); });
       document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
-      $("langSeg").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.lang === lang));
+      document.querySelectorAll("[data-check]").forEach((el) => {
+        el.textContent = el.getAttribute("data-check") === lang ? "✓" : "";
+      });
+      document.querySelectorAll("#langPop [data-lang]").forEach((b) => {
+        b.classList.toggle("on", b.dataset.lang === lang);
+      });
       paintAdminExplain();
       paintProxyUI();
       paintCurl();
@@ -4792,13 +4823,49 @@ ${styles()}
     $("btnSide").onclick = toggleSide;
     if ($("sideScrim")) $("sideScrim").onclick = closeSide;
 
-    $("langSeg").addEventListener("click", (e) => {
+    function toggleTopMenu(menuId, btnId) {
+      const menu = $(menuId);
+      if (!menu) return;
+      const open = !menu.classList.contains("open");
+      closeTopMenus();
+      if (!open) return;
+      menu.classList.add("open");
+      const pop = menu.querySelector(".tb-pop");
+      if (pop) pop.hidden = false;
+      if ($(btnId)) $(btnId).setAttribute("aria-expanded", "true");
+    }
+    if ($("btnLang")) $("btnLang").onclick = (e) => {
+      e.stopPropagation();
+      toggleTopMenu("langMenu", "btnLang");
+    };
+    if ($("userChip")) $("userChip").onclick = (e) => {
+      e.stopPropagation();
+      toggleTopMenu("userMenu", "userChip");
+    };
+    if ($("langPop")) $("langPop").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-lang]");
       if (!b) return;
       lang = b.dataset.lang;
       localStorage.setItem("grok_api_lang", lang);
+      closeTopMenus();
       applyI18n();
-      loadAll();
+      paintCurl();
+      if (lastUsageStats) {
+        if (view === "usage") paintCharts(lastUsageStats);
+        if (view === "overview") paintOverviewChart(lastUsageStats);
+      }
+      if (leaderboardData) paintLeaderboard(leaderboardData);
+      renderAccounts();
+      renderKeys();
+      renderMyAccounts();
+      renderLogs(lastLogItems);
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target.closest && e.target.closest(".tb-menu")) return;
+      closeTopMenus();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeTopMenus();
     });
     if ($("modeSeg")) $("modeSeg").addEventListener("click", async (e) => {
       const btn = e.target.closest("button[data-mode]");
@@ -5089,8 +5156,7 @@ ${styles()}
       $("btnContribCopy").textContent = t("copied");
       setTimeout(() => { if ($("btnContribCopy")) $("btnContribCopy").textContent = t("copy"); }, 1200);
     };
-    $("btnRefresh").onclick = () => { hideMsg($("msg")); hideMsg($("msgKeys")); hideMsg($("msgLogs")); hideMsg($("msgContrib")); loadAll(); };
-    $("btnLogout").onclick = logout;
+    if ($("btnLogout")) $("btnLogout").onclick = logout;
 
     async function loadAll() {
       await loadMeta();
