@@ -3081,12 +3081,12 @@ ${styles()}
       /** Append cache hit only on Cached-input series — never on uncached in / out / reason. */
       const cacheHitOnLabel = (buckets) => (ctx) => {
         const dsLabel = ctx.dataset && ctx.dataset.label ? String(ctx.dataset.label) : "";
-        const raw = ctx.parsed;
+        // Always read raw dataset value: for indexAxis:y, parsed.y is the category index (0,1,…)
         let val = null;
-        if (raw != null && typeof raw === "object") {
-          if (raw.y != null && Number.isFinite(raw.y)) val = raw.y;
-          else if (raw.x != null && Number.isFinite(raw.x)) val = raw.x;
-        } else if (typeof raw === "number") val = raw;
+        if (ctx.dataset && Array.isArray(ctx.dataset.data) && ctx.dataIndex != null) {
+          const d = ctx.dataset.data[ctx.dataIndex];
+          if (typeof d === "number" && Number.isFinite(d)) val = d;
+        }
         let line = (dsLabel ? dsLabel + ": " : "") + (val != null ? fmtNum(val) : "–");
         if (dsLabel === t("chartCache") && Array.isArray(buckets)) {
           const b = buckets[ctx.dataIndex];
