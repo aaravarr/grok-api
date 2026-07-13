@@ -815,9 +815,13 @@ export function createApp() {
     };
     const me = c.get("user")!;
     if (body.password) {
-      const updated = await setUserPassword(c.req.param("id"), body.password);
-      if (!updated) return c.json({ error: "not found" }, 404);
-      return c.json({ user: publicUser(updated) });
+      try {
+        const updated = await setUserPassword(c.req.param("id"), body.password);
+        if (!updated) return c.json({ error: "not found" }, 404);
+        return c.json({ user: publicUser(updated) });
+      } catch (e) {
+        return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
+      }
     }
     if (body.role === "user" && c.req.param("id") === me.id) {
       return c.json({ error: "不能取消自己的管理员身份" }, 400);

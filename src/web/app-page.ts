@@ -921,6 +921,26 @@ ${styles()}
     </div>
   </div>
 
+  <div class="modal-mask" id="pwdModal">
+    <div class="modal" role="dialog">
+      <h3 data-i18n="resetPwdTitle">Reset password</h3>
+      <p id="pwdUserHint" class="mono" style="margin-bottom:12px"></p>
+      <div class="field">
+        <label data-i18n="resetPwdLabel">New password</label>
+        <input id="pwdInput" class="input" style="width:100%" type="password" autocomplete="new-password" />
+      </div>
+      <div class="field">
+        <label data-i18n="resetPwdLabel2">Confirm password</label>
+        <input id="pwdInput2" class="input" style="width:100%" type="password" autocomplete="new-password" />
+      </div>
+      <div class="hint" data-i18n="resetPwdHint">At least 6 characters</div>
+      <div class="row">
+        <button class="btn btn-secondary" type="button" id="pwdCancel" data-i18n="close">Close</button>
+        <button class="btn" type="button" id="pwdSubmit" data-i18n="resetPwdSave">Save password</button>
+      </div>
+    </div>
+  </div>
+
 
   <script>
     const PAGE = ${JSON.stringify(page)};
@@ -961,6 +981,9 @@ ${styles()}
         editQuota:"编辑 Token 额度", quotaLabel:"Token 额度（空=不限）", quotaUsedLabel:"已用 Token",
         quotaResetUsed:"将已用清零", saveQuota:"保存额度", quotaUnlimited:"不限",
         quotaFmt:(u,q)=>u+" / "+q, setQuota:"额度",
+        resetPwd:"改密", resetPwdTitle:"重置密码", resetPwdLabel:"新密码", resetPwdLabel2:"确认密码",
+        resetPwdHint:"至少 6 位", resetPwdSave:"保存密码", resetPwdOk:"密码已更新",
+        resetPwdMismatch:"两次密码不一致",
         viewMore:"查看详情 →", viewAllLogs:"全部日志 →",
         qaAcc:"账号池与额度", qaKey:"创建与管理密钥", qaUsage:"趋势与分布", qaLogs:"请求排查",
         qaSettings:"端点与代理",
@@ -1146,6 +1169,9 @@ ${styles()}
         editQuota:"Edit token quota", quotaLabel:"Token quota (empty = unlimited)", quotaUsedLabel:"Tokens used",
         quotaResetUsed:"Reset used to 0", saveQuota:"Save quota", quotaUnlimited:"Unlimited",
         quotaFmt:(u,q)=>u+" / "+q, setQuota:"Quota",
+        resetPwd:"Password", resetPwdTitle:"Reset password", resetPwdLabel:"New password", resetPwdLabel2:"Confirm",
+        resetPwdHint:"At least 6 characters", resetPwdSave:"Save password", resetPwdOk:"Password updated",
+        resetPwdMismatch:"Passwords do not match",
         viewMore:"Details →", viewAllLogs:"All logs →",
         qaAcc:"Pool & credits", qaKey:"Create and manage keys", qaUsage:"Trends & mix", qaLogs:"Request debug",
         qaSettings:"Endpoints & proxy",
@@ -3008,6 +3034,7 @@ ${styles()}
     }
 
     let quotaEditId = null;
+    let pwdEditId = null;
 
     function openQuotaModal(u) {
       quotaEditId = u.id;
@@ -3022,6 +3049,22 @@ ${styles()}
     function closeQuotaModal() {
       quotaEditId = null;
       $("quotaModal").classList.remove("show");
+    }
+
+    function openPwdModal(u) {
+      pwdEditId = u.id;
+      $("pwdUserHint").textContent = u.username + " · " + u.id;
+      $("pwdInput").value = "";
+      $("pwdInput2").value = "";
+      $("pwdModal").classList.add("show");
+      $("pwdInput").focus();
+    }
+
+    function closePwdModal() {
+      pwdEditId = null;
+      $("pwdModal").classList.remove("show");
+      if ($("pwdInput")) $("pwdInput").value = "";
+      if ($("pwdInput2")) $("pwdInput2").value = "";
     }
 
     function filteredUsers() {
@@ -3059,6 +3102,7 @@ ${styles()}
           '<div class="dt-time">' + fmtTime(u.lastLoginAt) + "</div>" +
           '<div class="dt-actions">' +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="quota-user" data-id="' + esc(u.id) + '">' + esc(t("setQuota")) + "</button>" +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="pwd-user" data-id="' + esc(u.id) + '">' + esc(t("resetPwd")) + "</button>" +
           (u.id === currentUser?.id ? "" :
             '<button class="btn btn-secondary btn-sm" type="button" data-act="toggle-user" data-id="' + esc(u.id) + '" data-en="' + (u.enabled ? "0" : "1") + '">' +
             esc(u.enabled ? t("disable") : t("enable")) + "</button>" +
@@ -3073,6 +3117,11 @@ ${styles()}
             if (act === "quota-user") {
               const u = allUsers.find((x) => x.id === id);
               if (u) openQuotaModal(u);
+              return;
+            }
+            if (act === "pwd-user") {
+              const u = allUsers.find((x) => x.id === id);
+              if (u) openPwdModal(u);
               return;
             }
             if (act === "toggle-user") {
@@ -3987,6 +4036,24 @@ ${styles()}
         closeQuotaModal();
         await loadUsers();
       } catch (e) { showMsg($("msgUsers"), e.message, "err"); closeQuotaModal(); }
+    };
+    if ($("pwdCancel")) $("pwdCancel").onclick = closePwdModal;
+    if ($("pwdModal")) $("pwdModal").addEventListener("click", (e) => { if (e.target === $("pwdModal")) closePwdModal(); });
+    if ($("pwdSubmit")) $("pwdSubmit").onclick = async () => {
+      if (!pwdEditId) return;
+      try {
+        const p1 = ($("pwdInput").value || "");
+        const p2 = ($("pwdInput2").value || "");
+        if (p1.length < 6) throw new Error(t("resetPwdHint"));
+        if (p1 !== p2) throw new Error(t("resetPwdMismatch"));
+        const res = await fetch("/api/admin/users/" + pwdEditId, {
+          method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ password: p1 }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        closePwdModal();
+        showMsg($("msgUsers"), t("resetPwdOk"), "ok");
+      } catch (e) { showMsg($("msgUsers"), e.message, "err"); }
     };
     if ($("keySubmit")) $("keySubmit").onclick = async () => {
       try {
