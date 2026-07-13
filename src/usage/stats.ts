@@ -54,6 +54,12 @@ export interface UsageStats {
     ok: number;
     fail: number;
     avgLatencyMs: number;
+    /** Wall-clock gen tokens/sec (completion+reasoning) over the selected window */
+    avgTps: number;
+    /** Requests per minute over the selected window */
+    rpm: number;
+    /** Mean per-request gen speed: (completion+reasoning) / sum(latency) */
+    avgReqTps: number;
   } & TokenTotals;
   /** Time series at selected granularity (kept name byDay for API compat). */
   byDay: UsageBucket[];
@@ -125,12 +131,34 @@ function sortBuckets(arr: UsageBucket[]): UsageBucket[] {
   return arr.sort((a, b) => b.requests - a.requests || b.totalTokens - a.totalTokens);
 }
 
-function summaryOf(b: UsageBucket): UsageStats["summary"] {
+function summaryOf(
+  b: UsageBucket,
+  windowMs: number,
+): UsageStats["summary"] {
+  const windowSec = windowMs > 0 ? windowMs / 1000 : 0;
+  const windowMin = windowSec / 60;
+  const latencySec = b.latencySum > 0 ? b.latencySum / 1000 : 0;
+  const genTok = (b.completionTokens || 0) + (b.reasoningTokens || 0);
+  const avgTps =
+    windowSec > 0 && genTok > 0
+      ? Math.round((genTok / windowSec) * 100) / 100
+      : 0;
+  const rpm =
+    windowMin > 0 && b.requests > 0
+      ? Math.round((b.requests / windowMin) * 100) / 100
+      : 0;
+  const avgReqTps =
+    latencySec > 0 && genTok > 0
+      ? Math.round((genTok / latencySec) * 100) / 100
+      : 0;
   return {
     requests: b.requests,
     ok: b.ok,
     fail: b.fail,
     avgLatencyMs: b.avgLatencyMs,
+    avgTps,
+    rpm,
+    avgReqTps,
     promptTokens: b.promptTokens,
     completionTokens: b.completionTokens,
     totalTokens: b.totalTokens,
@@ -371,7 +399,7 @@ export async function computeUsageStats(
     toDay,
     fromTs,
     toTs,
-    summary: summaryOf(summary),
+    summary: summaryOf(summary, toTs - fromTs),
     byDay,
     byModel: sortBuckets([...byModelMap.values()]),
     byAccount: sortBuckets([...byAccountMap.values()]),

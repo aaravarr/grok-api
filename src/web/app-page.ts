@@ -62,26 +62,36 @@ ${styles()}
     <div class="main-wrap">
       <header class="topbar">
         <div class="topbar-left">
-          <button class="btn btn-secondary btn-sm side-toggle" type="button" id="btnSide" aria-label="Menu">
-            <svg class="side-toggle-icon" width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true">
-              <circle cx="4" cy="4" r="1.35"/><circle cx="9" cy="4" r="1.35"/><circle cx="14" cy="4" r="1.35"/>
-              <circle cx="4" cy="9" r="1.35"/><circle cx="9" cy="9" r="1.35"/><circle cx="14" cy="9" r="1.35"/>
-              <circle cx="4" cy="14" r="1.35"/><circle cx="9" cy="14" r="1.35"/><circle cx="14" cy="14" r="1.35"/>
+          <button class="icon-btn side-toggle" type="button" id="btnSide" aria-label="Menu">
+            <svg class="side-toggle-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
           </button>
           <div class="topbar-titles">
-            <span class="page-title" id="pageTitle">Overview</span>
-            <span class="page-sub" id="pageSub"></span>
+            <h1 class="page-title" id="pageTitle">Overview</h1>
+            <p class="page-sub" id="pageSub"></p>
           </div>
         </div>
         <div class="top-actions">
-          <div class="seg" id="langSeg">
+          <div class="lang-seg" id="langSeg" role="group" aria-label="Language">
             <button type="button" data-lang="zh">中文</button>
             <button type="button" data-lang="en">EN</button>
           </div>
-          <div class="user-chip" id="userChip" style="display:none"><strong id="userName">–</strong><span id="userRole" class="mono"></span></div>
-          <button class="btn btn-secondary btn-sm" id="btnRefresh" type="button" data-i18n="refresh">Refresh</button>
-          <button class="btn btn-ghost btn-sm" id="btnLogout" type="button" data-i18n="logout">Logout</button>
+          <div class="topbar-divider" aria-hidden="true"></div>
+          <div class="user-chip" id="userChip" style="display:none">
+            <span class="user-avatar" id="userAvatar" aria-hidden="true">–</span>
+            <span class="user-meta">
+              <strong id="userName">–</strong>
+              <span id="userRole" class="user-role"></span>
+            </span>
+          </div>
+          <button class="icon-btn" id="btnRefresh" type="button" aria-label="Refresh" title="Refresh">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M13.5 8a5.5 5.5 0 1 1-1.4-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M13.5 3.2v3.3h-3.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button class="btn btn-ghost btn-sm topbar-logout" id="btnLogout" type="button" data-i18n="logout">Logout</button>
         </div>
       </header>
 
@@ -216,7 +226,7 @@ ${styles()}
                 </div>
                 <div class="add-field">
                   <label class="field-label" data-i18n="accDonorLabel">Donor</label>
-                  <select id="accDonor" class="select">
+                  <select id="accDonor" class="select" data-searchable="1">
                     <option value="" data-i18n="accDonorNone">No donor</option>
                   </select>
                 </div>
@@ -385,6 +395,7 @@ ${styles()}
               <div class="usage-kpis compact" style="margin-top:-4px;margin-bottom:14px">
                 <div class="kpi"><div class="n" id="uOk">–</div><div class="l" data-i18n="kpiOk">Success rate</div></div>
                 <div class="kpi"><div class="n" id="uLat">–</div><div class="l" data-i18n="kpiLat">Avg latency</div></div>
+                <div class="kpi"><div class="n" id="uTps">–</div><div class="l" data-i18n="kpiTps">Avg TPS</div></div>
                 <div class="kpi"><div class="n" id="uImg">–</div><div class="l" data-i18n="kpiImg">Image tokens</div></div>
               </div>
               <div class="charts">
@@ -425,6 +436,7 @@ ${styles()}
                 <div data-i18n="colStatus">Status</div>
                 <div data-i18n="colTokens">Tokens</div>
                 <div data-i18n="colLatency">Latency</div>
+                <div data-i18n="colTps">TPS</div>
                 <div data-i18n="colAccount" data-admin-only>Account</div>
                 <div data-i18n="colKey">Key</div>
               </div>
@@ -785,7 +797,8 @@ ${styles()}
     </div>
   </div>
 
-  <div id="msgContrib" class="toast" role="status" aria-live="polite"></div>
+  <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
+  <div id="msgContrib" class="toast" hidden aria-hidden="true"></div>
 
   <div class="modal-mask" id="confirmModal">
     <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMsg">
@@ -828,7 +841,7 @@ ${styles()}
   <div class="modal-mask" id="myMembersModal">
     <div class="modal" role="dialog">
       <h3 id="myMembersTitle" data-i18n="membersTitle">Allowed members</h3>
-      <p id="myMembersSub" data-i18n="membersSub">Donor always has access. You can revoke extras; only admin can add users.</p>
+      <p id="myMembersSub" data-i18n="membersSub">Donor always has access. Search full username to add members.</p>
       <div class="member-vis" id="myMembersVisBar">
         <span class="field-label" data-i18n="colVisibility">Visibility</span>
         <div class="seg" id="myMembersVisSeg">
@@ -838,6 +851,25 @@ ${styles()}
         </div>
       </div>
       <div class="hint" id="myMembersVisHint" style="display:none;margin:0 0 10px"></div>
+      <div class="member-add" id="myMembersAddBox">
+        <div class="field-hd">
+          <label class="field-label" data-i18n="memberAddLabel">Add member</label>
+          <div class="member-add-actions">
+            <span class="mono" id="myMembersAddMeta" style="font-size:12px;color:var(--mute)"></span>
+            <button class="btn btn-secondary btn-sm" type="button" id="myMembersAddClear" data-i18n="memberAddClear">Clear pick</button>
+            <button class="btn btn-sm" type="button" id="myMembersAddBtn" data-i18n="memberAddBtn">Add selected</button>
+          </div>
+        </div>
+        <div class="msel msel-inline open" id="myMembersMsel">
+          <div class="msel-panel msel-panel-inline" id="myMembersPanel">
+            <div class="msel-search">
+              <input id="myMembersAddQ" class="input block" type="search" autocomplete="off" data-i18n-placeholder="memberAddPh" placeholder="Search full username…" />
+            </div>
+            <div class="msel-list" id="myMembersSearchList" role="listbox" aria-multiselectable="true"></div>
+            <div class="msel-empty" id="myMembersSearchEmpty" hidden></div>
+          </div>
+        </div>
+      </div>
       <div class="member-list" id="myMembersBody"></div>
       <div class="row">
         <button class="btn btn-secondary" type="button" id="myMembersClose" data-i18n="close">Close</button>
@@ -867,7 +899,7 @@ ${styles()}
         </div>
         <div class="field field-span">
           <label data-i18n="accDonorLabel">Donor</label>
-          <select id="accEditDonor" class="select block">
+          <select id="accEditDonor" class="select block" data-searchable="1">
             <option value="" data-i18n="accDonorNone">No donor</option>
           </select>
         </div>
@@ -1029,6 +1061,7 @@ ${styles()}
         logHint:"默认只记元数据与 Token；失败时仍可保留响应体便于排查",
         logSaved:"日志设置已保存",
         usageTitle:"分析", kpiReq:"请求数", kpiTok:"总 Token", kpiOk:"成功率", kpiLat:"平均延迟",
+        kpiTps:"平均 TPS（输出+推理）",
         kpiIn:"输入(未缓存)", kpiOut:"输出 Token", kpiCache:"缓存输入", kpiReason:"推理 Token", kpiImg:"图片 Token",
         chartDay:"Token 趋势", chartTokMix:"Token 构成", chartModel:"模型分布", chartAccount:"按账号", chartKey:"按密钥（总 Token）",
         usageRange:"时间范围", usageGran:"时间粒度",
@@ -1042,7 +1075,7 @@ ${styles()}
         stripLogs:"精简正文", stripLogsConfirm:"将从历史日志中删除请求/响应正文（保留元数据与 Token），是否继续？",
         logsStripped:(n,b)=>"已精简 "+n+" 条 · 释放约 "+b,
         logDetail:"请求详情", allDays:"全部日期", noLogs:"暂无请求日志",
-        colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟",
+        colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟", colTps:"TPS",
         routing:"路由", modeAuto:"自动", modeManual:"手动",
         accNamePh:"账号备注（可选）", addAccount:"添加账号",
         accSyncName:"同步名称",
@@ -1050,7 +1083,8 @@ ${styles()}
         accDonorNone:"无贡献者", accDonorLabel:"贡献者",
         accAllowedLabel:"额外可用成员", accAllowedHint:"贡献者始终可用且不可取消；此处只配置额外成员。清空额外成员=仅贡献者（若为私有）或公共池规则",
         accAllowedClear:"清除额外成员", accAllowedNone:"暂无用户",
-        accAllowedSearch:"搜索用户…", accAllowedEmptySearch:"无匹配用户",
+        accAllowedSearch:"搜索完整用户名或 ID…", accAllowedEmptySearch:"无匹配用户",
+        userSearchPh:"输入完整用户名搜索…", userSearchEmpty:"无匹配用户",
         accAllowedPicked:(n)=>n ? ("额外 "+n+" 人") : "无额外成员（贡献者始终可用）",
         accAllowedPickedNames:(n,s)=>"额外 "+n+" 人："+s,
         accAllowedDonorLocked:"贡献者（始终可用）",
@@ -1062,11 +1096,16 @@ ${styles()}
         colDonor:"贡献者", colAllowed:"可用成员", colMembers:"可用成员", colPublic:"公开", colPrivate:"私有",
         visPublic:"公开池", visPrivate:"仅贡献者", visRestricted:"指定成员",
         memberDonor:"贡献者（不可取消）", memberExtra:"额外成员",
-        membersTitle:"可用成员", membersSub:"三态：公开池 / 指定成员 / 仅自己。你始终可用；添加成员需管理员。",
+        membersTitle:"可用成员", membersSub:"三态：公开池 / 指定成员 / 仅自己。你始终可用；可按完整用户名添加成员。",
         membersNone:"仅贡献者本人", membersCount:(n)=>n+" 人可用",
         memberRevoke:"收回", memberRevokeOk:"已收回该用户权限",
         memberRevokeConfirm:(n)=>"确定收回「"+n+"」的使用权限？",
         memberDisabled:"已禁用/不可用",
+        memberAddLabel:"添加成员", memberAddPh:"输入完整用户名…", memberAddBtn:"添加所选",
+        memberAddHint:"须输入完整用户名（不支持前缀模糊）", memberAddOk:"已添加成员",
+        memberAddEmpty:"请先搜索并勾选用户", memberAlready:"该用户已在名单中",
+        memberAddClear:"清空勾选", memberAddNeedQ:"请输入完整用户名后搜索",
+        memberAddNoHit:"未找到该用户（需完整用户名）", memberAddPicked:(n)=>n ? ("已选 "+n+" 人") : "未选择",
         colAlias:"别名", colKey:"密钥", colExpires:"过期",
         keysTitle:"客户端密钥", keysHint:"Bearer gk_…",
         createKey:"创建密钥", create:"创建", close:"关闭",
@@ -1122,10 +1161,10 @@ ${styles()}
         restrictedOk:"已设为指定成员模式（名单保留）",
         membersSubPublic:"完全公开：进入公共轮询，所有人可用。",
         membersSubPrivate:"仅自己：只有你能用该席位。",
-        membersSubRestricted:"指定成员：仅名单内用户可用（你始终可用）。可收回成员；添加需管理员。",
+        membersSubRestricted:"指定成员：仅名单内用户可用（你始终可用）。可添加或收回成员。",
         membersClearForPublic:"将清空所有额外可用成员，并设为完全公开池。确定？",
         membersClearForPrivate:"将清空所有额外可用成员，并设为仅自己可用。确定？",
-        membersNeedExtras:"指定成员需要至少一名额外用户。请先让管理员添加成员，或从公开/私有模式由管理员配置名单。",
+        membersNeedExtras:"指定成员需要至少一名额外用户。请先在下方用完整用户名添加成员。",
         usePrivateBlocked:"仅贡献者/指定成员账号不能设为公共池当前账号",
         usePendingBlocked:"账号尚未完成 OAuth 授权，不能使用",
         useNotActiveBlocked:"账号未处于可用状态，不能设为当前账号",
@@ -1217,6 +1256,7 @@ ${styles()}
         logHint:"Metadata + tokens by default; failed responses can still be kept",
         logSaved:"Log settings saved",
         usageTitle:"Analytics", kpiReq:"Requests", kpiTok:"Total tokens", kpiOk:"Success rate", kpiLat:"Avg latency",
+        kpiTps:"Avg TPS (out+reason)",
         kpiIn:"Input (uncached)", kpiOut:"Output tokens", kpiCache:"Cached input", kpiReason:"Reasoning", kpiImg:"Image tokens",
         chartDay:"Tokens over time", chartTokMix:"Token mix", chartModel:"Model distribution", chartAccount:"By account", chartKey:"By API key (total)",
         usageRange:"Range", usageGran:"Bucket",
@@ -1230,7 +1270,7 @@ ${styles()}
         stripLogs:"Strip bodies", stripLogsConfirm:"Remove request/response bodies from historical logs (keep metadata + tokens). Continue?",
         logsStripped:(n,b)=>"Stripped "+n+" rows · saved ~"+b,
         logDetail:"Request detail", allDays:"All days", noLogs:"No request logs yet",
-        colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency",
+        colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency", colTps:"TPS",
         routing:"Routing", modeAuto:"Auto", modeManual:"Manual",
         accNamePh:"Account note (optional)", addAccount:"Add account",
         accSyncName:"Sync name",
@@ -1238,7 +1278,8 @@ ${styles()}
         accDonorNone:"No donor", accDonorLabel:"Donor",
         accAllowedLabel:"Extra members", accAllowedHint:"Donor always has access and cannot be removed. Clear extras only.",
         accAllowedClear:"Clear extras", accAllowedNone:"No users",
-        accAllowedSearch:"Search users…", accAllowedEmptySearch:"No matches",
+        accAllowedSearch:"Search full username or ID…", accAllowedEmptySearch:"No matches",
+        userSearchPh:"Type full username…", userSearchEmpty:"No matches",
         accAllowedPicked:(n)=>n ? (n+" extra") : "No extras (donor always allowed)",
         accAllowedPickedNames:(n,s)=>n+" extra: "+s,
         accAllowedDonorLocked:"Donor (always allowed)",
@@ -1250,11 +1291,16 @@ ${styles()}
         colDonor:"Donor", colAllowed:"Members", colMembers:"Members", colPublic:"Public", colPrivate:"Private",
         visPublic:"Public pool", visPrivate:"Donor only", visRestricted:"Named members",
         memberDonor:"Donor (always)", memberExtra:"Extra member",
-        membersTitle:"Allowed members", membersSub:"Three modes: public / named members / donor-only. You always have access; admin adds users.",
+        membersTitle:"Allowed members", membersSub:"Three modes: public / named members / donor-only. You always have access; add by full username.",
         membersNone:"Donor only", membersCount:(n)=>n+" members",
         memberRevoke:"Revoke", memberRevokeOk:"Access revoked",
         memberRevokeConfirm:(n)=>"Revoke access for ["+n+"]?",
         memberDisabled:"Disabled / unavailable",
+        memberAddLabel:"Add member", memberAddPh:"Full username…", memberAddBtn:"Add selected",
+        memberAddHint:"Exact full username only (no prefix match)", memberAddOk:"Member added",
+        memberAddEmpty:"Search and select users first", memberAlready:"Already on the list",
+        memberAddClear:"Clear pick", memberAddNeedQ:"Enter the full username",
+        memberAddNoHit:"User not found (full username required)", memberAddPicked:(n)=>n ? (n+" selected") : "None selected",
         colAlias:"Alias", colKey:"Key", colExpires:"Expires",
         keysTitle:"Client keys", keysHint:"Bearer gk_…",
         createKey:"Create key", create:"Create", close:"Close",
@@ -1310,10 +1356,10 @@ ${styles()}
         restrictedOk:"Named-member mode (list kept)",
         membersSubPublic:"Public: joins shared pool for everyone.",
         membersSubPrivate:"Donor only: only you can use this seat.",
-        membersSubRestricted:"Named members: only listed users (you always). Revoke extras here; admin adds users.",
+        membersSubRestricted:"Named members: only listed users (you always). Add or revoke members here.",
         membersClearForPublic:"Clear all extra members and make this seat fully public?",
         membersClearForPrivate:"Clear all extra members and set donor-only?",
-        membersNeedExtras:"Named-member mode needs at least one extra user. Ask an admin to add members first.",
+        membersNeedExtras:"Named-member mode needs at least one extra user. Add a member by full username below first.",
         usePrivateBlocked:"Donor-only / named-member seats cannot be the public-pool current seat",
         usePendingBlocked:"OAuth not finished — cannot use this seat",
         useNotActiveBlocked:"Seat is not active — cannot set as current",
@@ -1443,6 +1489,11 @@ ${styles()}
         $("userChip").style.display = "inline-flex";
         $("userName").textContent = currentUser.username;
         $("userRole").textContent = currentUser.role === "admin" ? t("roleAdmin") : t("roleUser");
+        if ($("userAvatar")) {
+          const ch = String(currentUser.username || "?").trim().charAt(0) || "?";
+          $("userAvatar").textContent = ch.toUpperCase();
+        }
+        $("userChip").title = currentUser.username + " · " + (currentUser.role === "admin" ? t("roleAdmin") : t("roleUser"));
       } else {
         $("userChip").style.display = "none";
       }
@@ -1602,21 +1653,29 @@ ${styles()}
       });
     }
 
-    function showMsg(el, text, type) {
-      if (!el) return;
-      el.textContent = text;
-      const isToast = el.classList.contains("toast") || el.id === "msgContrib";
-      el.className = (isToast ? "toast show" : "msg show") + (type ? " " + type : "");
-      if (el._hideTimer) clearTimeout(el._hideTimer);
-      if (isToast) {
-        el._hideTimer = setTimeout(() => hideMsg(el), type === "err" ? 5200 : 3200);
-      }
+    function toast(text, type) {
+      const host = $("toastHost");
+      if (!host || text == null || text === "") return;
+      const el = document.createElement("div");
+      el.className = "toast show" + (type ? " " + type : "");
+      el.setAttribute("role", type === "err" ? "alert" : "status");
+      el.textContent = String(text);
+      host.appendChild(el);
+      const ms = type === "err" ? 5200 : 3200;
+      const hide = () => {
+        el.classList.remove("show");
+        setTimeout(() => { try { el.remove(); } catch {} }, 200);
+      };
+      el.addEventListener("click", hide);
+      setTimeout(hide, ms);
+    }
+    function showMsg(_el, text, type) {
+      toast(text, type);
     }
     function hideMsg(el) {
       if (!el) return;
       if (el._hideTimer) { clearTimeout(el._hideTimer); el._hideTimer = null; }
-      const isToast = el.classList.contains("toast") || el.id === "msgContrib";
-      el.className = isToast ? "toast" : "msg";
+      el.className = el.classList.contains("toast") ? "toast" : "msg";
       el.textContent = "";
     }
     function esc(s) {
@@ -1785,6 +1844,7 @@ ${styles()}
       if (sel.multiple) return;
       sel.dataset.cselect = "1";
       sel.classList.add("select-native");
+      const searchable = sel.dataset.searchable === "1";
       const wrap = document.createElement("div");
       const full =
         sel.classList.contains("grow") ||
@@ -1805,8 +1865,32 @@ ${styles()}
         '<span class="cselect-label"></span>' +
         '<svg class="cselect-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       const menu = document.createElement("div");
-      menu.className = "cselect-menu";
+      menu.className = "cselect-menu" + (searchable ? " searchable" : "");
       menu.setAttribute("role", "listbox");
+      let searchInput = null;
+      const optsBox = document.createElement("div");
+      optsBox.className = "cselect-opts";
+      if (searchable) {
+        const searchWrap = document.createElement("div");
+        searchWrap.className = "cselect-search";
+        searchInput = document.createElement("input");
+        searchInput.type = "search";
+        searchInput.className = "input";
+        searchInput.autocomplete = "off";
+        searchInput.placeholder = t("userSearchPh");
+        searchInput.addEventListener("click", (e) => e.stopPropagation());
+        searchInput.addEventListener("input", () => rebuildOptions());
+        searchInput.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            closeMenu();
+          }
+        });
+        searchWrap.appendChild(searchInput);
+        menu.appendChild(searchWrap);
+      }
+      menu.appendChild(optsBox);
       wrap.appendChild(btn);
       wrap.appendChild(menu);
 
@@ -1822,23 +1906,56 @@ ${styles()}
       function closeMenu() {
         wrap.classList.remove("open");
         btn.setAttribute("aria-expanded", "false");
+        if (searchInput) searchInput.value = "";
       }
       function openMenu() {
         document.querySelectorAll(".cselect.open").forEach((w) => {
           if (w !== wrap) w.classList.remove("open");
         });
+        if (searchInput) {
+          searchInput.value = "";
+          searchInput.placeholder = t("userSearchPh");
+        }
         rebuildOptions();
         wrap.classList.add("open");
         btn.setAttribute("aria-expanded", "true");
-        // flip upward if near bottom
         menu.classList.remove("drop-up");
         const rect = wrap.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom;
-        if (spaceBelow < 200 && rect.top > spaceBelow) menu.classList.add("drop-up");
+        if (spaceBelow < 240 && rect.top > spaceBelow) menu.classList.add("drop-up");
+        if (searchInput) setTimeout(() => { try { searchInput.focus(); } catch {} }, 0);
+      }
+      function optionSearchText(opt) {
+        return ((opt.textContent || "") + " " + (opt.value || "")).toLowerCase();
+      }
+      function optionRank(opt, q) {
+        if (!q) return 0;
+        const name = String(opt.textContent || "").toLowerCase();
+        const bare = name.replace(/\s*\(admin\)\s*$/i, "").trim();
+        const id = String(opt.value || "").toLowerCase();
+        if (bare === q || name === q || id === q) return 0;
+        if (bare.startsWith(q) || name.startsWith(q) || id.startsWith(q)) return 1;
+        if (name.includes(q) || id.includes(q)) return 2;
+        return 9;
       }
       function rebuildOptions() {
-        menu.innerHTML = "";
-        Array.from(sel.options).forEach((opt, idx) => {
+        optsBox.innerHTML = "";
+        const q = searchInput ? String(searchInput.value || "").trim().toLowerCase() : "";
+        const all = Array.from(sel.options).map((opt, idx) => ({ opt, idx }));
+        let items = all;
+        if (q) {
+          items = all
+            .filter(({ opt }) => optionSearchText(opt).includes(q))
+            .sort((a, b) => optionRank(a.opt, q) - optionRank(b.opt, q) || a.idx - b.idx);
+        }
+        if (!items.length) {
+          const empty = document.createElement("div");
+          empty.className = "cselect-empty";
+          empty.textContent = t("userSearchEmpty");
+          optsBox.appendChild(empty);
+          return;
+        }
+        items.forEach(({ opt, idx }) => {
           const b = document.createElement("button");
           b.type = "button";
           b.className = "cselect-opt" + (opt.selected ? " on" : "");
@@ -1861,7 +1978,7 @@ ${styles()}
               sel.dispatchEvent(new Event("input", { bubbles: true }));
             }
           });
-          menu.appendChild(b);
+          optsBox.appendChild(b);
         });
       }
       function refresh() {
@@ -1876,7 +1993,6 @@ ${styles()}
         else openMenu();
       });
       sel.addEventListener("change", syncLabel);
-      // when options rewritten (e.g. logDay), re-sync
       const mo = new MutationObserver(() => refresh());
       mo.observe(sel, { childList: true, subtree: true, characterData: true, attributes: true });
       wrap._cselectRefresh = refresh;
@@ -1904,6 +2020,26 @@ ${styles()}
     function matchQ(hay, q) {
       if (!q) return true;
       return String(hay || "").toLowerCase().includes(q);
+    }
+    /** Rank user hits: exact username > prefix > contains (id last). Lower is better. */
+    function userSearchRank(u, q) {
+      if (!q) return 0;
+      const name = String(u.username || "").toLowerCase();
+      const id = String(u.id || "").toLowerCase();
+      if (name === q) return 0;
+      if (id === q) return 1;
+      if (name.startsWith(q)) return 2;
+      if (id.startsWith(q)) return 3;
+      if (name.includes(q)) return 4;
+      if (id.includes(q)) return 5;
+      return 9;
+    }
+    function filterUsersByQ(users, qRaw) {
+      const q = String(qRaw || "").trim().toLowerCase();
+      if (!q) return users.slice();
+      return users
+        .filter((u) => matchQ(u.username, q) || matchQ(u.id, q))
+        .sort((a, b) => userSearchRank(a, q) - userSearchRank(b, q));
     }
 
     function accIsRestricted(a) {
@@ -2087,12 +2223,9 @@ ${styles()}
       const empty = $("accEditAllowedEmpty");
       if (!list) return;
       const users = allowedUsersSource();
-      const q = allowedFilterQ.trim().toLowerCase();
       // extras only — donor shown as locked row at top when present
       const extras = users.filter((u) => u.id !== allowedDonorId);
-      const filtered = q
-        ? extras.filter((u) => matchQ(u.username, q) || matchQ(u.id, q))
-        : extras;
+      const filtered = filterUsersByQ(extras, allowedFilterQ);
       const donor = allowedDonorId
         ? users.find((u) => u.id === allowedDonorId)
         : null;
@@ -2359,6 +2492,28 @@ ${styles()}
       if (!parts.length && u.totalTokens != null) return fmtNum(u.totalTokens);
       return parts.join(" · ") || "–";
     }
+    /** Generated tokens for TPS: completion (output) + reasoning */
+    function logGenTokens(u) {
+      if (!u) return 0;
+      const out = Number(u.completionTokens) || 0;
+      const reason = Number(u.reasoningTokens) || 0;
+      return out + reason;
+    }
+    /** Per-request generation speed: (completion+reasoning) / (latencyMs/1000) */
+    function fmtReqTps(r) {
+      const tok = logGenTokens(r && r.usage);
+      const ms = r && r.latencyMs != null ? Number(r.latencyMs) : 0;
+      if (!(tok > 0) || !(ms > 0)) return "–";
+      const tps = tok / (ms / 1000);
+      if (!Number.isFinite(tps)) return "–";
+      return (tps >= 100 ? Math.round(tps) : Math.round(tps * 10) / 10) + "";
+    }
+    function fmtRate(n, digits) {
+      if (n == null || !Number.isFinite(Number(n)) || Number(n) <= 0) return "–";
+      const v = Number(n);
+      const d = digits != null ? digits : (v >= 100 ? 0 : 2);
+      return (Math.round(v * Math.pow(10, d)) / Math.pow(10, d)).toString();
+    }
     function fmtUsageDetail(u) {
       if (!u) return "–";
       const rows = [
@@ -2418,6 +2573,7 @@ ${styles()}
           '<div><span class="badge ' + stCls + '">' + esc(r.status) + "</span></div>" +
           '<div class="mono" style="white-space:nowrap">' + tok + "</div>" +
           '<div class="mono">' + (r.latencyMs != null ? r.latencyMs + "ms" : "–") + "</div>" +
+          '<div class="mono">' + esc(fmtReqTps(r)) + "</div>" +
           (showAcc ? '<div class="mono">' + esc(r.accountName || r.accountId || "–") + "</div>" : "") +
           '<div class="mono">' + esc(r.apiKeyAlias || r.apiKeyId || "–") + "</div>" +
           "</div>";
@@ -3180,6 +3336,7 @@ ${styles()}
         if ($("uTok")) $("uTok").textContent = fmtNum(s.totalTokens);
         if ($("uOk")) $("uOk").textContent = s.requests ? Math.round((s.ok / s.requests) * 100) + "%" : "–";
         if ($("uLat")) $("uLat").textContent = s.avgLatencyMs != null ? s.avgLatencyMs + "ms" : "–";
+        if ($("uTps")) $("uTps").textContent = fmtRate(s.avgReqTps != null ? s.avgReqTps : s.avgTps);
         if ($("uImg")) $("uImg").textContent = fmtNum(s.imageTokens);
         paintUsageControls(data.stats);
 
@@ -3241,6 +3398,7 @@ ${styles()}
           '<div><div class="k">user-agent</div><div class="v">' + esc(log.userAgent || "–") + "</div></div>" +
           '<div><div class="k">model</div><div class="v">' + esc(log.model || "–") + (log.reasoningEffort ? " · effort=" + esc(log.reasoningEffort) : "") + "</div></div>" +
           '<div><div class="k">status</div><div class="v">' + esc(log.status) + " · " + (log.ok ? "ok" : "fail") + " · " + esc(log.latencyMs) + "ms" + (log.stream ? " · stream" : "") + "</div></div>" +
+          '<div><div class="k">tps</div><div class="v">' + esc(fmtReqTps(log)) + "</div></div>" +
           '<div><div class="k">account</div><div class="v">' + esc(log.accountName || "–") + " / " + esc(log.accountId || "–") + "</div></div>" +
           '<div><div class="k">' + esc(lang === "zh" ? "密钥" : "api key") + '</div><div class="v">' + esc(log.apiKeyAlias || "–") + " / " + esc(log.apiKeyId || "–") + "</div></div>" +
           '<div style="grid-column:1/-1"><div class="k">tokens</div><div class="v">' + esc(fmtUsageDetail(u)) + "</div></div>" +
@@ -3369,14 +3527,121 @@ ${styles()}
     }
 
     let myMembersAccId = null;
+    let myMemberPick = new Set();
+    let myMemberSearchHits = [];
+    let myMemberSearchTimer = null;
+    let myMemberSearchSeq = 0;
+
+    function myMemberExistingIds() {
+      const a = myAccounts.find((x) => x.id === myMembersAccId);
+      const ids = new Set();
+      if (!a) return ids;
+      if (currentUser && currentUser.id) ids.add(currentUser.id);
+      if (a.donorUserId) ids.add(a.donorUserId);
+      for (const id of a.allowedUserIds || []) if (id) ids.add(id);
+      for (const m of a.members || []) if (m && m.id) ids.add(m.id);
+      return ids;
+    }
+    function syncMyMemberPickMeta() {
+      const meta = $("myMembersAddMeta");
+      if (!meta) return;
+      const n = myMemberPick.size;
+      meta.textContent = n ? t("memberAddPicked", n) : "";
+    }
+    function renderMyMemberSearchList() {
+      const list = $("myMembersSearchList");
+      const empty = $("myMembersSearchEmpty");
+      if (!list) return;
+      const q = (($("myMembersAddQ") && $("myMembersAddQ").value) || "").trim();
+      if (!q) {
+        list.innerHTML = "";
+        list.classList.remove("has-items");
+        if (empty) { empty.hidden = true; empty.textContent = ""; }
+        return;
+      }
+      const existing = myMemberExistingIds();
+      const hits = myMemberSearchHits.filter((u) => u && u.id && !existing.has(u.id));
+      if (!hits.length) {
+        list.innerHTML = "";
+        list.classList.remove("has-items");
+        if (empty) {
+          empty.hidden = false;
+          empty.textContent = t("memberAddNoHit");
+        }
+        return;
+      }
+      if (empty) { empty.hidden = true; empty.textContent = ""; }
+      list.classList.add("has-items");
+      list.innerHTML = hits.map((u) => {
+        const on = myMemberPick.has(u.id);
+        return '<label class="msel-opt' + (on ? " on" : "") + '">' +
+          '<input type="checkbox" value="' + esc(u.id) + '"' + (on ? " checked" : "") + " />" +
+          '<span class="msel-name">' + esc(userLabel(u)) + "</span>" +
+          "</label>";
+      }).join("");
+      list.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.addEventListener("change", () => {
+          const id = cb.value;
+          if (!id) return;
+          if (cb.checked) myMemberPick.add(id);
+          else myMemberPick.delete(id);
+          const lab = cb.closest(".msel-opt");
+          if (lab) lab.classList.toggle("on", cb.checked);
+          syncMyMemberPickMeta();
+        });
+      });
+    }
+    async function runMyMemberSearch() {
+      const q = (($("myMembersAddQ") && $("myMembersAddQ").value) || "").trim();
+      if (!q) {
+        myMemberSearchHits = [];
+        renderMyMemberSearchList();
+        return;
+      }
+      const seq = ++myMemberSearchSeq;
+      try {
+        const res = await fetch("/api/me/users/search?q=" + encodeURIComponent(q), { headers: headers() });
+        const data = await res.json().catch(() => ({}));
+        if (seq !== myMemberSearchSeq) return;
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        myMemberSearchHits = data.users || [];
+        // drop picks no longer in hits
+        const hitIds = new Set(myMemberSearchHits.map((u) => u.id));
+        for (const id of [...myMemberPick]) {
+          if (!hitIds.has(id)) myMemberPick.delete(id);
+        }
+        renderMyMemberSearchList();
+        syncMyMemberPickMeta();
+      } catch (e) {
+        if (seq !== myMemberSearchSeq) return;
+        myMemberSearchHits = [];
+        renderMyMemberSearchList();
+        showMsg(null, e.message || String(e), "err");
+      }
+    }
+    function scheduleMyMemberSearch() {
+      if (myMemberSearchTimer) clearTimeout(myMemberSearchTimer);
+      myMemberSearchTimer = setTimeout(() => { runMyMemberSearch(); }, 220);
+    }
+    function clearMyMemberPick() {
+      myMemberPick = new Set();
+      renderMyMemberSearchList();
+      syncMyMemberPickMeta();
+    }
 
     function openMyMembers(id) {
       const a = myAccounts.find((x) => x.id === id);
       if (!a) return;
       myMembersAccId = id;
+      myMemberPick = new Set();
+      myMemberSearchHits = [];
+      if ($("myMembersAddQ")) $("myMembersAddQ").value = "";
       paintMyMembersModal(a);
+      renderMyMemberSearchList();
+      syncMyMemberPickMeta();
       if ($("myMembersModal")) $("myMembersModal").classList.add("show");
       applyI18n();
+      setTimeout(() => { try { if ($("myMembersAddQ")) $("myMembersAddQ").focus(); } catch {} }, 0);
     }
     function paintMyMembersModal(a) {
       const members = Array.isArray(a.members) ? a.members : [];
@@ -3427,10 +3692,53 @@ ${styles()}
           });
         }
       }
+      renderMyMemberSearchList();
+      syncMyMemberPickMeta();
     }
     function closeMyMembers() {
       myMembersAccId = null;
+      myMemberPick = new Set();
+      myMemberSearchHits = [];
+      if (myMemberSearchTimer) { clearTimeout(myMemberSearchTimer); myMemberSearchTimer = null; }
+      if ($("myMembersAddQ")) $("myMembersAddQ").value = "";
       if ($("myMembersModal")) $("myMembersModal").classList.remove("show");
+    }
+    async function addMyMembersSelected() {
+      if (!myMembersAccId) return;
+      const ids = [...myMemberPick].filter(Boolean);
+      if (!ids.length) {
+        showMsg(null, t("memberAddEmpty"), "err");
+        return;
+      }
+      const existing = myMemberExistingIds();
+      const addIds = ids.filter((id) => !existing.has(id));
+      if (!addIds.length) {
+        showMsg(null, t("memberAlready"), "err");
+        return;
+      }
+      try {
+        const res = await fetch("/api/me/accounts/" + encodeURIComponent(myMembersAccId), {
+          method: "PATCH", headers: jsonHeaders(),
+          body: JSON.stringify({ addUserIds: addIds }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        myMemberPick = new Set();
+        if ($("myMembersAddQ")) $("myMembersAddQ").value = "";
+        myMemberSearchHits = [];
+        if (data.account) {
+          const idx = myAccounts.findIndex((x) => x.id === myMembersAccId);
+          if (idx >= 0) myAccounts[idx] = { ...myAccounts[idx], ...data.account };
+        }
+        await loadMyAccounts();
+        const fresh = myAccounts.find((x) => x.id === myMembersAccId);
+        if (fresh) paintMyMembersModal(fresh);
+        else renderMyMemberSearchList();
+        syncMyMemberPickMeta();
+        showMsg(null, t("memberAddOk"), "ok");
+      } catch (e) {
+        showMsg(null, e.message || String(e), "err");
+      }
     }
     /**
      * Three modes:
@@ -3459,7 +3767,9 @@ ${styles()}
         okMsg = t("privateOk");
       } else if (mode === "restricted") {
         if (extraCount === 0) {
-          showMsg($("msgContrib"), t("membersNeedExtras"), "err");
+          showMsg(null, t("membersNeedExtras"), "err");
+          if ($("myMembersAddQ")) $("myMembersAddQ").focus();
+          renderMyMemberSearchList();
           return;
         }
         // keep existing allowlist; ensure not private so UI shows restricted
@@ -4311,6 +4621,21 @@ ${styles()}
     if ($("myMembersModal")) $("myMembersModal").addEventListener("click", (e) => {
       if (e.target === $("myMembersModal")) closeMyMembers();
     });
+    if ($("myMembersAddBtn")) $("myMembersAddBtn").onclick = () => { addMyMembersSelected(); };
+    if ($("myMembersAddClear")) $("myMembersAddClear").onclick = (e) => {
+      e.preventDefault();
+      clearMyMemberPick();
+    };
+    if ($("myMembersAddQ")) {
+      $("myMembersAddQ").addEventListener("input", () => { scheduleMyMemberSearch(); });
+      $("myMembersAddQ").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (myMemberPick.size) addMyMembersSelected();
+          else runMyMemberSearch();
+        }
+      });
+    }
     if ($("myMembersVisSeg")) {
       $("myMembersVisSeg").addEventListener("click", (e) => {
         const b = e.target.closest("button[data-mvis]");

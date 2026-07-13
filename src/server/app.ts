@@ -79,6 +79,7 @@ import {
   setUserPassword,
   setupAdmin,
   updateUser,
+  getUserByUsername,
   type RouteScope,
   type User,
 } from "../auth/users.js";
@@ -630,6 +631,23 @@ export function createApp() {
     }
   });
 
+  /**
+   * Donor user search for allowlist editing.
+   * Exact full username only (case-insensitive) — no prefix/fuzzy match.
+   */
+  app.get("/api/me/users/search", async (c) => {
+    const q = (c.req.query("q") || "").trim();
+    if (!q) return c.json({ users: [] });
+    const me = c.get("user")!;
+    const found = await getUserByUsername(q);
+    if (!found || found.enabled === false || found.id === me.id) {
+      return c.json({ users: [] });
+    }
+    return c.json({
+      users: [{ id: found.id, username: found.username, role: found.role }],
+    });
+  });
+
   app.patch("/api/me/accounts/:id", async (c) => {
     const user = c.get("user")!;
     const acc = await getAccount(c.req.param("id"));
@@ -638,10 +656,12 @@ export function createApp() {
       name?: string;
       note?: string;
       private?: boolean;
-      /** Donor may only REMOVE existing extra members — never add new ones */
       revokeUserIds?: string[];
-      /** Alias: set remaining extras (must be subset of current allowlist) */
+      /** Full extras list (add/remove). null/[] clears. */
       allowedUserIds?: string[] | null;
+      /** Append by exact usernames (donor can add members). */
+      addUsernames?: string[];
+      addUserIds?: string[];
     };
     const patch: {
       name?: string;
@@ -666,12 +686,10 @@ export function createApp() {
       const next = currentExtras.filter((id) => !revoke.has(id));
       patch.allowedUserIds = sanitizeAllowedUserIds(next, user.id);
     } else if (body.allowedUserIds !== undefined) {
-      // donor may only shrink the set (subset of current); empty/null clears extras → pure public/private
-      if (body.allowedUserIds === null || body.allowedUserIds === [] as unknown) {
+      if (body.allowedUserIds === null || body.allowedUserIds === ([] as unknown)) {
         patch.allowedUserIds = null;
       } else if (Array.isArray(body.allowedUserIds)) {
         if (body.allowedUserIds.length === 0) {
-          // empty array = clear all extras (fully public when private=false)
           patch.allowedUserIds = null;
         } else {
           const requested = [
@@ -681,20 +699,52 @@ export function createApp() {
                 .filter(Boolean),
             ),
           ];
-          const currentSet = new Set(currentExtras);
-          const illegal = requested.filter((id) => !currentSet.has(id) && id !== user.id);
-          if (illegal.length) {
-            return c.json(
-              { error: "贡献者不能添加新用户，只能从现有名单中移除。请联系管理员添加成员。" },
-              400,
-            );
+          for (const id of requested) {
+            if (id === user.id) continue;
+            const u = await getUser(id);
+            if (!u) return c.json({ error: `用户不存在: ${id}` }, 400);
+            if (u.enabled === false) return c.json({ error: `用户已禁用: ${u.username}` }, 400);
           }
-          const next = requested.filter((id) => currentSet.has(id));
-          patch.allowedUserIds = sanitizeAllowedUserIds(next, user.id);
+          patch.allowedUserIds = sanitizeAllowedUserIds(requested, user.id);
+          // named members mode
+          if (patch.private === undefined) patch.private = false;
         }
       } else {
         return c.json({ error: "allowedUserIds 须为数组或 null" }, 400);
       }
+    } else if (
+      (Array.isArray(body.addUsernames) && body.addUsernames.length) ||
+      (Array.isArray(body.addUserIds) && body.addUserIds.length)
+    ) {
+      const next = new Set(currentExtras);
+      if (Array.isArray(body.addUserIds)) {
+        for (const raw of body.addUserIds) {
+          const id = typeof raw === "string" ? raw.trim() : "";
+          if (!id || id === user.id) continue;
+          const u = await getUser(id);
+          if (!u) return c.json({ error: `用户不存在: ${id}` }, 400);
+          if (u.enabled === false) return c.json({ error: `用户已禁用: ${u.username}` }, 400);
+          next.add(u.id);
+        }
+      }
+      if (Array.isArray(body.addUsernames)) {
+        for (const raw of body.addUsernames) {
+          const name = typeof raw === "string" ? raw.trim() : "";
+          if (!name) continue;
+          const u = await getUserByUsername(name);
+          if (!u || u.enabled === false) {
+            return c.json({ error: `未找到用户「${name}」（需完整用户名）` }, 400);
+          }
+          if (u.id === user.id) continue;
+          next.add(u.id);
+        }
+      }
+      const list = sanitizeAllowedUserIds([...next], user.id);
+      if (!list || !list.length) {
+        return c.json({ error: "没有可添加的成员" }, 400);
+      }
+      patch.allowedUserIds = list;
+      if (patch.private === undefined) patch.private = false;
     }
 
     const updated = await updateAccount(acc.id, patch);
