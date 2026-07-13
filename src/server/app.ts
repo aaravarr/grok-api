@@ -33,6 +33,7 @@ import { getValidAccessToken } from "../account/token.js";
 import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
 import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js";
+import { normalizeToolsInBody } from "../client/tool-schema.js";
 import { getProxyInfo, setProxyOverride } from "../proxy.js";
 import {
   loadSettings,
@@ -1564,7 +1565,7 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
 
   try {
     const preferred = c.req.header("x-account-id") ?? undefined;
-    const upstreamBody = ensureStreamUsage(mode, body);
+    const upstreamBody = ensureStreamUsage(mode, normalizeToolsInBody(body));
     const result = await proxyLLM({
       mode,
       body: upstreamBody,
