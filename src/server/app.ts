@@ -407,6 +407,7 @@ export function createApp() {
     if (apiKeyId && !keyIds.includes(apiKeyId)) return c.json({ error: "forbidden" }, 403);
     const okRaw = c.req.query("ok");
     const ok = okRaw === "true" ? true : okRaw === "false" ? false : undefined;
+    const q = (c.req.query("q") || "").trim() || undefined;
     const result = await listRequestLogs({
       page,
       limit,
@@ -416,6 +417,7 @@ export function createApp() {
       userId: user.id,
       apiKeyIds: keyIds,
       ok,
+      q,
     });
     const named = await withLiveDisplayNames(result.items);
     const items = named.map((item) => ({
@@ -1316,7 +1318,8 @@ export function createApp() {
     const userId = c.req.query("userId") || undefined;
     const okRaw = c.req.query("ok");
     const ok = okRaw === "true" ? true : okRaw === "false" ? false : undefined;
-    const result = await listRequestLogs({ page, limit, day, model, accountId, apiKeyId, userId, ok });
+    const q = (c.req.query("q") || "").trim() || undefined;
+    const result = await listRequestLogs({ page, limit, day, model, accountId, apiKeyId, userId, ok, q });
     const named = await withLiveDisplayNames(result.items);
     const items = named.map((item) => ({
       ...item,

@@ -2664,21 +2664,10 @@ ${styles()}
         rows.filter(([, v]) => v != null).map(([k, v]) => k + "=" + v).join(" · ") || "–";
     }
 
-    function filterLogItems(items) {
-      const q = (($("logFilterQ") && $("logFilterQ").value) || "").trim().toLowerCase();
-      if (!q) return items;
-      return items.filter((r) =>
-        matchQ(r.model, q) || matchQ(r.client, q) || matchQ(r.userAgent, q) ||
-        matchQ(r.apiKeyAlias, q) || matchQ(r.accountName, q) || matchQ(r.status, q) ||
-        matchQ(r.id, q) || matchQ(r.error, q)
-      );
-    }
-
     function renderLogs(items) {
       const tbody = $("tbodyLogs");
       if (!tbody) return;
-      const filtered = filterLogItems(items);
-      if (!filtered.length) {
+      if (!items.length) {
         tbody.innerHTML = '<div class="dt-empty">' + esc(t("noLogs")) + "</div>";
         $("logPager").innerHTML = "";
         return;
@@ -2687,7 +2676,7 @@ ${styles()}
       const showAcc = isAdmin();
       const logsRoot = tbody.closest(".dt-logs");
       if (logsRoot) logsRoot.classList.toggle("no-account", !showAcc);
-      tbody.innerHTML = filtered.map((r) => {
+      tbody.innerHTML = items.map((r) => {
         const tok = fmtUsageShort(r.usage);
         const stCls = r.ok ? "active" : "error";
         const client = clientLabel(r);
@@ -3623,9 +3612,11 @@ ${styles()}
       try {
         const day = $("logDay").value;
         const ok = $("logOk").value;
+        const q = (($("logFilterQ") && $("logFilterQ").value) || "").trim();
         const qs = new URLSearchParams({ page: String(logPage), limit: String(LOG_PAGE) });
         if (day) qs.set("day", day);
         if (ok) qs.set("ok", ok);
+        if (q) qs.set("q", q);
         const res = await fetch(apiLogsPath() + "?" + qs.toString(), { headers: headers() });
         if (!res.ok) { showMsg($("msgLogs"), "HTTP " + res.status, "err"); return; }
         const data = await res.json();
@@ -5023,7 +5014,12 @@ ${styles()}
     bindFilter("contribFilterQ", () => { contribPage = 1; renderMyAccounts(); });
     bindFilter("contribFilterSt", () => { contribPage = 1; renderMyAccounts(); });
     bindFilter("contribFilterVis", () => { contribPage = 1; renderMyAccounts(); });
-    bindFilter("logFilterQ", () => renderLogs(lastLogItems));
+    let logSearchTimer = null;
+    bindFilter("logFilterQ", () => {
+      logPage = 1;
+      if (logSearchTimer) clearTimeout(logSearchTimer);
+      logSearchTimer = setTimeout(() => { loadLogs(); }, 250);
+    });
     if ($("btnLbRefresh")) $("btnLbRefresh").onclick = () => loadLeaderboard();
     if ($("btnContribCopy")) $("btnContribCopy").onclick = async () => {
       const code = $("contribUserCode")?.textContent || "";

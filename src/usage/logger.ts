@@ -103,6 +103,8 @@ export interface ListLogsQuery {
   /** Restrict to these key ids (user isolation) */
   apiKeyIds?: string[];
   ok?: boolean;
+  /** Free-text search across model/client/UA/names/ids/error */
+  q?: string;
 }
 
 export interface ListLogsResult {
@@ -141,11 +143,40 @@ export async function listRequestLogs(query: ListLogsQuery = {}): Promise<ListLo
   }
   if (query.ok !== undefined) filtered = filtered.filter((r) => r.ok === query.ok);
 
+  const q = (query.q || "").trim().toLowerCase();
+  if (q) {
+    // Resolve live display names so renamed accounts/keys remain searchable.
+    const named = await withLiveDisplayNames(filtered);
+    filtered = named.filter((r) => logMatchesQuery(r, q));
+  }
+
   const total = filtered.length;
   const start = (page - 1) * limit;
   // List view never needs bodies — drop them to cut JSON size / UI lag
   const items = filtered.slice(start, start + limit).map(slimLogForList);
   return { items, total, page, limit, days };
+}
+
+function logMatchesQuery(r: RequestLog, q: string): boolean {
+  const hay = [
+    r.id,
+    r.model,
+    r.client,
+    r.userAgent,
+    r.apiKeyAlias,
+    r.apiKeyId,
+    r.accountName,
+    r.accountId,
+    r.userId,
+    r.status,
+    r.ok ? "ok" : "fail",
+    r.error,
+    r.path,
+    r.mode,
+  ]
+    .filter((v) => v != null && v !== "")
+    .map((v) => String(v).toLowerCase());
+  return hay.some((v) => v.includes(q));
 }
 
 /** Drop heavy fields for table/list responses. */
