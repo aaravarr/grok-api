@@ -669,7 +669,7 @@ export function styles(): string {
       .log-meta{grid-template-columns:1fr}
       /* keep actions on one line so row width stays locked to --dt-min */
       .dt-actions{flex-wrap:nowrap}
-      .dt-accounts{--dt-min:1200px;--dt-cols:minmax(130px,1.2fr) 88px 88px minmax(90px,1fr) 48px 100px 460px}
+      .dt-accounts{--dt-min:1280px;--dt-cols:minmax(130px,1.2fr) 88px 88px minmax(90px,.85fr) minmax(90px,.9fr) minmax(90px,.9fr) 48px 100px 420px}
       .dt-users{--dt-min:920px;--dt-cols:minmax(130px,1.2fr) 80px 80px minmax(100px,1fr) 110px 300px}
       .dt-keys{--dt-min:820px;--dt-cols:minmax(110px,1.1fr) minmax(110px,1fr) 80px 120px 72px 200px}
       .dt-keys.has-owner{--dt-min:960px;--dt-cols:minmax(100px,1fr) minmax(100px,1fr) minmax(90px,.9fr) 80px 120px 72px 200px}
@@ -678,7 +678,7 @@ export function styles(): string {
       .route-panel .seg button{flex:1}
       .filter-bar{padding:10px 12px}
       .filter-bar .input.grow{width:100%;min-width:0}
-      .dt-contrib{--dt-min:880px;--dt-cols:minmax(130px,1.2fr) 80px minmax(90px,1fr) 48px 90px 110px 220px}
+      .dt-contrib{--dt-min:980px;--dt-cols:minmax(130px,1.2fr) 80px minmax(90px,1fr) 48px 80px minmax(100px,1fr) 100px 240px}
       .dt-logs{--dt-min:1140px;--dt-cols:110px minmax(100px,1fr) minmax(90px,1fr) 64px minmax(140px,1.2fr) 76px 84px 56px minmax(110px,1fr) minmax(80px,.85fr)}
       .dt-logs.no-account{--dt-min:1040px;--dt-cols:110px minmax(100px,1fr) minmax(90px,1fr) 64px minmax(140px,1.2fr) 76px 84px 56px minmax(110px,1fr)}
       .toast{top:max(12px,calc(env(safe-area-inset-top) + 8px));left:16px;right:16px;width:auto;max-width:none;transform:translateY(-6px);min-width:0}
