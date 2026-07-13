@@ -60,10 +60,39 @@ ${styles()}
     <div class="side-scrim" id="sideScrim" aria-hidden="true"></div>
 
     <div class="main-wrap">
-      <div class="page-loading" id="pageLoading" hidden>
-        <div class="page-loading-card">
-          <div class="spinner" aria-hidden="true"></div>
-          <div class="page-loading-text" data-i18n="loading">Loading…</div>
+      <div class="page-loading" id="pageLoading" hidden aria-busy="true" aria-live="polite">
+        <div class="page-loading-inner">
+          <div class="page-sk" id="pageSkeleton">
+            <div class="page-sk-kpis">
+              <div class="page-sk-card"><span class="sk kpi-l"></span><span class="sk kpi-n"></span><span class="sk kpi-s"></span></div>
+              <div class="page-sk-card"><span class="sk kpi-l"></span><span class="sk kpi-n"></span><span class="sk kpi-s"></span></div>
+              <div class="page-sk-card"><span class="sk kpi-l"></span><span class="sk kpi-n"></span><span class="sk kpi-s"></span></div>
+              <div class="page-sk-card"><span class="sk kpi-l"></span><span class="sk kpi-n"></span><span class="sk kpi-s"></span></div>
+            </div>
+            <div class="page-sk-main">
+              <div class="page-sk-card page-sk-row">
+                <span class="sk md w36"></span>
+                <span class="sk chart"></span>
+              </div>
+              <div class="page-sk-card page-sk-row">
+                <span class="sk md w52"></span>
+                <span class="sk lg w88"></span>
+                <span class="sk lg w72"></span>
+                <span class="sk lg w60"></span>
+                <span class="sk lg w44"></span>
+              </div>
+            </div>
+            <div class="page-sk-card page-sk-row">
+              <span class="sk md w28"></span>
+              <div class="sk-table" style="--sk-cols:1.2fr .7fr .8fr 1fr .6fr .9fr">
+                <div class="sk-table-head"><span class="sk sm w72"></span><span class="sk sm w60"></span><span class="sk sm w52"></span><span class="sk sm w60"></span><span class="sk sm w44"></span><span class="sk sm w52"></span></div>
+                <div class="sk-table-row"><span class="sk md w88"></span><span class="sk md w60"></span><span class="sk md w52"></span><span class="sk md w72"></span><span class="sk md w44"></span><span class="sk md w60"></span></div>
+                <div class="sk-table-row"><span class="sk md w72"></span><span class="sk md w44"></span><span class="sk md w60"></span><span class="sk md w52"></span><span class="sk md w36"></span><span class="sk md w72"></span></div>
+                <div class="sk-table-row"><span class="sk md w60"></span><span class="sk md w52"></span><span class="sk md w44"></span><span class="sk md w88"></span><span class="sk md w52"></span><span class="sk md w44"></span></div>
+                <div class="sk-table-row"><span class="sk md w88"></span><span class="sk md w36"></span><span class="sk md w72"></span><span class="sk md w60"></span><span class="sk md w44"></span><span class="sk md w52"></span></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <header class="topbar">
@@ -1550,9 +1579,9 @@ ${styles()}
         if (replace) history.replaceState({ view: name }, "", href);
         else history.pushState({ view: name }, "", href);
       }
-      setView(name);
+      setView(name, opts);
     }
-    function setView(name) {
+    function setView(name, opts) {
       if (!VIEW_META[name]) name = "overview";
       if (VIEW_META[name].admin && !isAdmin()) name = "overview";
       view = name;
@@ -1577,13 +1606,8 @@ ${styles()}
           paintOverviewChrome();
         }
       }
-      if (name === "users" && isAdmin()) loadUsers();
-      if (name === "contribute" || name === "overview") {
-        loadMyAccounts();
-        if (name === "contribute") loadMyRouting();
-        loadLeaderboardLite();
-      }
-      if (name === "leaderboard") loadLeaderboard();
+      // load only the active page's data (boot path can skip and await bootView)
+      if (!(opts && opts.skipLoad)) loadViewData(name);
     }
 
     function applyRoleNav() {
@@ -1805,36 +1829,98 @@ ${styles()}
     }
 
     const loadingMap = new Map();
+    const loadedViews = new Set();
+    let viewLoadToken = 0;
     function setPageLoading(on) {
       const el = $("pageLoading");
       if (!el) return;
       if (on) {
         el.hidden = false;
         el.classList.add("show");
+        el.setAttribute("aria-busy", "true");
       } else {
         el.classList.remove("show");
         el.hidden = true;
+        el.setAttribute("aria-busy", "false");
       }
     }
-    function loadingHtml(text) {
-      return '<div class="loading-block"><div class="spinner sm" aria-hidden="true"></div><div class="loading-text">' +
-        esc(text || t("loading")) + "</div></div>";
+    function skeletonTableHtml(cols, rows) {
+      const c = Math.max(3, Math.min(10, cols || 6));
+      const r = Math.max(3, Math.min(12, rows || 6));
+      const fr = Array.from({ length: c }, (_, i) => (i === 0 ? "1.2fr" : i === c - 1 ? ".9fr" : ".75fr")).join(" ");
+      // deterministic widths for stable paint
+      const widths = ["w88","w60","w52","w72","w44","w60","w36","w72","w52","w44"];
+      let html = '<div class="sk-table" style="--sk-cols:' + fr + '"><div class="sk-table-head">';
+      for (let i = 0; i < c; i++) html += '<span class="sk sm ' + widths[i % widths.length] + '"></span>';
+      html += "</div>";
+      for (let row = 0; row < r; row++) {
+        html += '<div class="sk-table-row">';
+        for (let i = 0; i < c; i++) html += '<span class="sk md ' + widths[(i + row) % widths.length] + '"></span>';
+        html += "</div>";
+      }
+      html += "</div>";
+      return html;
+    }
+    function skeletonPanelHtml(kind) {
+      if (kind === "usage" || kind === "overview") {
+        return '<div class="sk-fill page-sk">' +
+          '<div class="page-sk-kpis">' +
+          '<div class="page-sk-card"><span class="sk kpi-l"></span><span class="sk kpi-n"></span><span class="sk kpi-s"></span></div>'.repeat(4) +
+          "</div>" +
+          '<div class="page-sk-main">' +
+          '<div class="page-sk-card page-sk-row"><span class="sk md w36"></span><span class="sk chart"></span></div>' +
+          '<div class="page-sk-card page-sk-row"><span class="sk md w52"></span><span class="sk lg w88"></span><span class="sk lg w72"></span><span class="sk lg w60"></span></div>' +
+          "</div></div>";
+      }
+      if (kind === "chart") {
+        return '<div class="sk-fill page-sk-row"><span class="sk md w36"></span><span class="sk chart"></span><span class="sk md w52"></span><span class="sk chart" style="min-height:140px"></span></div>';
+      }
+      const cols = (kind && kind.cols) || 6;
+      const rows = (kind && kind.rows) || 6;
+      return skeletonTableHtml(cols, rows);
+    }
+    function loadingHtml(opts) {
+      const kind = (opts && opts.kind) || "table";
+      if (kind === "usage" || kind === "overview" || kind === "chart") return skeletonPanelHtml(kind);
+      if (kind === "table" || typeof kind === "object") return skeletonPanelHtml(kind === "table" ? { cols: (opts && opts.cols) || 6, rows: (opts && opts.rows) || 6 } : kind);
+      return skeletonTableHtml((opts && opts.cols) || 6, (opts && opts.rows) || 6);
+    }
+    function tableColsFor(el) {
+      if (!el) return 6;
+      const root = el.closest(".dt");
+      if (!root) return 6;
+      if (root.classList.contains("dt-accounts")) return 9;
+      if (root.classList.contains("dt-users")) return 6;
+      if (root.classList.contains("dt-keys")) return root.classList.contains("has-owner") ? 7 : 6;
+      if (root.classList.contains("dt-logs")) return root.classList.contains("no-account") ? 9 : 10;
+      if (root.classList.contains("dt-contrib")) return 8;
+      if (root.classList.contains("dt-lb-pub")) return 4;
+      if (root.classList.contains("dt-lb")) return 6;
+      const head = root.querySelector(".dt-head");
+      return head ? Math.max(3, head.children.length) : 6;
     }
     function setElLoading(el, on, opts) {
       if (!el) return;
       const mode = (opts && opts.mode) || "overlay";
       if (on) {
         el.classList.add("is-loading");
+        const kind = (opts && opts.kind) || (el.classList.contains("dt-body") ? "table" : "chart");
+        const html = loadingHtml({
+          kind,
+          cols: (opts && opts.cols) || tableColsFor(el),
+          rows: (opts && opts.rows) || (el.classList.contains("dt-body") ? 6 : 4),
+        });
         if (mode === "replace") {
           if (!loadingMap.has(el)) loadingMap.set(el, el.innerHTML);
-          el.innerHTML = loadingHtml(opts && opts.text);
+          el.innerHTML = html;
         } else {
-          if (!el.querySelector(":scope > .loading-overlay")) {
-            const ov = document.createElement("div");
+          let ov = el.querySelector(":scope > .loading-overlay");
+          if (!ov) {
+            ov = document.createElement("div");
             ov.className = "loading-overlay";
-            ov.innerHTML = loadingHtml(opts && opts.text);
             el.appendChild(ov);
           }
+          ov.innerHTML = html;
         }
       } else {
         el.classList.remove("is-loading");
@@ -3389,10 +3475,14 @@ ${styles()}
         allAccounts = [];
         return;
       }
-      setElLoading($("tbody"), true, { mode: "replace" });
+      setElLoading($("tbody"), true, { mode: "replace", kind: "table", cols: 9, rows: 6 });
       try {
         const res = await fetch("/api/admin/accounts", { headers: headers() });
-        if (!res.ok) { showMsg($("msg"), "HTTP " + res.status, "err"); setElLoading($("tbody"), false, { mode: "replace" }); return; }
+        if (!res.ok) {
+          showMsg($("msg"), "HTTP " + res.status, "err");
+          if ($("tbody")) $("tbody").innerHTML = '<div class="dt-empty">HTTP ' + res.status + "</div>";
+          return;
+        }
         const data = await res.json();
         routing = data.routing || routing;
         allAccounts = data.accounts || [];
@@ -3405,8 +3495,9 @@ ${styles()}
         if (accPage > maxPage) accPage = maxPage;
         renderAccounts();
       } catch (e) {
-        setElLoading($("tbody"), false, { mode: "replace" });
         if ($("tbody")) $("tbody").innerHTML = '<div class="dt-empty">' + esc(String(e.message || e)) + "</div>";
+      } finally {
+        setElLoading($("tbody"), false, { mode: "replace", kind: "table" });
       }
     }
 
@@ -3468,7 +3559,7 @@ ${styles()}
     }
 
     async function loadKeys() {
-      setElLoading($("tbodyKeys"), true, { mode: "replace" });
+      setElLoading($("tbodyKeys"), true, { mode: "replace", kind: "table", cols: isAdmin() ? 7 : 6, rows: 6 });
       try {
         const res = await fetch(apiKeysPath(), { headers: headers() });
         if (!res.ok) {
@@ -3483,6 +3574,8 @@ ${styles()}
         renderKeys();
       } catch (e) {
         if ($("tbodyKeys")) $("tbodyKeys").innerHTML = '<div class="dt-empty">' + esc(String(e.message || e)) + "</div>";
+      } finally {
+        setElLoading($("tbodyKeys"), false, { mode: "replace", kind: "table" });
       }
     }
 
@@ -3557,7 +3650,7 @@ ${styles()}
 
     async function loadUsers() {
       if (!isAdmin()) return;
-      setElLoading($("tbodyUsers"), true, { mode: "replace" });
+      setElLoading($("tbodyUsers"), true, { mode: "replace", kind: "table", cols: 6, rows: 6 });
       try {
         const res = await fetch("/api/admin/users", { headers: headers() });
         if (!res.ok) {
@@ -3626,6 +3719,8 @@ ${styles()}
       } catch (e) {
         if ($("tbodyUsers")) $("tbodyUsers").innerHTML = '<div class="dt-empty">' + esc(String((e && e.message) || e || "error")) + "</div>";
         showMsg($("msgUsers"), e.message || String(e), "err");
+      } finally {
+        setElLoading($("tbodyUsers"), false, { mode: "replace", kind: "table" });
       }
     }
 
@@ -3658,7 +3753,11 @@ ${styles()}
     }
 
     async function loadUsage() {
-      setManyLoading(["view-usage", "view-overview"], true, { mode: "overlay" });
+      const usageTargets = [];
+      if (view === "usage") usageTargets.push("view-usage");
+      if (view === "overview") usageTargets.push("view-overview");
+      if (!usageTargets.length) usageTargets.push(view === "usage" ? "view-usage" : "view-overview");
+      setManyLoading(usageTargets, true, { mode: "overlay", kind: "usage" });
       try {
         const res = await fetch(apiUsagePath() + "?" + usageQueryParams().toString(), { headers: headers() });
         if (!res.ok) return;
@@ -3719,12 +3818,12 @@ ${styles()}
         if (view === "overview") paintOverviewChart(data.stats);
       } catch {}
       finally {
-        setManyLoading(["view-usage", "view-overview"], false, { mode: "overlay" });
+        setManyLoading(["view-usage", "view-overview"], false, { mode: "overlay", kind: "usage" });
       }
     }
 
     async function loadLogs() {
-      setElLoading($("tbodyLogs"), true, { mode: "replace" });
+      setElLoading($("tbodyLogs"), true, { mode: "replace", kind: "table", cols: isAdmin() ? 10 : 9, rows: 8 });
       try {
         const day = $("logDay").value;
         const ok = $("logOk").value;
@@ -3734,7 +3833,11 @@ ${styles()}
         if (ok) qs.set("ok", ok);
         if (q) qs.set("q", q);
         const res = await fetch(apiLogsPath() + "?" + qs.toString(), { headers: headers() });
-        if (!res.ok) { showMsg($("msgLogs"), "HTTP " + res.status, "err"); return; }
+        if (!res.ok) {
+          showMsg($("msgLogs"), "HTTP " + res.status, "err");
+          if ($("tbodyLogs")) $("tbodyLogs").innerHTML = '<div class="dt-empty">HTTP ' + res.status + "</div>";
+          return;
+        }
         const data = await res.json();
         logTotal = data.total || 0;
         logDays = data.days || [];
@@ -3746,6 +3849,8 @@ ${styles()}
       } catch (e) {
         showMsg($("msgLogs"), String(e.message || e), "err");
         if ($("tbodyLogs")) $("tbodyLogs").innerHTML = '<div class="dt-empty">' + esc(String(e.message || e)) + "</div>";
+      } finally {
+        setElLoading($("tbodyLogs"), false, { mode: "replace", kind: "table" });
       }
     }
 
@@ -4206,7 +4311,7 @@ ${styles()}
     }
 
     async function loadMyAccounts() {
-      setElLoading($("tbodyContrib"), true, { mode: "replace" });
+      setElLoading($("tbodyContrib"), true, { mode: "replace", kind: "table", cols: 8, rows: 6 });
       try {
         const res = await fetch("/api/me/accounts", { headers: headers() });
         if (!res.ok) {
@@ -4229,6 +4334,8 @@ ${styles()}
         renderMyAccounts();
       } catch (e) {
         if ($("tbodyContrib")) $("tbodyContrib").innerHTML = '<div class="dt-empty">' + esc(String((e && e.message) || e || "error")) + "</div>";
+      } finally {
+        setElLoading($("tbodyContrib"), false, { mode: "replace", kind: "table" });
       }
     }
 
@@ -4293,8 +4400,8 @@ ${styles()}
     }
 
     async function loadLeaderboard() {
-      setElLoading($("tbodyLb"), true, { mode: "replace" });
-      setElLoading($("tbodyLbPub"), true, { mode: "replace" });
+      setElLoading($("tbodyLb"), true, { mode: "replace", kind: "table", cols: 6, rows: 6 });
+      setElLoading($("tbodyLbPub"), true, { mode: "replace", kind: "table", cols: 4, rows: 6 });
       try {
         const res = await fetch("/api/leaderboard", { headers: headers() });
         if (!res.ok) {
@@ -4308,6 +4415,9 @@ ${styles()}
       } catch (e) {
         if ($("tbodyLb")) $("tbodyLb").innerHTML = '<div class="dt-empty">' + esc(String((e && e.message) || e || "error")) + "</div>";
         if ($("tbodyLbPub")) $("tbodyLbPub").innerHTML = '<div class="dt-empty">' + esc(String((e && e.message) || e || "error")) + "</div>";
+      } finally {
+        setElLoading($("tbodyLb"), false, { mode: "replace", kind: "table" });
+        setElLoading($("tbodyLbPub"), false, { mode: "replace", kind: "table" });
       }
     }
 
@@ -5255,19 +5365,55 @@ ${styles()}
     };
     if ($("btnLogout")) $("btnLogout").onclick = logout;
 
-    async function loadAll() {
+    async function loadViewData(name, opts) {
+      if (!currentUser) return;
+      const target = VIEW_META[name] ? name : "overview";
+      if (VIEW_META[target].admin && !isAdmin()) return;
+      const token = ++viewLoadToken;
+      const tasks = [];
+      // page-scoped loaders
+      if (target === "overview") {
+        tasks.push(loadUsage(), loadLogs(), loadKeys(), loadMyAccounts(), loadLeaderboardLite());
+        if (isAdmin()) tasks.push(loadAccounts());
+      } else if (target === "accounts") {
+        if (isAdmin()) tasks.push(loadAccounts());
+      } else if (target === "keys") {
+        tasks.push(loadKeys());
+      } else if (target === "users") {
+        if (isAdmin()) tasks.push(loadUsers());
+      } else if (target === "usage") {
+        tasks.push(loadUsage());
+      } else if (target === "logs") {
+        tasks.push(loadLogs());
+      } else if (target === "contribute") {
+        tasks.push(loadMyAccounts(), loadMyRouting(), loadLeaderboardLite());
+      } else if (target === "leaderboard") {
+        tasks.push(loadLeaderboard());
+      } else if (target === "settings") {
+        tasks.push(loadMeta());
+      }
+      if (!tasks.length) {
+        loadedViews.add(target);
+        return;
+      }
+      try {
+        await Promise.all(tasks);
+        if (token !== viewLoadToken) return;
+        loadedViews.add(target);
+        if (target === "keys" || target === "settings" || target === "overview") paintCurl();
+      } catch (e) {
+        console.warn("loadViewData", target, e);
+      }
+    }
+
+    async function bootView(name) {
       setPageLoading(true);
       try {
         await loadMeta();
         applyI18n();
         if (!currentUser) return;
         applyRoleNav();
-        const tasks = [loadKeys(), loadUsage(), loadLogs()];
-        if (isAdmin()) tasks.push(loadAccounts());
-        if (view === "contribute" || view === "overview") tasks.push(loadMyAccounts(), loadLeaderboardLite());
-        if (view === "leaderboard") tasks.push(loadLeaderboard());
-        await Promise.all(tasks);
-        paintCurl();
+        await loadViewData(name, { force: true });
       } finally {
         setPageLoading(false);
       }
@@ -5290,15 +5436,16 @@ ${styles()}
         }
         // non-admin visiting admin-only page
         if (VIEW_META[PAGE]?.admin && !isAdmin()) {
-          go("overview", { replace: true });
-          await loadAll();
+          go("overview", { replace: true, skipLoad: true });
+          await bootView("overview");
           return;
         }
         view = PAGE;
         history.replaceState({ view: PAGE }, "", pathFor(PAGE));
+        setView(PAGE, { skipLoad: true });
         applyI18n();
         applyRoleNav();
-        await loadAll();
+        await bootView(PAGE);
       } finally {
         setPageLoading(false);
       }
