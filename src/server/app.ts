@@ -77,6 +77,7 @@ import {
   registerUser,
   resolveSession,
   setUserPassword,
+  setUserUsername,
   setupAdmin,
   updateUser,
   getUserByUsername,
@@ -861,6 +862,7 @@ export function createApp() {
       enabled?: boolean;
       role?: "admin" | "user";
       password?: string;
+      username?: string;
       tokenQuota?: number | null;
       resetUsed?: boolean;
       tokenUsed?: number;
@@ -869,6 +871,15 @@ export function createApp() {
     if (body.password) {
       try {
         const updated = await setUserPassword(c.req.param("id"), body.password);
+        if (!updated) return c.json({ error: "not found" }, 404);
+        return c.json({ user: publicUser(updated) });
+      } catch (e) {
+        return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
+      }
+    }
+    if (body.username !== undefined) {
+      try {
+        const updated = await setUserUsername(c.req.param("id"), body.username);
         if (!updated) return c.json({ error: "not found" }, 404);
         return c.json({ user: publicUser(updated) });
       } catch (e) {

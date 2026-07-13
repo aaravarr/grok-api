@@ -1007,6 +1007,22 @@ ${styles()}
     </div>
   </div>
 
+  <div class="modal-mask" id="nameModal">
+    <div class="modal" role="dialog">
+      <h3 data-i18n="renameUserTitle">Rename user</h3>
+      <p id="nameUserHint" class="mono" style="margin-bottom:12px"></p>
+      <div class="field">
+        <label data-i18n="renameUserLabel">Username</label>
+        <input id="nameInput" class="input" style="width:100%" type="text" autocomplete="off" maxlength="32" />
+      </div>
+      <div class="hint" data-i18n="renameUserHint">2–32 chars · letters, numbers, _ . - or CJK</div>
+      <div class="row">
+        <button class="btn btn-secondary" type="button" id="nameCancel" data-i18n="close">Close</button>
+        <button class="btn" type="button" id="nameSubmit" data-i18n="renameUserSave">Save</button>
+      </div>
+    </div>
+  </div>
+
 
   <script>
     const PAGE = ${JSON.stringify(page)};
@@ -1050,6 +1066,9 @@ ${styles()}
         resetPwd:"改密", resetPwdTitle:"重置密码", resetPwdLabel:"新密码", resetPwdLabel2:"确认密码",
         resetPwdHint:"至少 6 位", resetPwdSave:"保存密码", resetPwdOk:"密码已更新",
         resetPwdMismatch:"两次密码不一致",
+        renameUser:"改名", renameUserTitle:"修改用户名", renameUserLabel:"用户名",
+        renameUserHint:"2–32 位 · 字母数字 _ . - 或中文", renameUserSave:"保存",
+        renameUserOk:"用户名已更新", renameUserEmpty:"请输入用户名",
         viewMore:"查看详情 →", viewAllLogs:"全部日志 →",
         qaAcc:"账号池与额度", qaKey:"创建与管理密钥", qaUsage:"趋势与分布", qaLogs:"请求排查",
         qaSettings:"端点与代理",
@@ -1257,6 +1276,9 @@ ${styles()}
         resetPwd:"Password", resetPwdTitle:"Reset password", resetPwdLabel:"New password", resetPwdLabel2:"Confirm",
         resetPwdHint:"At least 6 characters", resetPwdSave:"Save password", resetPwdOk:"Password updated",
         resetPwdMismatch:"Passwords do not match",
+        renameUser:"Rename", renameUserTitle:"Rename user", renameUserLabel:"Username",
+        renameUserHint:"2–32 chars · letters, numbers, _ . - or CJK", renameUserSave:"Save",
+        renameUserOk:"Username updated", renameUserEmpty:"Enter a username",
         viewMore:"Details →", viewAllLogs:"All logs →",
         qaAcc:"Pool & credits", qaKey:"Create and manage keys", qaUsage:"Trends & mix", qaLogs:"Request debug",
         qaSettings:"Endpoints & proxy",
@@ -3383,6 +3405,7 @@ ${styles()}
 
     let quotaEditId = null;
     let pwdEditId = null;
+    let nameEditId = null;
 
     function openQuotaModal(u) {
       quotaEditId = u.id;
@@ -3413,6 +3436,21 @@ ${styles()}
       $("pwdModal").classList.remove("show");
       if ($("pwdInput")) $("pwdInput").value = "";
       if ($("pwdInput2")) $("pwdInput2").value = "";
+    }
+
+    function openNameModal(u) {
+      nameEditId = u.id;
+      $("nameUserHint").textContent = u.username + " · " + u.id;
+      $("nameInput").value = u.username || "";
+      $("nameModal").classList.add("show");
+      $("nameInput").focus();
+      try { $("nameInput").select(); } catch {}
+    }
+
+    function closeNameModal() {
+      nameEditId = null;
+      $("nameModal").classList.remove("show");
+      if ($("nameInput")) $("nameInput").value = "";
     }
 
     function filteredUsers() {
@@ -3450,6 +3488,7 @@ ${styles()}
           '<div class="dt-time">' + fmtTime(u.lastLoginAt) + "</div>" +
           '<div class="dt-actions">' +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="quota-user" data-id="' + esc(u.id) + '">' + esc(t("setQuota")) + "</button>" +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="name-user" data-id="' + esc(u.id) + '">' + esc(t("renameUser")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="pwd-user" data-id="' + esc(u.id) + '">' + esc(t("resetPwd")) + "</button>" +
           (u.id === currentUser?.id ? "" :
             '<button class="btn btn-secondary btn-sm" type="button" data-act="toggle-user" data-id="' + esc(u.id) + '" data-en="' + (u.enabled ? "0" : "1") + '">' +
@@ -3465,6 +3504,11 @@ ${styles()}
             if (act === "quota-user") {
               const u = allUsers.find((x) => x.id === id);
               if (u) openQuotaModal(u);
+              return;
+            }
+            if (act === "name-user") {
+              const u = allUsers.find((x) => x.id === id);
+              if (u) openNameModal(u);
               return;
             }
             if (act === "pwd-user") {
@@ -4593,6 +4637,31 @@ ${styles()}
         if (!res.ok) throw new Error(data.error || res.statusText);
         closePwdModal();
         showMsg($("msgUsers"), t("resetPwdOk"), "ok");
+      } catch (e) { showMsg($("msgUsers"), e.message, "err"); }
+    };
+    if ($("nameCancel")) $("nameCancel").onclick = closeNameModal;
+    if ($("nameModal")) $("nameModal").addEventListener("click", (e) => { if (e.target === $("nameModal")) closeNameModal(); });
+    if ($("nameSubmit")) $("nameSubmit").onclick = async () => {
+      if (!nameEditId) return;
+      try {
+        const name = (($("nameInput") && $("nameInput").value) || "").trim();
+        if (!name) throw new Error(t("renameUserEmpty"));
+        const res = await fetch("/api/admin/users/" + nameEditId, {
+          method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ username: name }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        closeNameModal();
+        if (data.user && currentUser && data.user.id === currentUser.id) {
+          currentUser = { ...currentUser, username: data.user.username };
+          if ($("userName")) $("userName").textContent = data.user.username;
+          if ($("userAvatar")) {
+            const ch = String(data.user.username || "?").trim().charAt(0) || "?";
+            $("userAvatar").textContent = ch.toUpperCase();
+          }
+        }
+        showMsg($("msgUsers"), t("renameUserOk"), "ok");
+        await loadUsers();
       } catch (e) { showMsg($("msgUsers"), e.message, "err"); }
     };
     if ($("keySubmit")) $("keySubmit").onclick = async () => {

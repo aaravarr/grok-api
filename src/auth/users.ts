@@ -335,6 +335,7 @@ export async function updateUser(
   patch: Partial<
     Pick<
       User,
+      | "username"
       | "enabled"
       | "role"
       | "passwordHash"
@@ -348,6 +349,14 @@ export async function updateUser(
   return mutate((store) => {
     const u = store.users.find((x) => x.id === id);
     if (!u) return undefined;
+    if (patch.username !== undefined) {
+      const name = validateUsername(patch.username);
+      const taken = store.users.some(
+        (x) => x.id !== id && x.username.toLowerCase() === name.toLowerCase(),
+      );
+      if (taken) throw new Error("用户名已存在");
+      u.username = name;
+    }
     if (patch.enabled !== undefined) u.enabled = patch.enabled;
     if (patch.role !== undefined) u.role = patch.role;
     if (patch.passwordHash !== undefined) u.passwordHash = patch.passwordHash;
@@ -387,6 +396,10 @@ export async function setUserPassword(id: string, password: string): Promise<Use
   validatePassword(password);
   const passwordHash = await hashPassword(password);
   return updateUser(id, { passwordHash });
+}
+
+export async function setUserUsername(id: string, username: string): Promise<User | undefined> {
+  return updateUser(id, { username });
 }
 
 export async function deleteUser(id: string): Promise<boolean> {

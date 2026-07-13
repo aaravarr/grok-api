@@ -379,7 +379,7 @@ export function styles(): string {
     .dt-accounts{--dt-min:1380px;--dt-cols:minmax(140px,1.2fr) 92px 92px minmax(90px,.85fr) minmax(90px,.9fr) minmax(90px,.9fr) 48px 110px 460px}
     .dt-accounts .badge{max-width:none;overflow:visible;text-overflow:clip}
     .dt-accounts .dt-row > div:last-child,.dt-accounts .dt-head > div:last-child{overflow:visible}
-    .dt-users{--dt-min:880px;--dt-cols:minmax(140px,1.4fr) 88px 88px minmax(110px,1.1fr) 120px 244px}
+    .dt-users{--dt-min:980px;--dt-cols:minmax(140px,1.4fr) 88px 88px minmax(110px,1.1fr) 120px 320px}
     .dt-keys{--dt-min:860px;--dt-cols:minmax(120px,1.2fr) minmax(120px,1fr) 88px 140px 72px 200px}
     .dt-keys.has-owner{--dt-min:1000px;--dt-cols:minmax(110px,1.1fr) minmax(110px,1fr) minmax(100px,1fr) 88px 130px 72px 200px}
     .dt-keys .dt-num,.dt-logs .dt-num{
@@ -670,7 +670,7 @@ export function styles(): string {
       /* keep actions on one line so row width stays locked to --dt-min */
       .dt-actions{flex-wrap:nowrap}
       .dt-accounts{--dt-min:1200px;--dt-cols:minmax(130px,1.2fr) 88px 88px minmax(90px,1fr) 48px 100px 460px}
-      .dt-users{--dt-min:820px;--dt-cols:minmax(130px,1.2fr) 80px 80px minmax(100px,1fr) 110px 240px}
+      .dt-users{--dt-min:920px;--dt-cols:minmax(130px,1.2fr) 80px 80px minmax(100px,1fr) 110px 300px}
       .dt-keys{--dt-min:820px;--dt-cols:minmax(110px,1.1fr) minmax(110px,1fr) 80px 120px 72px 200px}
       .dt-keys.has-owner{--dt-min:960px;--dt-cols:minmax(100px,1fr) minmax(100px,1fr) minmax(90px,.9fr) 80px 120px 72px 200px}
       .route-grid{grid-template-columns:1fr}
