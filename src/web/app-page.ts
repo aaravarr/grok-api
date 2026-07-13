@@ -60,6 +60,12 @@ ${styles()}
     <div class="side-scrim" id="sideScrim" aria-hidden="true"></div>
 
     <div class="main-wrap">
+      <div class="page-loading" id="pageLoading" hidden>
+        <div class="page-loading-card">
+          <div class="spinner" aria-hidden="true"></div>
+          <div class="page-loading-text" data-i18n="loading">Loading…</div>
+        </div>
+      </div>
       <header class="topbar">
         <div class="topbar-left">
           <button class="icon-btn side-toggle" type="button" id="btnSide" aria-label="Menu">
@@ -1061,7 +1067,7 @@ ${styles()}
     const I18N = {
       zh: {
         title:"账号池", subtitle:"SuperGrok OAuth 多账号 · 额度感知轮询 · OpenAI 兼容代理。",
-        refresh:"刷新", logout:"退出",
+        refresh:"刷新", logout:"退出", loading:"加载中…",
         cancel:"取消", confirmOk:"确定", confirmTitle:"请确认",
         confirmDelete:"确定删除？",
         authUser:"用户名", authPass:"密码", authPass2:"确认密码", authSubmit:"继续",
@@ -1271,7 +1277,7 @@ ${styles()}
       },
       en: {
         title:"Account Pool", subtitle:"SuperGrok OAuth pool · credit-aware routing · OpenAI-compatible proxy.",
-        refresh:"Refresh", logout:"Logout",
+        refresh:"Refresh", logout:"Logout", loading:"Loading…",
         cancel:"Cancel", confirmOk:"Confirm", confirmTitle:"Confirm",
         confirmDelete:"Delete this item?",
         authUser:"Username", authPass:"Password", authPass2:"Confirm password", authSubmit:"Continue",
@@ -1606,7 +1612,7 @@ ${styles()}
       paintOverviewChrome();
     }
 
-        async function logout() {
+    async function logout() {
       try {
         await fetch("/api/auth/logout", { method: "POST", headers: headers() });
       } catch {}
@@ -1796,6 +1802,51 @@ ${styles()}
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    const loadingMap = new Map();
+    function setPageLoading(on) {
+      const el = $("pageLoading");
+      if (!el) return;
+      if (on) {
+        el.hidden = false;
+        el.classList.add("show");
+      } else {
+        el.classList.remove("show");
+        el.hidden = true;
+      }
+    }
+    function loadingHtml(text) {
+      return '<div class="loading-block"><div class="spinner sm" aria-hidden="true"></div><div class="loading-text">' +
+        esc(text || t("loading")) + "</div></div>";
+    }
+    function setElLoading(el, on, opts) {
+      if (!el) return;
+      const mode = (opts && opts.mode) || "overlay";
+      if (on) {
+        el.classList.add("is-loading");
+        if (mode === "replace") {
+          if (!loadingMap.has(el)) loadingMap.set(el, el.innerHTML);
+          el.innerHTML = loadingHtml(opts && opts.text);
+        } else {
+          if (!el.querySelector(":scope > .loading-overlay")) {
+            const ov = document.createElement("div");
+            ov.className = "loading-overlay";
+            ov.innerHTML = loadingHtml(opts && opts.text);
+            el.appendChild(ov);
+          }
+        }
+      } else {
+        el.classList.remove("is-loading");
+        el.querySelectorAll(":scope > .loading-overlay").forEach((n) => n.remove());
+        if (mode === "replace" && loadingMap.has(el)) {
+          // leave content to caller; just clear stash
+          loadingMap.delete(el);
+        }
+      }
+    }
+    function setManyLoading(ids, on, opts) {
+      (ids || []).forEach((id) => setElLoading($(id), on, opts));
     }
     function fmtTime(ts) {
       if (!ts) return "–";
@@ -3338,19 +3389,25 @@ ${styles()}
         allAccounts = [];
         return;
       }
-      const res = await fetch("/api/admin/accounts", { headers: headers() });
-      if (!res.ok) { showMsg($("msg"), "HTTP " + res.status, "err"); return; }
-      const data = await res.json();
-      routing = data.routing || routing;
-      allAccounts = data.accounts || [];
-      accountUsers = data.users || accountUsers;
-      paintMode();
-      if ($("sTotal")) $("sTotal").textContent = data.stats.total;
-      if ($("sActive")) $("sActive").textContent = data.stats.active;
-      fillUserSelect($("accDonor"));
-      const maxPage = Math.max(1, Math.ceil(allAccounts.length / PAGE_SIZE));
-      if (accPage > maxPage) accPage = maxPage;
-      renderAccounts();
+      setElLoading($("tbody"), true, { mode: "replace" });
+      try {
+        const res = await fetch("/api/admin/accounts", { headers: headers() });
+        if (!res.ok) { showMsg($("msg"), "HTTP " + res.status, "err"); setElLoading($("tbody"), false, { mode: "replace" }); return; }
+        const data = await res.json();
+        routing = data.routing || routing;
+        allAccounts = data.accounts || [];
+        accountUsers = data.users || accountUsers;
+        paintMode();
+        if ($("sTotal")) $("sTotal").textContent = data.stats.total;
+        if ($("sActive")) $("sActive").textContent = data.stats.active;
+        fillUserSelect($("accDonor"));
+        const maxPage = Math.max(1, Math.ceil(allAccounts.length / PAGE_SIZE));
+        if (accPage > maxPage) accPage = maxPage;
+        renderAccounts();
+      } catch (e) {
+        setElLoading($("tbody"), false, { mode: "replace" });
+        if ($("tbody")) $("tbody").innerHTML = '<div class="dt-empty">' + esc(String(e.message || e)) + "</div>";
+      }
     }
 
     function openAccEdit(id) {
@@ -3411,14 +3468,22 @@ ${styles()}
     }
 
     async function loadKeys() {
-      const res = await fetch(apiKeysPath(), { headers: headers() });
-      if (!res.ok) return;
-      const data = await res.json();
-      if ($("sKeys")) $("sKeys").textContent = data.keys.length;
-      allKeys = data.keys || [];
-      const maxPage = Math.max(1, Math.ceil(allKeys.length / PAGE_SIZE));
-      if (keyPage > maxPage) keyPage = maxPage;
-      renderKeys();
+      setElLoading($("tbodyKeys"), true, { mode: "replace" });
+      try {
+        const res = await fetch(apiKeysPath(), { headers: headers() });
+        if (!res.ok) {
+          if ($("tbodyKeys")) $("tbodyKeys").innerHTML = '<div class="dt-empty">HTTP ' + res.status + "</div>";
+          return;
+        }
+        const data = await res.json();
+        if ($("sKeys")) $("sKeys").textContent = data.keys.length;
+        allKeys = data.keys || [];
+        const maxPage = Math.max(1, Math.ceil(allKeys.length / PAGE_SIZE));
+        if (keyPage > maxPage) keyPage = maxPage;
+        renderKeys();
+      } catch (e) {
+        if ($("tbodyKeys")) $("tbodyKeys").innerHTML = '<div class="dt-empty">' + esc(String(e.message || e)) + "</div>";
+      }
     }
 
     function fmtQuota(u) {
@@ -3492,65 +3557,76 @@ ${styles()}
 
     async function loadUsers() {
       if (!isAdmin()) return;
-      const res = await fetch("/api/admin/users", { headers: headers() });
-      if (!res.ok) return;
-      const data = await res.json();
-      allUsers = data.users || [];
-      const tbody = $("tbodyUsers");
-      const list = filteredUsers();
-      if (!list.length) {
-        tbody.innerHTML = '<div class="dt-empty">–</div>';
-        return;
-      }
-      tbody.innerHTML = list.map((u) => {
-        const qCls = u.tokenQuota != null && (u.tokenUsed ?? 0) >= u.tokenQuota ? " error" : "";
-        return '<div class="dt-row">' +
-          '<div><div class="name">' + esc(u.username) + '</div><div class="mono">' + esc(u.id) + "</div></div>" +
-          '<div><span class="badge ' + (u.role === "admin" ? "current" : "") + '">' + esc(u.role === "admin" ? t("roleAdmin") : t("roleUser")) + "</span></div>" +
-          '<div><span class="badge ' + (u.enabled ? "active" : "error") + '">' + (u.enabled ? "active" : "disabled") + "</span></div>" +
-          '<div class="mono' + qCls + '">' + esc(fmtQuota(u)) + "</div>" +
-          '<div class="dt-time">' + fmtTime(u.lastLoginAt) + "</div>" +
-          '<div class="dt-actions">' +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="quota-user" data-id="' + esc(u.id) + '">' + esc(t("setQuota")) + "</button>" +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="name-user" data-id="' + esc(u.id) + '">' + esc(t("renameUser")) + "</button>" +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="pwd-user" data-id="' + esc(u.id) + '">' + esc(t("resetPwd")) + "</button>" +
-          (u.id === currentUser?.id ? "" :
-            '<button class="btn btn-secondary btn-sm" type="button" data-act="toggle-user" data-id="' + esc(u.id) + '" data-en="' + (u.enabled ? "0" : "1") + '">' +
-            esc(u.enabled ? t("disable") : t("enable")) + "</button>" +
-            '<button class="btn btn-danger btn-sm" type="button" data-act="del-user" data-id="' + esc(u.id) + '">' + esc(t("del")) + "</button>") +
-          "</div></div>";
-      }).join("");
-      tbody.querySelectorAll("button[data-act]").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-id");
-          const act = btn.getAttribute("data-act");
-          try {
-            if (act === "quota-user") {
-              const u = allUsers.find((x) => x.id === id);
-              if (u) openQuotaModal(u);
-              return;
+      setElLoading($("tbodyUsers"), true, { mode: "replace" });
+      try {
+        const res = await fetch("/api/admin/users", { headers: headers() });
+        if (!res.ok) {
+          if ($("tbodyUsers")) $("tbodyUsers").innerHTML = '<div class="dt-empty">HTTP ' + res.status + "</div>";
+          return;
+        }
+        const data = await res.json();
+        allUsers = data.users || [];
+        const tbody = $("tbodyUsers");
+        const list = filteredUsers();
+        if (!list.length) {
+          tbody.innerHTML = '<div class="dt-empty">–</div>';
+          return;
+        }
+        tbody.innerHTML = list.map((u) => {
+          const qCls = u.tokenQuota != null && (u.tokenUsed ?? 0) >= u.tokenQuota ? " error" : "";
+          return '<div class="dt-row">' +
+            '<div><div class="name">' + esc(u.username) + '</div><div class="mono">' + esc(u.id) + "</div></div>" +
+            '<div><span class="badge ' + (u.role === "admin" ? "current" : "") + '">' + esc(u.role === "admin" ? t("roleAdmin") : t("roleUser")) + "</span></div>" +
+            '<div><span class="badge ' + (u.enabled ? "active" : "error") + '">' + (u.enabled ? "active" : "disabled") + "</span></div>" +
+            '<div class="mono' + qCls + '">' + esc(fmtQuota(u)) + "</div>" +
+            '<div class="dt-time">' + fmtTime(u.lastLoginAt) + "</div>" +
+            '<div class="dt-actions">' +
+            '<button class="btn btn-secondary btn-sm" type="button" data-act="quota-user" data-id="' + esc(u.id) + '">' + esc(t("setQuota")) + "</button>" +
+            '<button class="btn btn-secondary btn-sm" type="button" data-act="name-user" data-id="' + esc(u.id) + '">' + esc(t("renameUser")) + "</button>" +
+            '<button class="btn btn-secondary btn-sm" type="button" data-act="pwd-user" data-id="' + esc(u.id) + '">' + esc(t("resetPwd")) + "</button>" +
+            (u.id === currentUser?.id ? "" :
+              '<button class="btn btn-secondary btn-sm" type="button" data-act="toggle-user" data-id="' + esc(u.id) + '" data-en="' + (u.enabled ? "0" : "1") + '">' +
+              esc(u.enabled ? t("disable") : t("enable")) + "</button>" +
+              '<button class="btn btn-danger btn-sm" type="button" data-act="del-user" data-id="' + esc(u.id) + '">' + esc(t("del")) + "</button>") +
+            "</div></div>";
+        }).join("");
+        tbody.querySelectorAll("button[data-act]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-id");
+            const act = btn.getAttribute("data-act");
+            try {
+              if (act === "quota-user") {
+                const u = allUsers.find((x) => x.id === id);
+                if (u) openQuotaModal(u);
+                return;
+              }
+              if (act === "name-user") {
+                const u = allUsers.find((x) => x.id === id);
+                if (u) openNameModal(u);
+                return;
+              }
+              if (act === "pwd-user") {
+                const u = allUsers.find((x) => x.id === id);
+                if (u) openPwdModal(u);
+                return;
+              }
+              if (act === "toggle-user") {
+                await fetch("/api/admin/users/" + id, { method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ enabled: btn.getAttribute("data-en") === "1" }) });
+              }
+              if (act === "del-user") {
+                if (!(await confirmDialog(t("confirmDelete") + " · " + id, { danger: true }))) return;
+                await fetch("/api/admin/users/" + id, { method: "DELETE", headers: headers() });
+              }
+              await loadUsers();
+            } catch (e) {
+              showMsg($("msgUsers"), e.message, "err");
             }
-            if (act === "name-user") {
-              const u = allUsers.find((x) => x.id === id);
-              if (u) openNameModal(u);
-              return;
-            }
-            if (act === "pwd-user") {
-              const u = allUsers.find((x) => x.id === id);
-              if (u) openPwdModal(u);
-              return;
-            }
-            if (act === "toggle-user") {
-              await fetch("/api/admin/users/" + id, { method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ enabled: btn.getAttribute("data-en") === "1" }) });
-            }
-            if (act === "del-user") {
-              if (!(await confirmDialog(t("confirmDelete") + " · " + id, { danger: true }))) return;
-              await fetch("/api/admin/users/" + id, { method: "DELETE", headers: headers() });
-            }
-            await loadUsers();
-          } catch (e) { showMsg($("msgUsers"), e.message, "err"); }
+          });
         });
-      });
+      } catch (e) {
+        if ($("tbodyUsers")) $("tbodyUsers").innerHTML = '<div class="dt-empty">' + esc(String((e && e.message) || e || "error")) + "</div>";
+        showMsg($("msgUsers"), e.message || String(e), "err");
+      }
     }
 
     function usageQueryParams() {
@@ -3582,6 +3658,7 @@ ${styles()}
     }
 
     async function loadUsage() {
+      setManyLoading(["view-usage", "view-overview"], true, { mode: "overlay" });
       try {
         const res = await fetch(apiUsagePath() + "?" + usageQueryParams().toString(), { headers: headers() });
         if (!res.ok) return;
@@ -3641,9 +3718,13 @@ ${styles()}
         if (view === "usage") paintCharts(data.stats);
         if (view === "overview") paintOverviewChart(data.stats);
       } catch {}
+      finally {
+        setManyLoading(["view-usage", "view-overview"], false, { mode: "overlay" });
+      }
     }
 
     async function loadLogs() {
+      setElLoading($("tbodyLogs"), true, { mode: "replace" });
       try {
         const day = $("logDay").value;
         const ok = $("logOk").value;
@@ -3664,6 +3745,7 @@ ${styles()}
         if (view === "overview" || !day) renderOverviewRecent(lastLogItems);
       } catch (e) {
         showMsg($("msgLogs"), String(e.message || e), "err");
+        if ($("tbodyLogs")) $("tbodyLogs").innerHTML = '<div class="dt-empty">' + esc(String(e.message || e)) + "</div>";
       }
     }
 
@@ -4124,9 +4206,13 @@ ${styles()}
     }
 
     async function loadMyAccounts() {
+      setElLoading($("tbodyContrib"), true, { mode: "replace" });
       try {
         const res = await fetch("/api/me/accounts", { headers: headers() });
-        if (!res.ok) return;
+        if (!res.ok) {
+          if ($("tbodyContrib")) $("tbodyContrib").innerHTML = '<div class="dt-empty">HTTP ' + res.status + "</div>";
+          return;
+        }
         const data = await res.json();
         myAccounts = data.accounts || [];
         const st = data.stats || {};
@@ -4141,7 +4227,9 @@ ${styles()}
         const maxPage = Math.max(1, Math.ceil(myAccounts.length / PAGE_SIZE));
         if (contribPage > maxPage) contribPage = maxPage;
         renderMyAccounts();
-      } catch {}
+      } catch (e) {
+        if ($("tbodyContrib")) $("tbodyContrib").innerHTML = '<div class="dt-empty">' + esc(String((e && e.message) || e || "error")) + "</div>";
+      }
     }
 
     async function loadLeaderboardLite() {
@@ -4205,13 +4293,22 @@ ${styles()}
     }
 
     async function loadLeaderboard() {
+      setElLoading($("tbodyLb"), true, { mode: "replace" });
+      setElLoading($("tbodyLbPub"), true, { mode: "replace" });
       try {
         const res = await fetch("/api/leaderboard", { headers: headers() });
-        if (!res.ok) return;
+        if (!res.ok) {
+          if ($("tbodyLb")) $("tbodyLb").innerHTML = '<div class="dt-empty">HTTP ' + res.status + "</div>";
+          if ($("tbodyLbPub")) $("tbodyLbPub").innerHTML = '<div class="dt-empty">HTTP ' + res.status + "</div>";
+          return;
+        }
         const data = await res.json();
         leaderboardData = data;
         paintLeaderboard(data);
-      } catch {}
+      } catch (e) {
+        if ($("tbodyLb")) $("tbodyLb").innerHTML = '<div class="dt-empty">' + esc(String((e && e.message) || e || "error")) + "</div>";
+        if ($("tbodyLbPub")) $("tbodyLbPub").innerHTML = '<div class="dt-empty">' + esc(String((e && e.message) || e || "error")) + "</div>";
+      }
     }
 
     function paintPodium(el, entries, scoreKey) {
@@ -5159,42 +5256,52 @@ ${styles()}
     if ($("btnLogout")) $("btnLogout").onclick = logout;
 
     async function loadAll() {
-      await loadMeta();
-      applyI18n();
-      if (!currentUser) return;
-      applyRoleNav();
-      const tasks = [loadKeys(), loadUsage(), loadLogs()];
-      if (isAdmin()) tasks.push(loadAccounts());
-      if (view === "contribute" || view === "overview") tasks.push(loadMyAccounts(), loadLeaderboardLite());
-      if (view === "leaderboard") tasks.push(loadLeaderboard());
-      await Promise.all(tasks);
-      paintCurl();
+      setPageLoading(true);
+      try {
+        await loadMeta();
+        applyI18n();
+        if (!currentUser) return;
+        applyRoleNav();
+        const tasks = [loadKeys(), loadUsage(), loadLogs()];
+        if (isAdmin()) tasks.push(loadAccounts());
+        if (view === "contribute" || view === "overview") tasks.push(loadMyAccounts(), loadLeaderboardLite());
+        if (view === "leaderboard") tasks.push(loadLeaderboard());
+        await Promise.all(tasks);
+        paintCurl();
+      } finally {
+        setPageLoading(false);
+      }
     }
 
     (async function boot() {
-      await loadMeta();
-      if (meta.needsSetup) {
-        location.href = "/setup";
-        return;
-      }
-      const ok = await ensureSession();
-      if (!ok) {
-        sessionToken = "";
-        localStorage.removeItem("grok_api_session");
-        location.href = "/login";
-        return;
-      }
-      // non-admin visiting admin-only page
-      if (VIEW_META[PAGE]?.admin && !isAdmin()) {
-        go("overview", { replace: true });
+      setPageLoading(true);
+      try {
+        await loadMeta();
+        if (meta.needsSetup) {
+          location.href = "/setup";
+          return;
+        }
+        const ok = await ensureSession();
+        if (!ok) {
+          sessionToken = "";
+          localStorage.removeItem("grok_api_session");
+          location.href = "/login";
+          return;
+        }
+        // non-admin visiting admin-only page
+        if (VIEW_META[PAGE]?.admin && !isAdmin()) {
+          go("overview", { replace: true });
+          await loadAll();
+          return;
+        }
+        view = PAGE;
+        history.replaceState({ view: PAGE }, "", pathFor(PAGE));
+        applyI18n();
+        applyRoleNav();
         await loadAll();
-        return;
+      } finally {
+        setPageLoading(false);
       }
-      view = PAGE;
-      history.replaceState({ view: PAGE }, "", pathFor(PAGE));
-      applyI18n();
-      applyRoleNav();
-      await loadAll();
     })();
   </script>
 </body>

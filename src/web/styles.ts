@@ -57,7 +57,7 @@ export function styles(): string {
     .nav-item:hover .ic,.nav-item.on .ic{opacity:1}
     .nav-item > span:last-child{line-height:1.2}
 
-    .main-wrap{min-width:0;width:100%;display:flex;flex-direction:column;min-height:100dvh}
+    .main-wrap{position:relative;min-width:0;width:100%;display:flex;flex-direction:column;min-height:100dvh}
     .topbar{
       height:var(--top);border-bottom:1px solid var(--hairline);
       background:rgba(255,255,255,.86);backdrop-filter:saturate(180%) blur(16px);-webkit-backdrop-filter:saturate(180%) blur(16px);
@@ -163,6 +163,42 @@ export function styles(): string {
     .user-menu.open .user-caret{transform:rotate(180deg);color:var(--ink)}
     .user-pop{min-width:200px}
     .content{padding:24px 28px 72px;width:100%;max-width:none;flex:1;min-width:0}
+    /* Loading states */
+    .page-loading{
+      position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
+      background:rgba(250,250,250,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    }
+    .page-loading.show{display:flex}
+    .main-wrap{position:relative}
+    .page-loading-card{
+      display:flex;flex-direction:column;align-items:center;gap:12px;
+      min-width:140px;padding:22px 24px;border-radius:14px;background:#fff;
+      border:1px solid var(--hairline);box-shadow:0 10px 30px rgba(0,0,0,.06);
+    }
+    .page-loading-text{font-size:13px;font-weight:500;color:var(--body)}
+    .spinner{
+      width:22px;height:22px;border-radius:50%;
+      border:2px solid var(--hairline-strong);border-top-color:var(--ink);
+      animation:spin .7s linear infinite;
+    }
+    .spinner.sm{width:16px;height:16px;border-width:1.8px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .loading-block{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+      padding:36px 16px;color:var(--mute);font-size:13px;
+    }
+    .loading-text{font-size:12px;color:var(--mute);font-weight:500}
+    .is-loading{position:relative}
+    .loading-overlay{
+      position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;
+      background:rgba(255,255,255,.72);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+      border-radius:inherit;
+    }
+    .dt-body.is-loading,.dt-body .loading-block{min-height:160px}
+    @media(prefers-reduced-motion:reduce){
+      .spinner{animation:none;border-top-color:var(--ink);opacity:.7}
+    }
+
 
     .view{display:none}.view.on{display:block;animation:fadeIn .2s var(--ease)}
     @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
