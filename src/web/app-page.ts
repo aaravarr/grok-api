@@ -1061,7 +1061,7 @@ ${styles()}
         logHint:"默认只记元数据与 Token；失败时仍可保留响应体便于排查",
         logSaved:"日志设置已保存",
         usageTitle:"分析", kpiReq:"请求数", kpiTok:"总 Token", kpiOk:"成功率", kpiLat:"平均延迟",
-        kpiTps:"平均 TPS（输出+推理）",
+        kpiTps:"平均 TPS",
         kpiIn:"输入(未缓存)", kpiOut:"输出 Token", kpiCache:"缓存输入", kpiReason:"推理 Token", kpiImg:"图片 Token",
         chartDay:"Token 趋势", chartTokMix:"Token 构成", chartModel:"模型分布", chartAccount:"按账号", chartKey:"按密钥（总 Token）",
         usageRange:"时间范围", usageGran:"时间粒度",
@@ -1256,7 +1256,7 @@ ${styles()}
         logHint:"Metadata + tokens by default; failed responses can still be kept",
         logSaved:"Log settings saved",
         usageTitle:"Analytics", kpiReq:"Requests", kpiTok:"Total tokens", kpiOk:"Success rate", kpiLat:"Avg latency",
-        kpiTps:"Avg TPS (out+reason)",
+        kpiTps:"Avg TPS",
         kpiIn:"Input (uncached)", kpiOut:"Output tokens", kpiCache:"Cached input", kpiReason:"Reasoning", kpiImg:"Image tokens",
         chartDay:"Tokens over time", chartTokMix:"Token mix", chartModel:"Model distribution", chartAccount:"By account", chartKey:"By API key (total)",
         usageRange:"Range", usageGran:"Bucket",
@@ -3336,7 +3336,7 @@ ${styles()}
         if ($("uTok")) $("uTok").textContent = fmtNum(s.totalTokens);
         if ($("uOk")) $("uOk").textContent = s.requests ? Math.round((s.ok / s.requests) * 100) + "%" : "–";
         if ($("uLat")) $("uLat").textContent = s.avgLatencyMs != null ? s.avgLatencyMs + "ms" : "–";
-        if ($("uTps")) $("uTps").textContent = fmtRate(s.avgReqTps != null ? s.avgReqTps : s.avgTps);
+        if ($("uTps")) $("uTps").textContent = fmtRate(s.avgTps != null ? s.avgTps : s.avgReqTps);
         if ($("uImg")) $("uImg").textContent = fmtNum(s.imageTokens);
         paintUsageControls(data.stats);
 

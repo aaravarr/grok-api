@@ -54,12 +54,15 @@ export interface UsageStats {
     ok: number;
     fail: number;
     avgLatencyMs: number;
-    /** Wall-clock gen tokens/sec (completion+reasoning) over the selected window */
+    /**
+     * TPS = sum(completionTokens + reasoningTokens) / sum(latencyMs)/1000
+     * over ALL requests in the window (including failed; zero-token fails still count latency).
+     */
     avgTps: number;
-    /** Requests per minute over the selected window */
-    rpm: number;
-    /** Mean per-request gen speed: (completion+reasoning) / sum(latency) */
+    /** Same as avgTps (compat alias) */
     avgReqTps: number;
+    /** Sum of latencyMs across all requests (for TPS denominator) */
+    latencySumMs: number;
   } & TokenTotals;
   /** Time series at selected granularity (kept name byDay for API compat). */
   byDay: UsageBucket[];
@@ -133,21 +136,13 @@ function sortBuckets(arr: UsageBucket[]): UsageBucket[] {
 
 function summaryOf(
   b: UsageBucket,
-  windowMs: number,
+  _windowMs: number,
 ): UsageStats["summary"] {
-  const windowSec = windowMs > 0 ? windowMs / 1000 : 0;
-  const windowMin = windowSec / 60;
-  const latencySec = b.latencySum > 0 ? b.latencySum / 1000 : 0;
+  // TPS = all gen tokens / all request latency (not wall-clock window)
+  const latencySumMs = b.latencySum || 0;
+  const latencySec = latencySumMs > 0 ? latencySumMs / 1000 : 0;
   const genTok = (b.completionTokens || 0) + (b.reasoningTokens || 0);
   const avgTps =
-    windowSec > 0 && genTok > 0
-      ? Math.round((genTok / windowSec) * 100) / 100
-      : 0;
-  const rpm =
-    windowMin > 0 && b.requests > 0
-      ? Math.round((b.requests / windowMin) * 100) / 100
-      : 0;
-  const avgReqTps =
     latencySec > 0 && genTok > 0
       ? Math.round((genTok / latencySec) * 100) / 100
       : 0;
@@ -157,8 +152,8 @@ function summaryOf(
     fail: b.fail,
     avgLatencyMs: b.avgLatencyMs,
     avgTps,
-    rpm,
-    avgReqTps,
+    avgReqTps: avgTps,
+    latencySumMs,
     promptTokens: b.promptTokens,
     completionTokens: b.completionTokens,
     totalTokens: b.totalTokens,
