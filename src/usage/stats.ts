@@ -30,8 +30,10 @@ export interface UsageBucket extends TokenTotals {
   avgLatencyMs: number;
   /** Sum of (latencyMs - firstTokenMs) only for logs with firstTokenMs */
   genLatencySum: number;
-  /** completion+reasoning tokens only for logs with firstTokenMs (TPS numerator) */
+  /** completion+reasoning tokens only for valid TPS samples */
   genTokensForTps: number;
+  /** Requests that contributed to genLatencySum / genTokensForTps */
+  tpsSampleCount: number;
   firstTokenSum: number;
   firstTokenCount: number;
   avgFirstTokenMs: number;
@@ -114,12 +116,16 @@ function emptyBucket(key: string, label: string): UsageBucket {
     avgLatencyMs: 0,
     genLatencySum: 0,
     genTokensForTps: 0,
+    tpsSampleCount: 0,
     firstTokenSum: 0,
     firstTokenCount: 0,
     avgFirstTokenMs: 0,
     ...emptyTokens(),
   };
 }
+
+/** Min generation window for stable TPS (avoids 63tok/1ms → 63000). */
+export const MIN_GEN_MS_FOR_TPS = 50;
 
 function hasTtft(log: { firstTokenMs?: number }): boolean {
   return log.firstTokenMs != null && Number.isFinite(Number(log.firstTokenMs));
@@ -135,6 +141,14 @@ export function genLatencyMs(log: {
   if (!(lat > 0)) return 0;
   const f = Math.max(0, Number(log.firstTokenMs));
   return Math.max(0, lat - Math.min(f, lat));
+}
+
+/** True when TTFT sample is usable for TPS (enough post-TTFT duration). */
+export function isTpsSample(log: {
+  latencyMs?: number;
+  firstTokenMs?: number;
+}): boolean {
+  return genLatencyMs(log) >= MIN_GEN_MS_FOR_TPS;
 }
 
 function addTokens(b: TokenTotals, u: TokenUsage) {
@@ -159,12 +173,16 @@ function add(b: UsageBucket, log: RequestLog) {
   else b.fail += 1;
   b.latencySum += log.latencyMs || 0;
   if (hasTtft(log)) {
-    b.genLatencySum += genLatencyMs(log);
     b.firstTokenSum += Number(log.firstTokenMs);
     b.firstTokenCount += 1;
-    if (log.usage) {
-      b.genTokensForTps +=
-        (log.usage.completionTokens ?? 0) + (log.usage.reasoningTokens ?? 0);
+    // TPS sample: need enough generation time after TTFT
+    if (isTpsSample(log)) {
+      b.genLatencySum += genLatencyMs(log);
+      b.tpsSampleCount += 1;
+      if (log.usage) {
+        b.genTokensForTps +=
+          (log.usage.completionTokens ?? 0) + (log.usage.reasoningTokens ?? 0);
+      }
     }
   }
   if (log.usage) addTokens(b, log.usage);
@@ -185,7 +203,7 @@ function summaryOf(
   b: UsageBucket,
   _windowMs: number,
 ): UsageStats["summary"] {
-  // TPS only from TTFT-instrumented logs
+  // TPS only from TTFT-instrumented logs with enough post-TTFT duration
   const latencySumMs = b.latencySum || 0;
   const genLatencySumMs = b.genLatencySum || 0;
   const genSec = genLatencySumMs > 0 ? genLatencySumMs / 1000 : 0;
@@ -204,7 +222,7 @@ function summaryOf(
     latencySumMs,
     genLatencySumMs,
     avgFirstTokenMs: b.firstTokenCount > 0 ? b.avgFirstTokenMs : null,
-    tpsSampleCount: b.firstTokenCount,
+    tpsSampleCount: b.tpsSampleCount,
     promptTokens: b.promptTokens,
     completionTokens: b.completionTokens,
     totalTokens: b.totalTokens,

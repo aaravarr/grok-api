@@ -1069,10 +1069,11 @@ ${styles()}
         ttftLegacyShort:"未记录",
         tpsNoTtftHint:"旧日志无 TTFT，不计入看板 TPS",
         tpsLegacyHint:"按整段耗时估算（未扣首字）",
+        tpsTinyGenHint:"生成时长过短（≈首字即结束），TPS 不可靠",
         ttftSampleHint:(n,t)=>"基于 "+n+"/"+t+" 条有 TTFT 的请求",
         ttftNoSampleHint:"窗口内暂无带 TTFT 的请求",
-        tpsSampleHint:(n,t)=>"仅统计有 TTFT 的 "+n+"/"+t+" 条 · 已排除首字时间",
-        tpsNoSampleHint:"窗口内暂无带 TTFT 的请求，看板 TPS 不可用",
+        tpsSampleHint:(n,t)=>"仅统计有 TTFT 且生成≥50ms 的 "+n+"/"+t+" 条 · 已排除首字时间",
+        tpsNoSampleHint:"窗口内暂无可用 TPS 样本（需 TTFT 且生成时长足够）",
         kpiIn:"输入(未缓存)", kpiOut:"输出 Token", kpiCache:"缓存输入", kpiReason:"推理 Token", kpiImg:"图片 Token",
         chartDay:"Token 趋势", chartTokMix:"Token 构成", chartModel:"模型分布", chartAccount:"按账号", chartKey:"按密钥（总 Token）",
         usageRange:"时间范围", usageGran:"时间粒度",
@@ -1272,10 +1273,11 @@ ${styles()}
         ttftLegacyShort:"n/a",
         tpsNoTtftHint:"No TTFT — excluded from board TPS",
         tpsLegacyHint:"Estimated with full latency (TTFT not subtracted)",
+        tpsTinyGenHint:"Generation window too short (≈TTFT only) — TPS unreliable",
         ttftSampleHint:(n,t)=>"From "+n+"/"+t+" requests with TTFT",
         ttftNoSampleHint:"No TTFT samples in this window",
-        tpsSampleHint:(n,t)=>"From "+n+"/"+t+" requests with TTFT · TTFT excluded",
-        tpsNoSampleHint:"No TTFT samples — board TPS unavailable",
+        tpsSampleHint:(n,t)=>"From "+n+"/"+t+" requests with TTFT & gen≥50ms · TTFT excluded",
+        tpsNoSampleHint:"No usable TPS samples (need TTFT and enough generation time)",
         kpiIn:"Input (uncached)", kpiOut:"Output tokens", kpiCache:"Cached input", kpiReason:"Reasoning", kpiImg:"Image tokens",
         chartDay:"Tokens over time", chartTokMix:"Token mix", chartModel:"Model distribution", chartAccount:"By account", chartKey:"By API key (total)",
         usageRange:"Range", usageGran:"Bucket",
@@ -2518,6 +2520,8 @@ ${styles()}
       const reason = Number(u.reasoningTokens) || 0;
       return out + reason;
     }
+    /** Min post-TTFT duration for reliable TPS (matches server MIN_GEN_MS_FOR_TPS) */
+    const MIN_GEN_MS_FOR_TPS = 50;
     /** Generation ms excluding TTFT when firstTokenMs is present */
     function logGenLatencyMs(r) {
       const lat = r && r.latencyMs != null ? Number(r.latencyMs) : 0;
@@ -2535,22 +2539,33 @@ ${styles()}
     }
     /**
      * Per-request TPS:
-     * - with TTFT: (completion+reasoning) / (latency − TTFT)
-     * - legacy: (completion+reasoning) / full latency (still showable on the row)
+     * - with TTFT and gen≥50ms: (completion+reasoning) / (latency − TTFT)
+     * - legacy (no TTFT): (completion+reasoning) / full latency
+     * - TTFT≈latency (tiny gen window): "–" (unreliable)
      */
     function fmtReqTps(r) {
       const tok = logGenTokens(r && r.usage);
-      const ms = hasLogTtft(r)
-        ? logGenLatencyMs(r)
-        : (r && r.latencyMs != null ? Number(r.latencyMs) : 0);
-      if (!(tok > 0) || !(ms > 0)) return "–";
+      if (!(tok > 0)) return "–";
+      let ms;
+      if (hasLogTtft(r)) {
+        ms = logGenLatencyMs(r);
+        if (ms < MIN_GEN_MS_FOR_TPS) return "–";
+      } else {
+        ms = r && r.latencyMs != null ? Number(r.latencyMs) : 0;
+      }
+      if (!(ms > 0)) return "–";
       const tps = tok / (ms / 1000);
       if (!Number.isFinite(tps)) return "–";
       return (tps >= 100 ? Math.round(tps) : Math.round(tps * 10) / 10) + "";
     }
     function fmtTpsCell(r) {
       const v = fmtReqTps(r);
-      if (v === "–") return "–";
+      if (v === "–") {
+        if (hasLogTtft(r) && logGenLatencyMs(r) < MIN_GEN_MS_FOR_TPS) {
+          return '<span class="mute" title="' + esc(t("tpsTinyGenHint")) + '">–</span>';
+        }
+        return "–";
+      }
       if (!hasLogTtft(r)) {
         return '<span title="' + esc(t("tpsLegacyHint")) + '">' + esc(v) + "</span>";
       }
@@ -3478,9 +3493,16 @@ ${styles()}
             : '<span class="mute">' + esc(t("ttftLegacyHint")) + "</span>") +
           "</div></div>" +
           '<div><div class="k">tps</div><div class="v">' +
-          (hasLogTtft(log)
-            ? esc(fmtReqTps(log)) + ' <span class="mute">(ex TTFT)</span>'
-            : esc(fmtReqTps(log)) + ' <span class="mute">(' + esc(t("tpsLegacyHint")) + ")</span>") +
+          (function () {
+            const v = fmtReqTps(log);
+            if (hasLogTtft(log)) {
+              if (v === "–") {
+                return '<span class="mute">' + esc(t("tpsTinyGenHint")) + "</span>";
+              }
+              return esc(v) + ' <span class="mute">(ex TTFT)</span>';
+            }
+            return esc(v) + ' <span class="mute">(' + esc(t("tpsLegacyHint")) + ")</span>";
+          })() +
           "</div></div>" +
           '<div><div class="k">account</div><div class="v">' + esc(log.accountName || "–") + " / " + esc(log.accountId || "–") + "</div></div>" +
           '<div><div class="k">' + esc(lang === "zh" ? "密钥" : "api key") + '</div><div class="v">' + esc(log.apiKeyAlias || "–") + " / " + esc(log.apiKeyId || "–") + "</div></div>" +
