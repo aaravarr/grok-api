@@ -389,6 +389,7 @@ ${styles()}
                 <div class="kpi"><div class="n" id="uReq">–</div><div class="l" data-i18n="kpiReq">Requests</div></div>
                 <div class="kpi"><div class="n" id="uIn">–</div><div class="l" data-i18n="kpiIn">Input tokens</div></div>
                 <div class="kpi"><div class="n" id="uCache">–</div><div class="l" data-i18n="kpiCache">Cached input</div></div>
+                <div class="kpi"><div class="n" id="uCacheHit">–</div><div class="l" data-i18n="kpiCacheHit">Cache hit</div></div>
                 <div class="kpi"><div class="n" id="uOut">–</div><div class="l" data-i18n="kpiOut">Output tokens</div></div>
                 <div class="kpi"><div class="n" id="uReason">–</div><div class="l" data-i18n="kpiReason">Reasoning</div></div>
                 <div class="kpi"><div class="n" id="uTok">–</div><div class="l" data-i18n="kpiTok">Total tokens</div></div>
@@ -401,12 +402,42 @@ ${styles()}
                 <div class="kpi"><div class="n" id="uImg">–</div><div class="l" data-i18n="kpiImg">Image tokens</div></div>
               </div>
               <div class="charts">
-                <div class="chart-card"><h4 id="chartTimeTitle" data-i18n="chartDay">Token over time</h4><div class="chart-wrap"><canvas id="chartDay"></canvas></div></div>
-                <div class="chart-card"><h4 data-i18n="chartTokMix">Token mix</h4><div class="chart-wrap"><canvas id="chartTokMix"></canvas></div></div>
+                <div class="chart-card">
+                  <div class="chart-hd">
+                    <h4 id="chartTimeTitle" data-i18n="chartDay">Token over time</h4>
+                    <span class="chart-meta" id="cacheHitDay">–</span>
+                  </div>
+                  <div class="chart-wrap"><canvas id="chartDay"></canvas></div>
+                </div>
+                <div class="chart-card">
+                  <div class="chart-hd">
+                    <h4 data-i18n="chartTokMix">Token mix</h4>
+                    <span class="chart-meta" id="cacheHitMix">–</span>
+                  </div>
+                  <div class="chart-wrap"><canvas id="chartTokMix"></canvas></div>
+                </div>
                 <div class="chart-card"><h4 data-i18n="chartModel">Model distribution</h4><div class="chart-wrap"><canvas id="chartModel"></canvas></div></div>
-                <div class="chart-card" data-admin-only><h4 data-i18n="chartAccount">By account</h4><div class="chart-wrap"><canvas id="chartAccount"></canvas></div></div>
-                <div class="chart-card"><h4 data-i18n="chartKey">By API key (tokens)</h4><div class="chart-wrap"><canvas id="chartKey"></canvas></div></div>
-                <div class="chart-card"><h4 data-i18n="chartKeyInOut">By key · in / out</h4><div class="chart-wrap"><canvas id="chartKeyInOut"></canvas></div></div>
+                <div class="chart-card" data-admin-only>
+                  <div class="chart-hd">
+                    <h4 data-i18n="chartAccount">By account</h4>
+                    <span class="chart-meta" id="cacheHitAcc">–</span>
+                  </div>
+                  <div class="chart-wrap"><canvas id="chartAccount"></canvas></div>
+                </div>
+                <div class="chart-card">
+                  <div class="chart-hd">
+                    <h4 data-i18n="chartKey">By API key (tokens)</h4>
+                    <span class="chart-meta" id="cacheHitKey">–</span>
+                  </div>
+                  <div class="chart-wrap"><canvas id="chartKey"></canvas></div>
+                </div>
+                <div class="chart-card">
+                  <div class="chart-hd">
+                    <h4 data-i18n="chartKeyInOut">By key · in / out</h4>
+                    <span class="chart-meta" id="cacheHitKeyIO">–</span>
+                  </div>
+                  <div class="chart-wrap"><canvas id="chartKeyInOut"></canvas></div>
+                </div>
               </div>
             </div>
           </div>
@@ -1064,7 +1095,10 @@ ${styles()}
         logHint:"默认只记元数据与 Token；失败时仍可保留响应体便于排查",
         logSaved:"日志设置已保存",
         usageTitle:"分析", kpiReq:"请求数", kpiTok:"总 Token", kpiOk:"成功率", kpiLat:"平均延迟",
-        kpiTtft:"平均首字", kpiTps:"平均 TPS",
+        kpiTtft:"平均首字", kpiTps:"平均 TPS", kpiCacheHit:"缓存命中率",
+        cacheHitLabel:(p)=>"缓存命中 "+p+"%",
+        cacheHitNone:"缓存命中 –",
+        cacheHitTip:(c,p)=>"缓存输入 "+c+" / 总输入 "+p,
         ttftLegacyHint:"旧日志未记录首字延迟",
         ttftLegacyShort:"未记录",
         tpsNoTtftHint:"旧日志无 TTFT，不计入看板 TPS",
@@ -1268,7 +1302,10 @@ ${styles()}
         logHint:"Metadata + tokens by default; failed responses can still be kept",
         logSaved:"Log settings saved",
         usageTitle:"Analytics", kpiReq:"Requests", kpiTok:"Total tokens", kpiOk:"Success rate", kpiLat:"Avg latency",
-        kpiTtft:"Avg TTFT", kpiTps:"Avg TPS",
+        kpiTtft:"Avg TTFT", kpiTps:"Avg TPS", kpiCacheHit:"Cache hit",
+        cacheHitLabel:(p)=>"Cache hit "+p+"%",
+        cacheHitNone:"Cache hit –",
+        cacheHitTip:(c,p)=>"Cached "+c+" / input "+p,
         ttftLegacyHint:"Legacy log — TTFT not recorded",
         ttftLegacyShort:"n/a",
         tpsNoTtftHint:"No TTFT — excluded from board TPS",
@@ -2762,7 +2799,44 @@ ${styles()}
       }
       return { uncachedIn, cached, outNonReason, reasonSeg, prompt, completion };
     }
-
+    /** Cache hit rate = cached input / total input (prompt). null when no input. */
+    function cacheHitRate(b) {
+      const prompt = (b && (b.promptTokens || 0)) || 0;
+      if (!(prompt > 0)) return null;
+      const cached = Math.min((b.cachedTokens || 0), prompt);
+      return Math.round((cached / prompt) * 1000) / 10; // one decimal
+    }
+    function fmtCacheHitPct(rate) {
+      if (rate == null || !Number.isFinite(rate)) return null;
+      return (rate % 1 === 0 ? String(Math.round(rate)) : rate.toFixed(1));
+    }
+    function paintCacheHitMeta(elId, rowsOrBucket) {
+      const el = $(elId);
+      if (!el) return;
+      let prompt = 0;
+      let cached = 0;
+      if (Array.isArray(rowsOrBucket)) {
+        for (const b of rowsOrBucket) {
+          const p = b.promptTokens || 0;
+          prompt += p;
+          cached += Math.min(b.cachedTokens || 0, p);
+        }
+      } else if (rowsOrBucket) {
+        prompt = rowsOrBucket.promptTokens || 0;
+        cached = Math.min(rowsOrBucket.cachedTokens || 0, prompt);
+      }
+      if (!(prompt > 0)) {
+        el.textContent = t("cacheHitNone");
+        el.classList.remove("on");
+        el.removeAttribute("title");
+        return;
+      }
+      const pct = Math.round((cached / prompt) * 1000) / 10;
+      const pctTxt = fmtCacheHitPct(pct);
+      el.textContent = t("cacheHitLabel", pctTxt);
+      el.classList.toggle("on", pct > 0);
+      el.title = t("cacheHitTip", fmtNum(cached), fmtNum(prompt));
+    }
     function stackedTokDatasets(rows, withReqLine) {
       const segs = rows.map(tokenSegments);
       const ds = [
@@ -3004,15 +3078,39 @@ ${styles()}
       const dayLabels = timeSeriesLabels(stats);
       const s = stats.summary;
       const tip = { backgroundColor: "#171717", cornerRadius: 8, padding: 10, usePointStyle: true, boxWidth: 8, boxHeight: 8 };
-      const hBar = {
+      /** Append cache hit only on Cached-input series — never on uncached in / out / reason. */
+      const cacheHitOnLabel = (buckets) => (ctx) => {
+        const dsLabel = ctx.dataset && ctx.dataset.label ? String(ctx.dataset.label) : "";
+        const raw = ctx.parsed;
+        let val = null;
+        if (raw != null && typeof raw === "object") {
+          if (raw.y != null && Number.isFinite(raw.y)) val = raw.y;
+          else if (raw.x != null && Number.isFinite(raw.x)) val = raw.x;
+        } else if (typeof raw === "number") val = raw;
+        let line = (dsLabel ? dsLabel + ": " : "") + (val != null ? fmtNum(val) : "–");
+        if (dsLabel === t("chartCache") && Array.isArray(buckets)) {
+          const b = buckets[ctx.dataIndex];
+          const rate = b ? cacheHitRate(b) : null;
+          if (rate != null) line += " · " + t("cacheHitLabel", fmtCacheHitPct(rate));
+        }
+        return line;
+      };
+      const bucketTip = (buckets) => ({
+        ...tip,
+        callbacks: { label: cacheHitOnLabel(buckets) },
+      });
+      const hBarFor = (buckets) => ({
         indexAxis: "y", responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: true, ...legendOpts }, tooltip: tip },
+        plugins: { legend: { display: true, ...legendOpts }, tooltip: bucketTip(buckets) },
         scales: {
           x: { stacked: true, grid: { color: "rgba(0,0,0,.04)", drawBorder: false }, ticks: { font: { size: 10 }, color: "#888" } },
           y: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 }, color: "#4d4d4d" } }
         }
-      };
+      });
       const xTickLimit = (stats.byDay || []).length > 48 ? 16 : (stats.byDay || []).length > 24 ? 12 : 24;
+
+      paintCacheHitMeta("cacheHitDay", stats.byDay);
+      paintCacheHitMeta("cacheHitMix", s);
 
       destroyChart("day");
       charts.day = new Chart($("chartDay"), {
@@ -3021,7 +3119,7 @@ ${styles()}
         options: {
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: "index", intersect: false },
-          plugins: { legend: { display: true, ...legendOpts }, tooltip: tip },
+          plugins: { legend: { display: true, ...legendOpts }, tooltip: bucketTip(stats.byDay || []) },
           scales: {
             y: {
               stacked: true, position: "left",
@@ -3062,7 +3160,22 @@ ${styles()}
               position: "right",
               labels: { usePointStyle: true, pointStyle: "circle", boxWidth: 7, boxHeight: 7, padding: 12, color: "#4d4d4d", font: { size: 11 } }
             },
-            tooltip: tip
+            tooltip: {
+              ...tip,
+              callbacks: {
+                label: (ctx) => {
+                  const lab = ctx.label || "";
+                  const val = ctx.parsed;
+                  let line = lab + ": " + (val != null ? fmtNum(val) : "–");
+                  // doughnut index 1 = cached input only
+                  if (ctx.dataIndex === 1) {
+                    const rate = cacheHitRate(s);
+                    if (rate != null) line += " · " + t("cacheHitLabel", fmtCacheHitPct(rate));
+                  }
+                  return line;
+                },
+              },
+            }
           }
         }
       });
@@ -3097,6 +3210,7 @@ ${styles()}
           if (b.key === "__unrouted__") return -1;
           return b.totalTokens - a.totalTokens || b.requests - a.requests;
         }).slice(0, 8);
+        paintCacheHitMeta("cacheHitAcc", accs);
         const accSeg = accs.map(tokenSegments);
         charts.account = new Chart($("chartAccount"), {
           type: "bar",
@@ -3109,8 +3223,10 @@ ${styles()}
               { label: t("chartReason"), data: accSeg.map((s) => s.reasonSeg), backgroundColor: "rgba(171,87,10,.8)", stack: "t", borderWidth: 0, borderRadius: 4 }
             ]
           },
-          options: hBar
+          options: hBarFor(accs)
         });
+      } else {
+        paintCacheHitMeta("cacheHitAcc", null);
       }
 
       destroyChart("key");
@@ -3119,6 +3235,8 @@ ${styles()}
         if (b.key === "__no_key__") return -1;
         return b.totalTokens - a.totalTokens;
       }).slice(0, 8);
+      paintCacheHitMeta("cacheHitKey", keys);
+      paintCacheHitMeta("cacheHitKeyIO", keys);
       charts.key = new Chart($("chartKey"), {
         type: "bar",
         data: {
@@ -3153,7 +3271,7 @@ ${styles()}
             { label: t("chartReason"), data: keySeg.map((s) => s.reasonSeg), backgroundColor: "rgba(171,87,10,.8)", stack: "tok", borderWidth: 0, borderRadius: 4 }
           ]
         },
-        options: hBar
+        options: hBarFor(keys)
       });
     }
 
@@ -3406,6 +3524,13 @@ ${styles()}
         if ($("uReq")) $("uReq").textContent = fmtNum(s.requests);
         if ($("uIn")) $("uIn").textContent = fmtNum(seg.uncachedIn);
         if ($("uCache")) $("uCache").textContent = fmtNum(seg.cached);
+        if ($("uCacheHit")) {
+          const rate = cacheHitRate(s);
+          $("uCacheHit").textContent = rate == null ? "–" : fmtCacheHitPct(rate) + "%";
+          $("uCacheHit").title = rate == null
+            ? ""
+            : t("cacheHitTip", fmtNum(seg.cached), fmtNum(seg.prompt));
+        }
         if ($("uOut")) $("uOut").textContent = fmtNum(s.completionTokens);
         if ($("uReason")) $("uReason").textContent = fmtNum(s.reasoningTokens);
         if ($("uTok")) $("uTok").textContent = fmtNum(s.totalTokens);

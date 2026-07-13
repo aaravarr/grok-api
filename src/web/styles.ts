@@ -473,10 +473,17 @@ export function styles(): string {
     .charts{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px}
     .chart-card{border:1px solid var(--hairline);border-radius:10px;padding:14px 16px;background:#fff;min-height:240px}
     .chart-card h4{margin:0 0 10px;font-size:13px;font-weight:500;color:var(--body)}
+    .chart-hd{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .chart-hd h4{margin:0}
+    .chart-meta{
+      flex-shrink:0;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;
+      color:var(--mute);letter-spacing:-.01em;white-space:nowrap;
+    }
+    .chart-meta.on{color:#0a7a7a}
     .chart-wrap{position:relative;height:200px}
     .chart-overview{height:180px;min-height:180px}
     @media(min-width:1100px){.chart-overview{height:190px;min-height:190px}}
-    .usage-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px}
+    .usage-kpis{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-bottom:14px}
     .usage-kpis.compact{grid-template-columns:repeat(5,minmax(0,1fr))}
     .kpi{border:1px solid var(--hairline);border-radius:10px;padding:12px 14px;background:var(--canvas-soft)}
     .kpi .n{font-size:20px;font-weight:600;letter-spacing:-.7px;font-variant-numeric:tabular-nums}
