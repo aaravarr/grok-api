@@ -1,5 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import {
+  extractVideoRequestId,
+  extractVideoRequestIdFromPath,
+  lookupVideoJobAccount,
+  rememberVideoJob,
+} from "../account/video-jobs.js";
 import { proxyUpstream } from "../client/xai.js";
 
 export type McpAuthContext = {
@@ -34,11 +40,18 @@ async function callUpstream(
   body?: unknown,
   accountId?: string,
 ) {
+  let preferred = (accountId || auth.accountId || "").trim() || undefined;
+  // Sticky account for status polls even when MCP bypasses /v1 handlers.
+  if (!preferred && method === "GET") {
+    const requestId = extractVideoRequestIdFromPath(path);
+    if (requestId) preferred = await lookupVideoJobAccount(requestId);
+  }
+
   const result = await proxyUpstream({
     method,
     path,
     body: method === "GET" ? undefined : body,
-    accountId: accountId || auth.accountId,
+    accountId: preferred,
     callerUserId: auth.callerUserId,
     checkCredits: true,
   });
@@ -52,6 +65,25 @@ async function callUpstream(
   } catch {
     json = { raw: text };
   }
+
+  // Remember create-job mapping for later status polls.
+  if (
+    method === "POST" &&
+    result.status >= 200 &&
+    result.status < 300 &&
+    /\/videos\/(generations|edits|extensions)\/?$/i.test(path)
+  ) {
+    const requestId = extractVideoRequestId(json);
+    if (requestId) {
+      await rememberVideoJob({
+        requestId,
+        accountId: result.accountId,
+        accountName: result.accountName,
+        callerUserId: auth.callerUserId,
+      });
+    }
+  }
+
   return {
     status: result.status,
     json,
