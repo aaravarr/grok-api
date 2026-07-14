@@ -304,6 +304,10 @@ export async function addAccount(input: {
   donorUserId?: string | null;
   private?: boolean;
   allowedUserIds?: string[] | null;
+  email?: string | null;
+  xaiUsername?: string | null;
+  note?: string;
+  status?: AccountStatus;
 }): Promise<Account> {
   let donorSlug = "";
   if (input.donorUserId) {
@@ -312,10 +316,25 @@ export async function addAccount(input: {
   }
   return mutate((store) => {
     const t = now();
+    const email = input.email ?? null;
+    const xaiUsername = input.xaiUsername ?? null;
+    // Prefer identity-based name when caller did not pass an explicit name.
+    let nameInput = input;
+    if (!input.name?.trim() && (email || xaiUsername)) {
+      const taken = new Set(
+        store.accounts.map((a) => a.name.trim().toLowerCase()).filter(Boolean),
+      );
+      const label = uniqueNameAmong(
+        identityLabel({ email, xaiUsername, fallback: "account" }),
+        taken,
+        "new",
+      );
+      nameInput = { ...input, name: label };
+    }
     const account: Account = {
       id: randomId(8),
-      name: nextAccountName(store, input, donorSlug),
-      status: "active",
+      name: nextAccountName(store, nameInput, donorSlug),
+      status: input.status ?? "active",
       tokens: {
         access: input.access,
         refresh: input.refresh,
@@ -330,6 +349,10 @@ export async function addAccount(input: {
         input.allowedUserIds,
         input.donorUserId ?? null,
       ),
+      email,
+      xaiUsername,
+      note: input.note,
+      lastRefreshedAt: input.access ? t : undefined,
     };
     store.accounts.push(account);
     if (!store.routing.currentAccountId && isPublicPoolAccount(account)) {

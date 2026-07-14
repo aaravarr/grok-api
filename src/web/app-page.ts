@@ -270,33 +270,69 @@ ${styles()}
                 <span class="mono current-pill" id="currentLabel">Current: –</span>
               </div>
             </div>
-            <div class="add-bar">
-              <div class="add-fields">
-                <div class="add-field">
-                  <label class="field-label" data-i18n="accNamePh">Note (optional)</label>
-                  <input id="accName" class="input" data-i18n-placeholder="accNamePh" />
+            <div class="add-account" id="addAccount">
+              <div class="add-account-collapsed" id="addAccountCollapsed">
+                <div class="add-account-summary">
+                  <strong data-i18n="addAccountTitle">Add account</strong>
+                  <span class="mono" data-i18n="addAccountSub">OAuth device code or CPA / Sub2API credentials</span>
                 </div>
-                <div class="add-field">
-                  <label class="field-label" data-i18n="accDonorLabel">Donor</label>
-                  <select id="accDonor" class="select" data-searchable="1">
-                    <option value="" data-i18n="accDonorNone">No donor</option>
-                  </select>
+                <button class="btn" id="btnAddOpen" type="button" data-i18n="addAccount">Add account</button>
+              </div>
+              <div class="add-account-body" id="addAccountBody" hidden>
+                <div class="add-account-top">
+                  <div class="add-account-summary">
+                    <strong data-i18n="addAccountTitle">Add account</strong>
+                    <span class="mono" data-i18n="addAccountSub">OAuth device code or CPA / Sub2API credentials</span>
+                  </div>
+                  <div class="add-account-actions">
+                    <button class="btn btn-secondary btn-sm" id="btnAddClose" type="button" data-i18n="cancel">Cancel</button>
+                    <button class="btn btn-sm" id="btnAddPrimary" type="button" data-i18n="addAccountOauth">Continue with OAuth</button>
+                  </div>
                 </div>
-                <div class="add-field">
-                  <label class="field-label" data-i18n="colVisibility">Visibility</label>
-                  <select id="accPrivate" class="select">
-                    <option value="public" data-i18n="visPublic">Public</option>
-                    <option value="private" data-i18n="visPrivate">Private</option>
-                  </select>
+                <div class="add-method-row">
+                  <span class="field-label" data-i18n="addMethodLabel">Method</span>
+                  <div class="seg add-method-seg" id="addMethodSeg" role="tablist" aria-label="Add method">
+                    <button type="button" data-add-method="oauth" class="on" data-i18n="addMethodOauth">OAuth</button>
+                    <button type="button" data-add-method="json" data-i18n="addMethodJson">JSON</button>
+                  </div>
+                </div>
+                <div class="add-bar">
+                  <div class="add-fields">
+                    <div class="add-field">
+                      <label class="field-label" data-i18n="accNamePh">Note (optional)</label>
+                      <input id="accName" class="input" data-i18n-placeholder="accNamePh" />
+                    </div>
+                    <div class="add-field">
+                      <label class="field-label" data-i18n="accDonorLabel">Donor</label>
+                      <select id="accDonor" class="select" data-searchable="1">
+                        <option value="" data-i18n="accDonorNone">No donor</option>
+                      </select>
+                    </div>
+                    <div class="add-field">
+                      <label class="field-label" data-i18n="colVisibility">Visibility</label>
+                      <select id="accPrivate" class="select">
+                        <option value="public" data-i18n="visPublic">Public</option>
+                        <option value="private" data-i18n="visPrivate">Private</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="add-pane" id="addPaneOauth" hidden>
+                  <div class="add-pane-hint mono" data-i18n="addOauthHint">Click continue to start device-code OAuth. The verification code will appear here.</div>
+                  <div id="codeBox" class="codebox">
+                    <div class="label" data-i18n="deviceHint">Enter this Device Code:</div>
+                    <div class="code" id="userCode">––––</div>
+                    <div class="label" style="margin-top:12px"><span data-i18n="verifyUrl">URL</span>：<a id="verifyLink" href="#" target="_blank" rel="noreferrer">–</a></div>
+                    <div class="label" style="margin-top:8px" id="pollStatus"></div>
+                  </div>
+                </div>
+                <div class="add-pane" id="addPaneJson" hidden>
+                  <div class="json-add">
+                    <div class="json-add-hint mono" data-i18n="cpaJsonHint">Paste CPA / Sub2API Grok credentials JSON, or a raw refresh_token</div>
+                    <textarea id="cpaJson" class="input cpa-json" rows="7" data-i18n-placeholder="cpaJsonPh" placeholder='{"access_token":"...","refresh_token":"...","expires_at":"...","email":"..."}'></textarea>
+                  </div>
                 </div>
               </div>
-              <button class="btn" id="btnAdd" type="button" data-i18n="addAccount">Add account</button>
-            </div>
-            <div id="codeBox" class="codebox">
-              <div class="label" data-i18n="deviceHint">Enter this Device Code:</div>
-              <div class="code" id="userCode">––––</div>
-              <div class="label" style="margin-top:12px"><span data-i18n="verifyUrl">URL</span>：<a id="verifyLink" href="#" target="_blank" rel="noreferrer">–</a></div>
-              <div class="label" style="margin-top:8px" id="pollStatus"></div>
             </div>
             <div id="msg" class="msg"></div>
             <div class="filter-bar">
@@ -545,6 +581,70 @@ ${styles()}
             </div>
           </div>
 
+          <div class="panel mb contrib-action" id="contribAction">
+            <div class="contrib-action-collapsed" id="contribActionCollapsed">
+              <div class="contrib-action-copy">
+                <div class="contrib-action-kicker" data-i18n="contribHow">How it works</div>
+                <strong data-i18n="contribActionTitle">Link a SuperGrok seat in under a minute</strong>
+                <p data-i18n="contribActionSub">Use device-code OAuth, or paste CPA / Sub2API credentials you already have.</p>
+              </div>
+              <button class="btn" type="button" id="btnContribOpen" data-i18n="contribCta">Contribute an account</button>
+            </div>
+
+            <div class="contrib-action-body" id="contribActionBody" hidden>
+              <div class="contrib-action-top">
+                <div class="contrib-action-copy">
+                  <div class="contrib-action-kicker" data-i18n="contribHow">How it works</div>
+                  <strong data-i18n="contribActionTitle">Link a SuperGrok seat in under a minute</strong>
+                  <p data-i18n="contribActionSub">Use device-code OAuth, or paste CPA / Sub2API credentials you already have.</p>
+                </div>
+                <div class="contrib-action-actions">
+                  <button class="btn btn-secondary btn-sm" type="button" id="btnContribClose" data-i18n="cancel">Cancel</button>
+                  <button class="btn btn-sm" type="button" id="btnContribPrimary" data-i18n="contribCtaOauth">Continue OAuth</button>
+                </div>
+              </div>
+
+              <div class="contrib-method-row">
+                <span class="field-label" data-i18n="addMethodLabel">Method</span>
+                <div class="seg" id="contribMethodSeg" role="tablist" aria-label="Contribute method">
+                  <button type="button" data-contrib-method="oauth" class="on" data-i18n="addMethodOauth">OAuth</button>
+                  <button type="button" data-contrib-method="json" data-i18n="addMethodJson">JSON</button>
+                </div>
+              </div>
+
+              <div class="contrib-fields">
+                <div class="add-field grow">
+                  <label class="field-label" data-i18n="accNamePh">Note (optional)</label>
+                  <input id="contribName" class="input" data-i18n-placeholder="accNamePh" />
+                </div>
+              </div>
+
+              <div class="contrib-pane" id="contribPaneOauth" hidden>
+                <div class="steps contrib-steps">
+                  <div class="step"><div class="n">01</div><strong data-i18n="step1t">Start OAuth</strong><span data-i18n="step1d">We open an xAI device-code flow. No password is stored by us.</span></div>
+                  <div class="step"><div class="n">02</div><strong data-i18n="step2t">Approve in browser</strong><span data-i18n="step2d">Enter the code on accounts.x.ai and authorize SuperGrok access.</span></div>
+                  <div class="step"><div class="n">03</div><strong data-i18n="step3t">Join the pool</strong><span data-i18n="step3d">Seat status updates live in your list when authorization completes.</span></div>
+                </div>
+                <div id="contribStage" class="oauth-stage">
+                  <div class="label" style="color:var(--mute);font-size:12px;margin-bottom:10px" data-i18n="deviceHint">Enter this Device Code:</div>
+                  <div class="oauth-code" id="contribUserCode">––––</div>
+                  <div class="oauth-meta">
+                    <div class="hint"><span class="pulse-dot" id="contribPulse"></span><span id="contribPollStatus" data-i18n="waiting">Waiting…</span></div>
+                    <div class="hint"><span data-i18n="verifyUrl">URL</span>：<a id="contribVerifyLink" href="#" target="_blank" rel="noreferrer">–</a></div>
+                    <button class="btn btn-secondary btn-sm" type="button" id="btnContribCopy" data-i18n="copy">Copy</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="contrib-pane" id="contribPaneJson" hidden>
+                <div class="json-add">
+                  <div class="json-add-hint mono" data-i18n="contribJsonHint">Paste CPA / Sub2API Grok credentials JSON, or a raw refresh_token. We bind the seat to your account only.</div>
+                  <textarea id="contribJson" class="input cpa-json" rows="7" data-i18n-placeholder="cpaJsonPh" placeholder='{"access_token":"...","refresh_token":"...","expires_at":"...","email":"..."}'></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="why-grid">
             <div class="why-card">
               <div class="why-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
@@ -560,33 +660,6 @@ ${styles()}
               <div class="why-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/></svg></div>
               <h3 data-i18n="why3t">Climb the board</h3>
               <p data-i18n="why3d">Every successful link counts toward your rank. Admins are excluded — pure community scoreboard.</p>
-            </div>
-          </div>
-
-          <div class="panel mb">
-            <div class="panel-hd">
-              <strong data-i18n="contribHow">How it works</strong>
-              <div class="spacer"></div>
-              <input id="contribName" class="input" data-i18n-placeholder="accNamePh" style="max-width:200px" />
-            </div>
-            <div class="panel-bd">
-              <div class="panel-hd" style="border:0;padding:0 0 12px;background:transparent">
-                <button class="btn" type="button" id="btnContribAdd" data-i18n="contribCta">Contribute an account</button>
-              </div>
-              <div class="steps">
-                <div class="step"><div class="n">01</div><strong data-i18n="step1t">Start OAuth</strong><span data-i18n="step1d">We open an xAI device-code flow. No password is stored by us.</span></div>
-                <div class="step"><div class="n">02</div><strong data-i18n="step2t">Approve in browser</strong><span data-i18n="step2d">Enter the code on accounts.x.ai and authorize SuperGrok access.</span></div>
-                <div class="step"><div class="n">03</div><strong data-i18n="step3t">Join the pool</strong><span data-i18n="step3d">Seat status updates live in your list when authorization completes.</span></div>
-              </div>
-              <div id="contribStage" class="oauth-stage">
-                <div class="label" style="color:var(--mute);font-size:12px;margin-bottom:10px" data-i18n="deviceHint">Enter this Device Code:</div>
-                <div class="oauth-code" id="contribUserCode">––––</div>
-                <div class="oauth-meta">
-                  <div class="hint"><span class="pulse-dot" id="contribPulse"></span><span id="contribPollStatus" data-i18n="waiting">Waiting…</span></div>
-                  <div class="hint"><span data-i18n="verifyUrl">URL</span>：<a id="contribVerifyLink" href="#" target="_blank" rel="noreferrer">–</a></div>
-                  <button class="btn btn-secondary btn-sm" type="button" id="btnContribCopy" data-i18n="copy">Copy</button>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -1195,13 +1268,26 @@ ${styles()}
         colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟", colTtft:"首字", colTps:"TPS",
         routing:"路由", modeAuto:"自动", modeManual:"手动",
         accNamePh:"账号备注（可选）", addAccount:"添加账号",
+        addAccountTitle:"添加账号",
+        addAccountSub:"设备码 OAuth，或粘贴 CPA / Sub2API 凭证",
+        addMethodLabel:"添加方式",
+        addMethodOauth:"OAuth",
+        addMethodJson:"JSON",
+        addAccountOauth:"继续 OAuth",
+        addAccountJson:"确认添加",
+        addOauthHint:"点继续后会生成设备码，在 xAI 验证页输入即可",
+        cpaJsonHint:"粘贴 CPA / Sub2API 的 Grok 凭证 JSON，或直接粘贴 refresh_token",
+        cpaJsonPh:'{"access_token":"...","refresh_token":"...","expires_at":"...","email":"..."}',
+        cpaImportOk:(n,f)=>"添加完成：成功 "+n+(f?("，失败 "+f):""),
+        cpaImportEmpty:"请先粘贴 JSON 或 refresh_token",
+
         accSyncName:"同步名称",
         accSyncNameOk:"已按邮箱/用户名更新名称",
         accDonorNone:"无贡献者", accDonorLabel:"贡献者",
         accAllowedLabel:"额外可用成员", accAllowedHint:"贡献者始终可用且不可取消；此处只配置额外成员。清空额外成员=仅贡献者（若为私有）或公共池规则",
         accAllowedClear:"清除额外成员", accAllowedNone:"暂无用户",
         accAllowedSearch:"搜索完整用户名或 ID…", accAllowedEmptySearch:"无匹配用户",
-        userSearchPh:"输入完整用户名搜索…", userSearchEmpty:"无匹配用户",
+        userSearchPh:"输入完整用户名搜索…", selectSearchPh:"搜索用户…", userSearchEmpty:"无匹配用户",
         accAllowedPicked:(n)=>n ? ("额外 "+n+" 人") : "无额外成员（贡献者始终可用）",
         accAllowedPickedNames:(n,s)=>"额外 "+n+" 人："+s,
         accAllowedDonorLocked:"贡献者（始终可用）",
@@ -1247,6 +1333,13 @@ ${styles()}
         contribKicker:"社区容量", contribTitle:"分享你的 SuperGrok 席位",
         contribSub:"绑定你拥有的 xAI 账号。剩余额度会进入共享池——大家更稳，你也能登上贡献榜。",
         contribCta:"贡献一个账号",
+        contribActionTitle:"一分钟绑定 SuperGrok 席位",
+        contribActionSub:"支持设备码 OAuth，或粘贴已有的 CPA / Sub2API 凭证。",
+        contribCtaOauth:"继续 OAuth",
+        contribCtaJson:"确认贡献",
+        contribJsonHint:"粘贴 CPA / Sub2API 的 Grok 凭证 JSON，或直接粘贴 refresh_token。席位只会绑定到你的账号。",
+        contribJsonEmpty:"请先粘贴 JSON 或 refresh_token",
+        contribJsonOk:(n,f)=>"贡献完成：成功 "+n+(f?("，失败 "+f):""),
         contribSeeLb:"查看贡献榜",
         oauthOpenBrowser:"打开授权页", oauthRetry:"重新发起", oauthReauth:"重新授权",
         oauthPhaseWaiting:"等待授权", oauthPhaseFailed:"授权失败",
@@ -1405,13 +1498,26 @@ ${styles()}
         colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency", colTtft:"TTFT", colTps:"TPS",
         routing:"Routing", modeAuto:"Auto", modeManual:"Manual",
         accNamePh:"Account note (optional)", addAccount:"Add account",
+        addAccountTitle:"Add account",
+        addAccountSub:"Device-code OAuth, or CPA / Sub2API credentials",
+        addMethodLabel:"Method",
+        addMethodOauth:"OAuth",
+        addMethodJson:"JSON",
+        addAccountOauth:"Continue OAuth",
+        addAccountJson:"Add account",
+        addOauthHint:"Continue to generate a device code for the xAI verification page",
+        cpaJsonHint:"Paste CPA / Sub2API Grok credentials JSON, or a raw refresh_token",
+        cpaJsonPh:'{"access_token":"...","refresh_token":"...","expires_at":"...","email":"..."}',
+        cpaImportOk:(n,f)=>"Added: "+n+" ok"+(f?(", "+f+" failed"):""),
+        cpaImportEmpty:"Paste JSON or a refresh_token first",
+
         accSyncName:"Sync name",
         accSyncNameOk:"Name updated from email/username",
         accDonorNone:"No donor", accDonorLabel:"Donor",
         accAllowedLabel:"Extra members", accAllowedHint:"Donor always has access and cannot be removed. Clear extras only.",
         accAllowedClear:"Clear extras", accAllowedNone:"No users",
         accAllowedSearch:"Search full username or ID…", accAllowedEmptySearch:"No matches",
-        userSearchPh:"Type full username…", userSearchEmpty:"No matches",
+        userSearchPh:"Type full username…", selectSearchPh:"Search users…", userSearchEmpty:"No matches",
         accAllowedPicked:(n)=>n ? (n+" extra") : "No extras (donor always allowed)",
         accAllowedPickedNames:(n,s)=>n+" extra: "+s,
         accAllowedDonorLocked:"Donor (always allowed)",
@@ -1457,6 +1563,13 @@ ${styles()}
         contribKicker:"Community capacity", contribTitle:"Share your SuperGrok seat",
         contribSub:"Link an xAI account you own. Remaining credits join the shared pool — everyone gets more reliable access, and you climb the board.",
         contribCta:"Contribute an account",
+        contribActionTitle:"Link a SuperGrok seat in under a minute",
+        contribActionSub:"Use device-code OAuth, or paste CPA / Sub2API credentials you already have.",
+        contribCtaOauth:"Continue OAuth",
+        contribCtaJson:"Confirm contribution",
+        contribJsonHint:"Paste CPA / Sub2API Grok credentials JSON, or a raw refresh_token. The seat is bound to your account only.",
+        contribJsonEmpty:"Paste JSON or a refresh_token first",
+        contribJsonOk:(n,f)=>"Contributed: "+n+" ok"+(f?(", "+f+" failed"):""),
         contribSeeLb:"View leaderboard",
         oauthOpenBrowser:"Open authorize URL", oauthRetry:"Retry OAuth", oauthReauth:"Re-authorize",
         oauthPhaseWaiting:"Waiting for auth", oauthPhaseFailed:"Failed",
@@ -2125,7 +2238,7 @@ ${styles()}
         searchInput.type = "search";
         searchInput.className = "input";
         searchInput.autocomplete = "off";
-        searchInput.placeholder = t("userSearchPh");
+        searchInput.placeholder = t("selectSearchPh") || t("userSearchPh");
         searchInput.addEventListener("click", (e) => e.stopPropagation());
         searchInput.addEventListener("input", () => rebuildOptions());
         searchInput.addEventListener("keydown", (e) => {
@@ -2162,7 +2275,7 @@ ${styles()}
         });
         if (searchInput) {
           searchInput.value = "";
-          searchInput.placeholder = t("userSearchPh");
+          searchInput.placeholder = t("selectSearchPh") || t("userSearchPh");
         }
         rebuildOptions();
         wrap.classList.add("open");
@@ -4472,14 +4585,99 @@ ${styles()}
       }).join("");
     }
 
+    let contribMethod = "oauth";
+    let contribOpen = false;
     function setContribBusy(busy) {
-      if ($("btnContribAdd")) $("btnContribAdd").disabled = busy;
+      if ($("btnContribPrimary")) $("btnContribPrimary").disabled = busy;
+      if ($("btnContribOpen")) $("btnContribOpen").disabled = busy;
       if ($("btnContribStart")) $("btnContribStart").disabled = busy;
+    }
+    function paintContribMethod() {
+      const seg = $("contribMethodSeg");
+      if (seg) {
+        seg.querySelectorAll("button[data-contrib-method]").forEach((b) => {
+          b.classList.toggle("on", b.getAttribute("data-contrib-method") === contribMethod);
+        });
+      }
+      if ($("contribPaneOauth")) $("contribPaneOauth").hidden = !(contribOpen && contribMethod === "oauth");
+      if ($("contribPaneJson")) $("contribPaneJson").hidden = !(contribOpen && contribMethod === "json");
+      if (contribMethod !== "oauth" && $("contribStage")) $("contribStage").classList.remove("show");
+      if ($("btnContribPrimary")) {
+        $("btnContribPrimary").textContent = contribMethod === "json" ? t("contribCtaJson") : t("contribCtaOauth");
+      }
+    }
+    function setContribOpen(open) {
+      contribOpen = !!open;
+      const root = $("contribAction");
+      const body = $("contribActionBody");
+      const collapsed = $("contribActionCollapsed");
+      if (root) root.classList.toggle("open", contribOpen);
+      if (body) body.hidden = !contribOpen;
+      if (collapsed) collapsed.hidden = contribOpen;
+      paintContribMethod();
+      if (contribOpen) {
+        try {
+          if (contribMethod === "json") $("contribJson") && $("contribJson").focus({ preventScroll: true });
+          else $("contribName") && $("contribName").focus({ preventScroll: true });
+        } catch {}
+      }
+    }
+    function setContribMethod(method, opts) {
+      contribMethod = method === "json" ? "json" : "oauth";
+      const open = opts && opts.open != null ? !!opts.open : contribOpen;
+      if (open !== contribOpen) setContribOpen(open);
+      else paintContribMethod();
+    }
+    function onContribPrimary() {
+      if (contribMethod === "json") return importContribJson();
+      return startContribute();
+    }
+    async function importContribJson() {
+      setContribMethod("json", { open: true });
+      const raw = (($("contribJson") && $("contribJson").value) || "").trim();
+      if (!raw) {
+        showMsg($("msgContrib"), t("contribJsonEmpty"), "err");
+        return;
+      }
+      hideMsg($("msgContrib"));
+      setContribBusy(true);
+      try {
+        let payload = raw;
+        if (raw.startsWith("{") || raw.startsWith("[")) {
+          try { payload = JSON.parse(raw); }
+          catch (e) { throw new Error("JSON: " + (e.message || e)); }
+        }
+        const name = (($("contribName") && $("contribName").value) || "").trim() || undefined;
+        const res = await fetch("/api/me/accounts/import-cpa", {
+          method: "POST", headers: jsonHeaders(),
+          body: JSON.stringify({ json: payload, name, refresh: true }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        const okN = data.createdCount || 0;
+        const failN = data.failedCount || 0;
+        let detail = t("contribJsonOk", okN, failN);
+        if (data.failed && data.failed.length) {
+          detail += " · " + data.failed.slice(0, 3).map((x) => (x.name || ("#" + x.index)) + ": " + x.error).join(" | ");
+        }
+        showMsg($("msgContrib"), detail, okN ? "ok" : "err");
+        if (okN) {
+          if ($("contribJson")) $("contribJson").value = "";
+          if ($("contribName")) $("contribName").value = "";
+          setContribOpen(false);
+          await Promise.all([loadMyAccounts(), loadLeaderboardLite()]);
+        }
+      } catch (e) {
+        showMsg($("msgContrib"), e.message || String(e), "err");
+      } finally {
+        setContribBusy(false);
+      }
     }
 
     async function startContribute(opts) {
       opts = opts || {};
       const accountId = opts.accountId || undefined;
+      setContribMethod("oauth", { open: true });
       hideMsg($("msgContrib"));
       stopContribPoll();
       setContribBusy(true);
@@ -4518,6 +4716,7 @@ ${styles()}
               showMsg($("msgContrib"), t("contribOk") + ": " + (result.account?.name || result.account?.id), "ok");
               if ($("contribName")) $("contribName").value = "";
               setContribBusy(false);
+              setContribOpen(false);
               await Promise.all([loadMyAccounts(), loadLeaderboardLite()]);
               return;
             }
@@ -4687,7 +4886,8 @@ ${styles()}
     }
 
     async function addOAuth() {
-      hideMsg($("msg")); stopPoll(); $("btnAdd").disabled = true; $("codeBox").classList.remove("show");
+      setAddMethod("oauth", { open: true });
+      hideMsg($("msg")); stopPoll(); if ($("btnAddPrimary")) $("btnAddPrimary").disabled = true; $("codeBox").classList.remove("show");
       try {
         const donorUserId = ($("accDonor") && $("accDonor").value) || null;
         const isPrivate = $("accPrivate") && $("accPrivate").value === "private";
@@ -4719,20 +4919,22 @@ ${styles()}
               $("accName").value = "";
               if ($("accDonor")) $("accDonor").value = "";
               if ($("accPrivate")) $("accPrivate").value = "public";
-              $("btnAdd").disabled = false; await loadAccounts(); return;
+              $("btnAddPrimary").disabled = false;
+              setAddOpen(false);
+              await loadAccounts(); return;
             }
             if (result.pending) { $("pollStatus").textContent = t("waiting") + " " + new Date().toLocaleTimeString(); return; }
-            stopPoll(); $("btnAdd").disabled = false; showMsg($("msg"), result.error || "failed", "err");
+            stopPoll(); $("btnAddPrimary").disabled = false; showMsg($("msg"), result.error || "failed", "err");
           } catch { $("pollStatus").textContent = t("waiting"); }
         }, 2000);
       } catch (e) {
-        showMsg($("msg"), e.message, "err"); $("btnAdd").disabled = false;
+        showMsg($("msg"), e.message, "err"); $("btnAddPrimary").disabled = false;
       }
     }
 
     async function reauthAdminAcc(id) {
       hideMsg($("msg")); stopPoll();
-      if ($("btnAdd")) $("btnAdd").disabled = true;
+      if ($("btnAddPrimary")) $("btnAddPrimary").disabled = true;
       $("codeBox").classList.remove("show");
       try {
         const acc = allAccounts.find((a) => a.id === id);
@@ -4761,7 +4963,7 @@ ${styles()}
             if (result.ok) {
               stopPoll(); $("codeBox").classList.remove("show");
               showMsg($("msg"), t("addOk") + ": " + (result.account?.name || result.account?.id), "ok");
-              if ($("btnAdd")) $("btnAdd").disabled = false;
+              if ($("btnAddPrimary")) $("btnAddPrimary").disabled = false;
               await loadAccounts();
               return;
             }
@@ -4770,7 +4972,7 @@ ${styles()}
               return;
             }
             stopPoll();
-            if ($("btnAdd")) $("btnAdd").disabled = false;
+            if ($("btnAddPrimary")) $("btnAddPrimary").disabled = false;
             showMsg($("msg"), result.error || "failed", "err");
             await loadAccounts();
           } catch {
@@ -4779,8 +4981,103 @@ ${styles()}
         }, 2000);
       } catch (e) {
         showMsg($("msg"), e.message || String(e), "err");
-        if ($("btnAdd")) $("btnAdd").disabled = false;
+        if ($("btnAddPrimary")) $("btnAddPrimary").disabled = false;
         await loadAccounts();
+      }
+    }
+
+    let addMethod = "oauth";
+    let addOpen = false;
+    function setAddOpen(open) {
+      addOpen = !!open;
+      const root = $("addAccount");
+      const body = $("addAccountBody");
+      const collapsed = $("addAccountCollapsed");
+      if (root) root.classList.toggle("open", addOpen);
+      if (body) body.hidden = !addOpen;
+      if (collapsed) collapsed.hidden = addOpen;
+      paintAddMethod();
+      if (addOpen && addMethod === "json") {
+        try { $("cpaJson") && $("cpaJson").focus(); } catch {}
+      }
+      if (addOpen && addMethod === "oauth") {
+        try { $("accName") && $("accName").focus(); } catch {}
+      }
+    }
+    function paintAddMethod() {
+      const seg = $("addMethodSeg");
+      if (seg) {
+        seg.querySelectorAll("button[data-add-method]").forEach((b) => {
+          b.classList.toggle("on", b.getAttribute("data-add-method") === addMethod);
+        });
+      }
+      const oauthPane = $("addPaneOauth");
+      const jsonPane = $("addPaneJson");
+      if (oauthPane) oauthPane.hidden = !(addOpen && addMethod === "oauth");
+      if (jsonPane) jsonPane.hidden = !(addOpen && addMethod === "json");
+      if (addMethod !== "oauth" && $("codeBox")) $("codeBox").classList.remove("show");
+      if ($("btnAddPrimary")) {
+        $("btnAddPrimary").textContent = addMethod === "json" ? t("addAccountJson") : t("addAccountOauth");
+      }
+    }
+    function setAddMethod(method, opts) {
+      addMethod = method === "json" ? "json" : "oauth";
+      const open = opts && opts.open != null ? !!opts.open : addOpen;
+      if (open !== addOpen) setAddOpen(open);
+      else paintAddMethod();
+    }
+    function onAddPrimary() {
+      if (addMethod === "json") return importCpaJson();
+      return addOAuth();
+    }
+    async function importCpaJson() {
+      setAddMethod("json", { open: true });
+      const raw = (($("cpaJson") && $("cpaJson").value) || "").trim();
+      if (!raw) {
+        showMsg($("msg"), t("cpaImportEmpty"), "err");
+        return;
+      }
+      hideMsg($("msg"));
+      if ($("btnAddPrimary")) $("btnAddPrimary").disabled = true;
+      try {
+        let payload = raw;
+        // If looks like JSON, send parsed object (also accept raw token string)
+        if (raw.startsWith("{") || raw.startsWith("[")) {
+          try { payload = JSON.parse(raw); }
+          catch (e) { throw new Error("JSON: " + (e.message || e)); }
+        }
+        const donorUserId = ($("accDonor") && $("accDonor").value) || null;
+        const isPrivate = $("accPrivate") && $("accPrivate").value === "private";
+        const name = (($("accName") && $("accName").value) || "").trim() || undefined;
+        const res = await fetch("/api/admin/accounts/import-cpa", {
+          method: "POST", headers: jsonHeaders(),
+          body: JSON.stringify({
+            json: payload,
+            donorUserId,
+            private: isPrivate,
+            name,
+            refresh: true,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        const okN = data.createdCount || 0;
+        const failN = data.failedCount || 0;
+        let detail = t("cpaImportOk", okN, failN);
+        if (data.failed && data.failed.length) {
+          detail += " · " + data.failed.slice(0, 3).map((x) => (x.name || ("#" + x.index)) + ": " + x.error).join(" | ");
+        }
+        showMsg($("msg"), detail, okN ? "ok" : "err");
+        if (okN) {
+          if ($("cpaJson")) $("cpaJson").value = "";
+          if ($("accName")) $("accName").value = "";
+          setAddOpen(false);
+        }
+        await loadAccounts();
+      } catch (e) {
+        showMsg($("msg"), e.message || String(e), "err");
+      } finally {
+        if ($("btnAddPrimary")) $("btnAddPrimary").disabled = false;
       }
     }
 
@@ -5245,7 +5542,17 @@ ${styles()}
       } catch (e) { showMsg($("msgLogs"), e.message, "err"); }
     };
 
-    if ($("btnAdd")) $("btnAdd").onclick = addOAuth;
+    if ($("btnAddOpen")) $("btnAddOpen").onclick = () => setAddOpen(true);
+    if ($("btnAddClose")) $("btnAddClose").onclick = () => setAddOpen(false);
+    if ($("btnAddPrimary")) $("btnAddPrimary").onclick = onAddPrimary;
+    if ($("addMethodSeg")) {
+      $("addMethodSeg").addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-add-method]");
+        if (!b) return;
+        setAddMethod(b.getAttribute("data-add-method"), { open: true });
+      });
+    }
+    setAddMethod("oauth", { open: false });
     if ($("accEditCancel")) $("accEditCancel").onclick = closeAccEdit;
     if ($("accEditSubmit")) $("accEditSubmit").onclick = saveAccEdit;
     if ($("myMembersClose")) $("myMembersClose").onclick = closeMyMembers;
@@ -5320,8 +5627,18 @@ ${styles()}
       });
     }
     if ($("accModal")) $("accModal").addEventListener("click", (e) => { if (e.target === $("accModal")) closeAccEdit(); });
-    if ($("btnContribAdd")) $("btnContribAdd").onclick = () => startContribute();
-    if ($("btnContribStart")) $("btnContribStart").onclick = () => startContribute();
+    if ($("btnContribStart")) $("btnContribStart").onclick = () => { setContribOpen(true); };
+    if ($("btnContribOpen")) $("btnContribOpen").onclick = () => setContribOpen(true);
+    if ($("btnContribClose")) $("btnContribClose").onclick = () => setContribOpen(false);
+    if ($("btnContribPrimary")) $("btnContribPrimary").onclick = onContribPrimary;
+    if ($("contribMethodSeg")) {
+      $("contribMethodSeg").addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-contrib-method]");
+        if (!b) return;
+        setContribMethod(b.getAttribute("data-contrib-method"), { open: true });
+      });
+    }
+    setContribMethod("oauth", { open: false });
     if ($("btnContribRefresh")) $("btnContribRefresh").onclick = () => { hideMsg($("msgContrib")); loadMyAccounts(); loadMyRouting(); loadLeaderboardLite(); };
     if ($("routeScopeSeg")) $("routeScopeSeg").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-rscope]");

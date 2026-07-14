@@ -3,6 +3,7 @@ import type { Context, Next } from "hono";
 import { cors } from "hono/cors";
 import { config } from "../config.js";
 import {
+  addAccount,
   buildLeaderboard,
   canUserUseAccount,
   sanitizeAllowedUserIds,
@@ -23,7 +24,7 @@ import {
   verifyApiKey,
   renameAccountsToDefault,
 } from "../account/store.js";
-import {
+import { refreshTokens,
   fetchXaiUserinfo,
   getDeviceSession,
   pollDeviceLogin,
@@ -34,6 +35,7 @@ import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
 import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js";
 import { normalizeToolsInBody } from "../client/tool-schema.js";
+import { parseCpaGrokJson } from "../account/cpa-import.js";
 import { getProxyInfo, setProxyOverride } from "../proxy.js";
 import {
   loadSettings,
@@ -564,6 +566,114 @@ export function createApp() {
   });
 
   /** Open browser URL for a pending seat (manual fallback). Does not restart device code. */
+
+  /**
+   * User self-serve CPA / Sub2API Grok JSON contribution.
+   * Always binds donorUserId to the current user.
+   */
+  app.post("/api/me/accounts/import-cpa", async (c) => {
+    const user = c.get("user")!;
+    const body = (await c.req.json().catch(() => ({}))) as {
+      json?: unknown;
+      text?: unknown;
+      credentials?: unknown;
+      data?: unknown;
+      accounts?: unknown;
+      name?: string;
+      private?: boolean;
+      refresh?: boolean;
+      skipProfile?: boolean;
+    };
+
+    const payload =
+      body.json !== undefined ? body.json :
+      body.text !== undefined ? body.text :
+      body.credentials !== undefined ? body.credentials :
+      body.data !== undefined ? body.data :
+      body.accounts !== undefined ? { accounts: body.accounts } :
+      body;
+
+    const parsed = parseCpaGrokJson(payload);
+    if (!parsed.items.length) {
+      return c.json({
+        error: "没有可添加的 Grok 凭证",
+        skipped: parsed.skipped,
+      }, 400);
+    }
+
+    const doRefresh = body.refresh !== false;
+    const skipProfile = body.skipProfile === true;
+    const created: unknown[] = [];
+    const failed: Array<{ index: number; name?: string; error: string }> = [];
+
+    for (let i = 0; i < parsed.items.length; i++) {
+      const item = parsed.items[i]!;
+      try {
+        let access = item.access || "";
+        let refresh = item.refresh || "";
+        let expires = item.expires || 0;
+
+        if (doRefresh && refresh) {
+          try {
+            const tok = await refreshTokens(refresh);
+            access = tok.access;
+            refresh = tok.refresh || refresh;
+            expires = tok.expires;
+          } catch (e) {
+            if (!access) throw e;
+          }
+        }
+        if (!access && !refresh) throw new Error("凭证为空");
+
+        let email = item.email ?? null;
+        let xaiUsername = item.xaiUsername ?? null;
+        if (!skipProfile && access) {
+          try {
+            const profile = await fetchXaiUserinfo(access);
+            if (profile.email) email = profile.email;
+            if (profile.xaiUsername) xaiUsername = profile.xaiUsername;
+          } catch {}
+        }
+
+        const name =
+          (body.name && parsed.items.length === 1 ? body.name.trim() : "") ||
+          item.name ||
+          email ||
+          xaiUsername ||
+          undefined;
+
+        const acc = await addAccount({
+          name,
+          access,
+          refresh,
+          expires: expires || Date.now() + 3600_000,
+          donorUserId: user.id,
+          private: body.private === true,
+          email,
+          xaiUsername,
+          note: item.note,
+          status: access || refresh ? "active" : "error",
+        });
+        created.push(publicAccount(acc));
+      } catch (e) {
+        failed.push({
+          index: i,
+          name: item.name,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    return c.json({
+      ok: created.length > 0,
+      createdCount: created.length,
+      failedCount: failed.length,
+      skipped: parsed.skipped,
+      created,
+      failed,
+    });
+  });
+
   app.post("/api/me/accounts/:id/oauth/open", async (c) => {
     const user = c.get("user")!;
     const acc = await getAccount(c.req.param("id"));
@@ -1077,6 +1187,146 @@ export function createApp() {
   });
 
   /** Bulk rename selected seats to email/username (or legacy default). */
+
+  /**
+   * Import Grok seats from Sub2API / CPA JSON credentials.
+   * Body:
+   *  - json | text | credentials: raw JSON string or object
+   *  - donorUserId / private / allowedUserIds: optional seat ownership
+   *  - refresh: try refresh_token immediately (default true when refresh present)
+   *  - skipProfile: skip userinfo lookup
+   */
+  app.post("/api/admin/accounts/import-cpa", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      json?: unknown;
+      text?: unknown;
+      credentials?: unknown;
+      data?: unknown;
+      accounts?: unknown;
+      donorUserId?: string | null;
+      private?: boolean;
+      allowedUserIds?: string[] | null;
+      refresh?: boolean;
+      skipProfile?: boolean;
+      name?: string;
+    };
+
+    const payload =
+      body.json !== undefined ? body.json :
+      body.text !== undefined ? body.text :
+      body.credentials !== undefined ? body.credentials :
+      body.data !== undefined ? body.data :
+      body.accounts !== undefined ? { accounts: body.accounts } :
+      body;
+
+    const parsed = parseCpaGrokJson(payload);
+    if (!parsed.items.length) {
+      return c.json({
+        error: "没有可导入的 Grok 凭证",
+        skipped: parsed.skipped,
+      }, 400);
+    }
+
+    let donorUserId: string | null = null;
+    if (body.donorUserId) {
+      const donor = await getUser(String(body.donorUserId));
+      if (!donor) return c.json({ error: "贡献者不存在" }, 400);
+      donorUserId = donor.id;
+    }
+    let allowedUserIds: string[] | null = null;
+    if (Array.isArray(body.allowedUserIds)) {
+      const ids = [
+        ...new Set(
+          body.allowedUserIds
+            .map((x) => (typeof x === "string" ? x.trim() : ""))
+            .filter(Boolean),
+        ),
+      ];
+      for (const id of ids) {
+        const u = await getUser(id);
+        if (!u) return c.json({ error: `指定用户不存在: ${id}` }, 400);
+      }
+      allowedUserIds = ids.length ? ids : null;
+    }
+
+    const doRefresh = body.refresh !== false;
+    const skipProfile = body.skipProfile === true;
+    const created: unknown[] = [];
+    const failed: Array<{ index: number; name?: string; error: string }> = [];
+    const routing = await getRouting();
+
+    for (let i = 0; i < parsed.items.length; i++) {
+      const item = parsed.items[i]!;
+      try {
+        let access = item.access || "";
+        let refresh = item.refresh || "";
+        let expires = item.expires || 0;
+
+        if (doRefresh && refresh) {
+          try {
+            const tok = await refreshTokens(refresh);
+            access = tok.access;
+            refresh = tok.refresh || refresh;
+            expires = tok.expires;
+          } catch (e) {
+            // If only refresh exists and refresh fails, hard-fail this item.
+            if (!access) throw e;
+            // otherwise keep provided access token
+          }
+        }
+        if (!access && !refresh) throw new Error("凭证为空");
+
+        let email = item.email ?? null;
+        let xaiUsername = item.xaiUsername ?? null;
+        if (!skipProfile && access) {
+          try {
+            const profile = await fetchXaiUserinfo(access);
+            if (profile.email) email = profile.email;
+            if (profile.xaiUsername) xaiUsername = profile.xaiUsername;
+          } catch {}
+        }
+
+        const name =
+          (body.name && parsed.items.length === 1 ? body.name.trim() : "") ||
+          item.name ||
+          email ||
+          xaiUsername ||
+          undefined;
+
+        const acc = await addAccount({
+          name,
+          access,
+          refresh,
+          expires: expires || Date.now() + 3600_000,
+          donorUserId,
+          private: body.private === true,
+          allowedUserIds,
+          email,
+          xaiUsername,
+          note: item.note,
+          status: access || refresh ? "active" : "error",
+        });
+        created.push(publicAccount(acc, routing.currentAccountId));
+      } catch (e) {
+        failed.push({
+          index: i,
+          name: item.name,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    return c.json({
+      ok: created.length > 0,
+      createdCount: created.length,
+      failedCount: failed.length,
+      skipped: parsed.skipped,
+      created,
+      failed,
+    });
+  });
+
+
   app.post("/api/admin/accounts/rename-default", async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as { ids?: string[] };
     if (!Array.isArray(body.ids) || !body.ids.length) {
