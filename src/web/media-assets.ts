@@ -217,6 +217,10 @@ export function mediaViewHtml(page: string): string {
                         <li><code>grok_video_edit</code><span data-i18n="mediaToolVidEdit">Edit video</span></li>
                         <li><code>grok_video_extend</code><span data-i18n="mediaToolVidExt">Extend video</span></li>
                         <li><code>grok_video_status</code><span data-i18n="mediaToolVidStatus">Poll job</span></li>
+                        <li><code>grok_list_voices</code><span data-i18n="mediaToolVoices">List TTS voices</span></li>
+                        <li><code>grok_list_custom_voices</code><span data-i18n="mediaToolCustomVoices">List custom voices</span></li>
+                        <li><code>grok_tts</code><span data-i18n="mediaToolTts">Text → speech</span></li>
+                        <li><code>grok_voice_create_client_secret</code><span data-i18n="mediaToolVoiceSecret">Realtime client secret</span></li>
                       </ul>
                     </details>
                   </div>
@@ -230,11 +234,11 @@ export function mediaViewHtml(page: string): string {
 
 export const mediaI18nZh = {
   navMedia:"媒体",
-  subMedia:"Imagine 图片 / 视频 · MCP 配置",
+  subMedia:"Imagine 图片 / 视频 / 语音 · MCP 配置",
   qaMedia:"在线生成图片与视频",
   mediaKicker:"Imagine 工作室",
   mediaTitle:"媒体",
-  mediaSub:"用 SuperGrok 池生成与编辑图片/视频。选择密钥、写提示词，直接产出素材。",
+  mediaSub:"用 SuperGrok 池生成与编辑图片/视频，MCP 也可调用 TTS 配音。选择密钥、写提示词，直接产出素材。",
   mediaCostHint:"会消耗 SuperGrok 额度",
   mediaMode:"模式",
   mediaStudioKey:"工作室密钥",
@@ -285,6 +289,10 @@ export const mediaI18nZh = {
   mediaToolVidEdit:"视频编辑",
   mediaToolVidExt:"视频续写",
   mediaToolVidStatus:"任务查询",
+  mediaToolVoices:"TTS 音色列表",
+  mediaToolCustomVoices:"自定义音色",
+  mediaToolTts:"文本转语音",
+  mediaToolVoiceSecret:"Realtime 临时密钥",
   mediaStep1:"创建或选择一个密钥",
   mediaStep2:"复制远程 MCP 配置",
   mediaStep3:"粘贴到 Codex / Claude Desktop 的 MCP 设置",
@@ -343,7 +351,7 @@ export const mediaI18nZh = {
 
 export const mediaI18nEn = {
   navMedia:"Media",
-  subMedia:"Imagine image / video · MCP setup",
+  subMedia:"Imagine image / video / voice · MCP setup",
   qaMedia:"Generate images & videos",
   mediaKicker:"Imagine Studio",
   mediaTitle:"Media",
@@ -398,6 +406,10 @@ export const mediaI18nEn = {
   mediaToolVidEdit:"Edit video",
   mediaToolVidExt:"Extend video",
   mediaToolVidStatus:"Poll job",
+  mediaToolVoices:"List TTS voices",
+  mediaToolCustomVoices:"List custom voices",
+  mediaToolTts:"Text → speech",
+  mediaToolVoiceSecret:"Realtime client secret",
   mediaStep1:"Create or pick an API key",
   mediaStep2:"Copy the remote MCP config",
   mediaStep3:"Paste into Codex / Claude Desktop MCP settings",

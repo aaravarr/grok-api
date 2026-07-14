@@ -81,6 +81,8 @@ export type UpstreamProxyRequest = {
   /** If true, do not JSON.stringify body (raw string/ArrayBuffer) */
   rawBody?: any;
   contentType?: string | null;
+  // Override Accept header (default application/json). Use "*/*" for binary TTS.
+  accept?: string | null;
 };
 
 /**
@@ -114,7 +116,7 @@ export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyRes
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${routed.accessToken}`,
-      Accept: "application/json",
+      Accept: req.accept || "application/json",
       "User-Agent": "grok-api/1.0",
     };
     let body: any;

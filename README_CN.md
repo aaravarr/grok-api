@@ -30,7 +30,7 @@
 - **多账号 SuperGrok OAuth** — Device Code 登录、过期账号重新授权、CPA/Sub2API JSON 录入
 - **额度感知路由** — 自动 / 手动模式、账号粘滞、用尽后切换
 - **OpenAI 兼容代理** — `/v1/chat/completions`、`/v1/responses`、实时 `/v1/models`
-- **Imagine 媒体接口** — 图片生成/编辑，视频生成/编辑/续写/状态查询
+- **Imagine 媒体接口** — 图片生成/编辑，视频生成/编辑/续写/状态查询，TTS / 音色 / Realtime client secret
 - **Media Studio 控制台** — 在线生成图片视频、流式 AI 润色提示词、MCP 配置面板
 - **远程 MCP** — `/mcp` Streamable HTTP，Bearer API Key 即可接入，无需本地拉代码
 - **多用户控制台** — 账号、密钥、用量、服务端日志搜索、贡献/排行榜

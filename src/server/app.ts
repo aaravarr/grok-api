@@ -40,7 +40,7 @@ import {
   lookupVideoJobAccount,
   rememberVideoJob,
 } from "../account/video-jobs.js";
-import { fetchUpstreamModels, proxyLLM, proxyUpstream, type ProxyMode } from "../client/xai.js";
+import { fetchUpstreamModels, proxyLLM, proxyUpstream } from "../client/xai.js";
 import { normalizeToolsInBody } from "../client/tool-schema.js";
 import { parseCpaGrokJson } from "../account/cpa-import.js";
 import { getProxyInfo, setProxyOverride } from "../proxy.js";
@@ -1728,6 +1728,12 @@ export function createApp() {
   app.get("/api/me/media/videos/:requestId", requireLogin, (c) =>
     handleSessionMedia(c, "GET", "/videos/" + encodeURIComponent(String(c.req.param("requestId") || ""))),
   );
+  app.get("/api/me/media/tts/voices", requireLogin, (c) => handleSessionMedia(c, "GET", "/tts/voices"));
+  app.post("/api/me/media/tts", requireLogin, (c) => handleSessionMedia(c, "POST", "/tts", { accept: "*/*" }));
+  app.post("/api/me/media/realtime/client_secrets", requireLogin, (c) =>
+    handleSessionMedia(c, "POST", "/realtime/client_secrets"),
+  );
+  app.get("/api/me/media/custom-voices", requireLogin, (c) => handleSessionMedia(c, "GET", "/custom-voices"));
 
   // ---------- Proxy ----------
   app.post("/v1/responses", (c) => handleProxy(c, "responses"));
@@ -1755,6 +1761,14 @@ export function createApp() {
     handleMediaProxy(c, "GET", "/videos/" + encodeURIComponent(String(c.req.param("requestId") || ""))),
   );
 
+  // Voice / TTS (useful for short-drama dubbing)
+  app.get("/v1/tts/voices", (c) => handleMediaProxy(c, "GET", "/tts/voices"));
+  app.post("/v1/tts", (c) => handleMediaProxy(c, "POST", "/tts", { accept: "*/*" }));
+  app.post("/v1/realtime/client_secrets", (c) =>
+    handleMediaProxy(c, "POST", "/realtime/client_secrets"),
+  );
+  app.get("/v1/custom-voices", (c) => handleMediaProxy(c, "GET", "/custom-voices"));
+
   return app;
 }
 
@@ -1775,6 +1789,10 @@ function mediaModelFromPath(upstreamPath: string, bodyModel?: string): string | 
   if (/\/videos\/edits/i.test(p)) return "video-edit";
   if (/\/videos\/extensions/i.test(p)) return "video-extend";
   if (/\/videos\//i.test(p)) return "video-status";
+  if (/\/tts\/voices/i.test(p)) return "tts-voices";
+  if (/\/tts\/?$/i.test(p)) return "tts";
+  if (/client_secrets/i.test(p)) return "voice-client-secret";
+  if (/custom-voices/i.test(p)) return "custom-voices";
   return undefined;
 }
 
@@ -1794,7 +1812,7 @@ function buildMediaLogFields(
   const logBodies = settings.logBodies === true;
   const reqClone = logBodies && body !== undefined ? safeCloneBody(body) : { value: undefined as unknown, truncated: false };
   return {
-    mode: mediaLogModeForPath(upstreamPath) as const,
+    mode: mediaLogModeForPath(upstreamPath),
     path,
     model: mediaModelFromPath(upstreamPath, bodyModel),
     stream: false,
@@ -1848,6 +1866,7 @@ async function handleSessionMedia(
   c: Context<{ Variables: Variables }>,
   method: "GET" | "POST",
   upstreamPath: string,
+  opts?: { accept?: string },
 ) {
   const user = c.get("user");
   const t0 = Date.now();
@@ -1872,6 +1891,7 @@ async function handleSessionMedia(
       accountId: preferred,
       callerUserId: user?.id ?? null,
       checkCredits: true,
+      accept: opts?.accept,
     });
     const contentType = result.headers.get("content-type") ?? "application/json";
     const headers: Record<string, string> = {
@@ -1882,8 +1902,22 @@ async function handleSessionMedia(
     const bytes = result.body ? Buffer.from(await new Response(result.body).arrayBuffer()) : Buffer.alloc(0);
     let parsed: unknown = undefined;
     let errText: string | undefined;
-    try { parsed = bytes.length ? JSON.parse(bytes.toString("utf8")) : undefined; }
-    catch { parsed = bytes.toString("utf8"); }
+    const isBinaryMedia =
+      /^(audio|video|image)\//i.test(contentType) ||
+      (/octet-stream/i.test(contentType) && bytes.length > 0 && bytes[0] !== 0x7b && bytes[0] !== 0x5b);
+    if (isBinaryMedia) {
+      parsed = {
+        content_type: contentType,
+        byte_length: bytes.length,
+        encoding: "binary",
+      };
+    } else {
+      try {
+        parsed = bytes.length ? JSON.parse(bytes.toString("utf8")) : undefined;
+      } catch {
+        parsed = bytes.toString("utf8");
+      }
+    }
     if (result.status >= 400) {
       const p: any = parsed;
       errText = typeof parsed === "object" && parsed
@@ -1934,6 +1968,7 @@ async function handleMediaProxy(
   c: Context<{ Variables: Variables }>,
   method: "GET" | "POST",
   upstreamPath: string,
+  opts?: { accept?: string },
 ) {
   const t0 = Date.now();
   const apiKeyId = c.get("apiKeyId");
@@ -1965,6 +2000,7 @@ async function handleMediaProxy(
       accountId: preferred,
       callerUserId: apiKeyUserId,
       checkCredits: true,
+      accept: opts?.accept,
     });
     const contentType = result.headers.get("content-type") ?? "application/json";
     const headers: Record<string, string> = {
@@ -1975,10 +2011,21 @@ async function handleMediaProxy(
     const bytes = result.body ? Buffer.from(await new Response(result.body).arrayBuffer()) : Buffer.alloc(0);
     let parsed: unknown = undefined;
     let errText: string | undefined;
-    try {
-      parsed = bytes.length ? JSON.parse(bytes.toString("utf8")) : undefined;
-    } catch {
-      parsed = bytes.toString("utf8");
+    const isBinaryMedia =
+      /^(audio|video|image)\//i.test(contentType) ||
+      (/octet-stream/i.test(contentType) && bytes.length > 0 && bytes[0] !== 0x7b && bytes[0] !== 0x5b);
+    if (isBinaryMedia) {
+      parsed = {
+        content_type: contentType,
+        byte_length: bytes.length,
+        encoding: "binary",
+      };
+    } else {
+      try {
+        parsed = bytes.length ? JSON.parse(bytes.toString("utf8")) : undefined;
+      } catch {
+        parsed = bytes.toString("utf8");
+      }
     }
     if (result.status >= 400) {
       const p: any = parsed;
@@ -2113,7 +2160,7 @@ function chargeUserTokens(userId: string | null | undefined, usage: { totalToken
   if (n > 0) void incrementUserTokenUsed(userId, n);
 }
 
-async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode) {
+async function handleProxy(c: Context<{ Variables: Variables }>, mode: "responses" | "chat") {
   const t0 = Date.now();
   const path = mode === "responses" ? "/v1/responses" : "/v1/chat/completions";
   const apiKeyId = c.get("apiKeyId");

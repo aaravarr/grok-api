@@ -39,6 +39,7 @@ async function callUpstream(
   path: string,
   body?: unknown,
   accountId?: string,
+  opts?: { accept?: string | null },
 ) {
   let preferred = (accountId || auth.accountId || "").trim() || undefined;
   // Sticky account for status polls even when MCP bypasses /v1 handlers.
@@ -54,16 +55,31 @@ async function callUpstream(
     accountId: preferred,
     callerUserId: auth.callerUserId,
     checkCredits: true,
+    accept: opts?.accept,
   });
   const bytes = result.body
     ? Buffer.from(await new Response(result.body).arrayBuffer())
     : Buffer.alloc(0);
+  const contentType = result.headers.get("content-type") || "";
   let json: any = null;
-  const text = bytes.toString("utf8");
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
+  const looksBinary =
+    /^(audio|video|image)\//i.test(contentType) ||
+    /octet-stream/i.test(contentType) ||
+    (bytes.length > 0 && bytes[0] !== 0x7b && bytes[0] !== 0x5b && !/json/i.test(contentType));
+  if (looksBinary) {
+    json = {
+      content_type: contentType || "application/octet-stream",
+      byte_length: bytes.length,
+      audio_base64: bytes.toString("base64"),
+      encoding: "base64",
+    };
+  } else {
+    const text = bytes.toString("utf8");
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = { raw: text };
+    }
   }
 
   // Remember create-job mapping for later status polls.
@@ -308,6 +324,126 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
         const r = await callUpstream(auth, "GET", `/videos/${id}`, undefined, sticky);
         if (r.status >= 400) return errText(JSON.stringify(r.json));
         return okText({ status_http: r.status, ...r.headers, body: r.json });
+      } catch (e) {
+        return errText(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+
+  server.registerTool(
+    "grok_list_voices",
+    {
+      title: "List TTS voices",
+      description: "List built-in xAI TTS voices (e.g. eve, ara).",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const r = await callUpstream(auth, "GET", "/tts/voices");
+        if (r.status >= 400) return errText(JSON.stringify(r.json));
+        return okText({ ...r.headers, body: r.json });
+      } catch (e) {
+        return errText(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  server.registerTool(
+    "grok_list_custom_voices",
+    {
+      title: "List custom voices",
+      description: "List custom voices available to the routed SuperGrok account.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const r = await callUpstream(auth, "GET", "/custom-voices");
+        if (r.status >= 400) return errText(JSON.stringify(r.json));
+        return okText({ ...r.headers, body: r.json });
+      } catch (e) {
+        return errText(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  server.registerTool(
+    "grok_tts",
+    {
+      title: "Text to speech",
+      description:
+        "Generate speech audio from text. Supports expressive tags such as <soft>, <excited>, [laugh]. Returns JSON with audio_base64 (or upstream JSON when with_timestamps=true). Useful for short-drama dubbing.",
+      inputSchema: {
+        text: z.string().describe("Speech text, max ~15000 chars. Supports emotion tags."),
+        voice_id: z.string().optional().describe("Built-in or custom voice id, default eve"),
+        language: z.string().optional().describe("e.g. zh, en"),
+        speed: z.number().optional().describe("Playback speed multiplier"),
+        codec: z.enum(["mp3", "wav", "pcm", "opus", "aac", "flac"]).optional(),
+        sample_rate: z.number().optional().describe("e.g. 24000"),
+        bit_rate: z.number().optional().describe("e.g. 128000 for mp3"),
+        with_timestamps: z
+          .boolean()
+          .optional()
+          .describe("If true, prefer JSON response with timestamps; default false (binary wrapped as base64)"),
+        output_format: z
+          .object({
+            codec: z.string().optional(),
+            sample_rate: z.number().optional(),
+            bit_rate: z.number().optional(),
+          })
+          .optional(),
+      },
+    },
+    async (args) => {
+      try {
+        const text = String(args.text || "").trim();
+        if (!text) return errText("text required");
+        const body: any = {
+          text,
+          voice_id: args.voice_id || "eve",
+        };
+        if (args.language) body.language = args.language;
+        if (args.speed != null) body.speed = args.speed;
+        if (args.with_timestamps != null) body.with_timestamps = args.with_timestamps;
+        const fmt: any = { ...(args.output_format || {}) };
+        if (args.codec) fmt.codec = args.codec;
+        if (args.sample_rate != null) fmt.sample_rate = args.sample_rate;
+        if (args.bit_rate != null) fmt.bit_rate = args.bit_rate;
+        if (Object.keys(fmt).length) body.output_format = fmt;
+        // Binary audio by default; Accept */* so upstream can return audio/* bytes.
+        const r = await callUpstream(auth, "POST", "/tts", body, undefined, { accept: "*/*" });
+        if (r.status >= 400) return errText(JSON.stringify(r.json));
+        return okText({ ...r.headers, body: r.json });
+      } catch (e) {
+        return errText(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  server.registerTool(
+    "grok_voice_create_client_secret",
+    {
+      title: "Create realtime voice client secret",
+      description:
+        "Create an ephemeral client secret for browser Realtime voice sessions (POST /realtime/client_secrets). Does not open the WebSocket itself.",
+      inputSchema: {
+        expires_after: z
+          .object({
+            seconds: z.number().optional(),
+          })
+          .optional()
+          .describe("Optional TTL for the secret"),
+        session: z.record(z.any()).optional().describe("Optional realtime session config passthrough"),
+      },
+    },
+    async (args) => {
+      try {
+        const body: any = {};
+        if (args.expires_after) body.expires_after = args.expires_after;
+        if (args.session) body.session = args.session;
+        const r = await callUpstream(auth, "POST", "/realtime/client_secrets", body);
+        if (r.status >= 400) return errText(JSON.stringify(r.json));
+        return okText({ ...r.headers, body: r.json });
       } catch (e) {
         return errText(e instanceof Error ? e.message : String(e));
       }

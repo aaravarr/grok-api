@@ -30,7 +30,7 @@
 - **Multi-account SuperGrok OAuth** — Device Code login, expired-account re-auth, CPA/Sub2API JSON import
 - **Credit-aware routing** — Auto / Manual modes, sticky seats, failover when exhausted
 - **OpenAI-compatible proxy** — `/v1/chat/completions`, `/v1/responses`, live `/v1/models`
-- **Imagine media APIs** — image generate/edit, video generate/edit/extend/status
+- **Imagine media APIs** — image generate/edit, video generate/edit/extend/status, TTS / voices / realtime client secrets
 - **Media Studio console** — online image/video generation, streaming AI prompt polish, MCP config panel
 - **Remote MCP** — Streamable HTTP at `/mcp` with Bearer API key (no local checkout required)
 - **Multi-user console** — accounts, keys, usage, server-side log search, contribute/leaderboard
