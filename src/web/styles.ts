@@ -11,7 +11,7 @@ export function styles(): string {
       --link-bg:#d3e5ff;--success:#0a7a3e;--success-bg:#e5f6ec;--error:#ee0000;--error-bg:#f7d4d6;
       --warn:#ab570a;--violet:#7928ca;--violet-bg:#f3e8ff;
       --radius-sm:6px;--radius:8px;--radius-md:10px;--radius-lg:12px;--radius-xl:14px;--radius-pill:999px;
-      --shadow:0 0 0 1px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+      --shadow:0 1px 2px rgba(0,0,0,.04);
       /* Latin: Geist · CJK: Noto Sans SC (loaded via Google Fonts in pages) */
       --font:"Geist","Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
       --mono:"Geist Mono","Noto Sans SC",ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -307,7 +307,7 @@ export function styles(): string {
     .grid-2{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,.75fr);gap:14px;align-items:stretch}
     .grid-2b{display:grid;grid-template-columns:1fr 1fr;gap:14px}
     .card{border:1px solid var(--hairline);border-radius:var(--radius-lg);background:#fff;box-shadow:var(--shadow);overflow:hidden;height:100%}
-    .card-hd{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--hairline);background:var(--canvas-soft)}
+    .card-hd{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--hairline);background:var(--canvas-soft);border-top-left-radius:var(--radius-lg);border-top-right-radius:var(--radius-lg)}
     .card-hd strong{font-size:13px;font-weight:500}
     .card-hd .spacer{flex:1}
     .card-bd{padding:16px}
@@ -317,6 +317,15 @@ export function styles(): string {
     /* allow table horizontal scroll inside panel without clipping the scrollbar track oddly */
     .panel > .dt{border-radius:0 0 var(--radius-lg) var(--radius-lg)}
     .panel-hd{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--hairline);background:var(--canvas-soft)}
+    /* Keep header background clipped to panel radius when overflow stays visible for dropdowns */
+    .panel > .panel-hd:first-child,
+    .panel > .routing-bar:first-child,
+    .panel > .add-bar:first-child{
+      border-top-left-radius:var(--radius-lg);border-top-right-radius:var(--radius-lg)
+    }
+    .panel > :last-child{
+      border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)
+    }
     .panel-hd .spacer{flex:1}
     .panel-bd{padding:18px;min-width:0}
     .routing-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--hairline);background:#fff}
@@ -358,7 +367,7 @@ export function styles(): string {
       position:relative;display:inline-flex;vertical-align:middle;min-width:120px;z-index:1;
     }
     .cselect.open{z-index:80}
-    .media-studio,.media-advanced,.media-form,.media-form-stack{overflow:visible}
+    .media-advanced,.media-form-stack{overflow:visible}.media-form{overflow:hidden}
     .media-advanced .cselect.open{z-index:90}
     .cselect.grow,.cselect.block{display:flex;width:100%;min-width:0}
     .cselect select.select-native{
@@ -1160,7 +1169,8 @@ export function styles(): string {
       background:
         radial-gradient(120% 140% at 100% 0%, #eef6ff 0%, rgba(255,255,255,0) 48%),
         linear-gradient(180deg,#fff 0%, #fafafa 100%);
-      box-shadow:var(--shadow);
+      /* Avoid double edge: border already draws the outline, keep only soft elevation */
+      box-shadow:0 1px 2px rgba(0,0,0,.04);
     }
     .media-hero-copy{min-width:0}
     .media-kicker{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin-bottom:6px}
@@ -1183,7 +1193,14 @@ export function styles(): string {
     .media-side::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:var(--radius-pill)}
     .media-side::-webkit-scrollbar-track{background:transparent}
     .media-studio{
-      min-height:0;flex:1 1 auto;display:flex;flex-direction:column;overflow:hidden;border-radius:var(--radius-lg)
+      min-height:0;flex:1 1 auto;display:flex;flex-direction:column;
+      overflow:hidden;border-radius:var(--radius-lg);
+      box-shadow:0 1px 2px rgba(0,0,0,.04)
+    }
+    .media-studio.panel{overflow:hidden}
+    .media-studio .media-body,
+    .media-studio .media-form{
+      border-top-left-radius:inherit;border-top-right-radius:inherit
     }
     .media-mcp{
       flex:0 0 auto;display:flex;flex-direction:column;overflow:visible;
@@ -1210,9 +1227,11 @@ export function styles(): string {
     .media-form-scroll::-webkit-scrollbar-track{background:transparent}
     .media-toolbar{
       display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:10px;
-      padding:10px;margin:0 0 16px;border:1px solid var(--hairline);border-radius:var(--radius-lg);background:var(--canvas-soft)
+      padding:10px;margin:0 0 16px;border:1px solid var(--hairline);
+      border-radius:var(--radius-md);background:var(--canvas-soft);
+      box-shadow:none
     }
-    /* nested radius: outer 12 - pad 10 ≈ 2, use sm for inner controls to keep harmony */
+    /* nested radius: outer 10 - pad 10, keep inner controls slightly tighter */
     .media-toolbar .cselect,
     .media-toolbar .cselect-btn,
     .media-toolbar .input{border-radius:var(--radius-sm)}
