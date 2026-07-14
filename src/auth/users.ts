@@ -36,7 +36,7 @@ export interface User {
   routeAccountId: string | null;
   /**
    * Explicit MCP tool enable-list for this user (by tool name).
-   * null/undefined = use defaults (core tools on, heavy optional tools off).
+   * null/undefined = use defaults (image/video tools on, all voice/TTS tools off).
    * Array = exact enabled set after normalization.
    */
   mcpEnabledTools?: string[] | null;
@@ -88,15 +88,15 @@ export const MCP_TOOL_CATALOG = [
   { name: "grok_video_edit", defaultEnabled: true },
   { name: "grok_video_extend", defaultEnabled: true },
   { name: "grok_video_status", defaultEnabled: true },
-  { name: "grok_list_voices", defaultEnabled: true },
-  { name: "grok_list_custom_voices", defaultEnabled: true },
+  { name: "grok_list_voices", defaultEnabled: false },
+  { name: "grok_list_custom_voices", defaultEnabled: false },
   { name: "grok_get_custom_voice", defaultEnabled: false },
   { name: "grok_create_custom_voice", defaultEnabled: false },
   { name: "grok_update_custom_voice", defaultEnabled: false },
   { name: "grok_delete_custom_voice", defaultEnabled: false },
   { name: "grok_get_custom_voice_audio", defaultEnabled: false },
-  { name: "grok_tts", defaultEnabled: true },
-  { name: "grok_voice_create_client_secret", defaultEnabled: true },
+  { name: "grok_tts", defaultEnabled: false },
+  { name: "grok_voice_create_client_secret", defaultEnabled: false },
 ] as const;
 
 export const MCP_TOOL_NAMES = MCP_TOOL_CATALOG.map((x) => x.name);
