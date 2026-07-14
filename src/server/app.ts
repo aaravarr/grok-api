@@ -68,6 +68,7 @@ import {
   captureJsonResponse,
   ensureStreamUsage,
   extractBodyError,
+  extractUsage,
   isLogOk,
   parseBodyMeta,
   safeCloneBody,
@@ -1759,6 +1760,52 @@ export function createApp() {
 
 
 
+function mediaLogModeForPath(upstreamPath: string): "media" {
+  return "media";
+}
+
+function mediaModelFromPath(upstreamPath: string, bodyModel?: string): string | undefined {
+  if (bodyModel) return bodyModel;
+  const p = String(upstreamPath || "");
+  if (/image-generation-models/i.test(p)) return "image-models";
+  if (/video-generation-models/i.test(p)) return "video-models";
+  if (/\/images\/generations/i.test(p)) return "image-generate";
+  if (/\/images\/edits/i.test(p)) return "image-edit";
+  if (/\/videos\/generations/i.test(p)) return "video-generate";
+  if (/\/videos\/edits/i.test(p)) return "video-edit";
+  if (/\/videos\/extensions/i.test(p)) return "video-extend";
+  if (/\/videos\//i.test(p)) return "video-status";
+  return undefined;
+}
+
+function buildMediaLogFields(
+  c: Context<{ Variables: Variables }>,
+  method: "GET" | "POST",
+  path: string,
+  upstreamPath: string,
+  body: unknown,
+  settings: Awaited<ReturnType<typeof loadSettings>>,
+) {
+  const bodyModel =
+    body && typeof body === "object" && typeof (body as any).model === "string"
+      ? String((body as any).model)
+      : undefined;
+  const inbound = collectRequestHeaders((name) => c.req.header(name));
+  const logBodies = settings.logBodies === true;
+  const reqClone = logBodies && body !== undefined ? safeCloneBody(body) : { value: undefined as unknown, truncated: false };
+  return {
+    mode: mediaLogModeForPath(upstreamPath) as const,
+    path,
+    model: mediaModelFromPath(upstreamPath, bodyModel),
+    stream: false,
+    request: reqClone.value,
+    requestTruncated: reqClone.truncated,
+    headers: inbound.headers,
+    userAgent: inbound.userAgent,
+    client: inbound.client || (method === "GET" && /models/i.test(upstreamPath) ? "Media Studio" : inbound.client),
+  };
+}
+
 async function resolveMediaAccountId(
   c: Context<{ Variables: Variables }>,
   method: "GET" | "POST",
@@ -1810,12 +1857,12 @@ async function handleSessionMedia(
     try { body = await c.req.json(); }
     catch { return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400); }
   }
-  const model =
-    body && typeof body === "object" && typeof (body as any).model === "string"
-      ? String((body as any).model)
-      : undefined;
   const settings = await loadSettings();
   const logging = settings.logEnabled !== false;
+  const baseLog = {
+    ...buildMediaLogFields(c, method, path, upstreamPath, body, settings),
+    userId: user?.id,
+  };
   try {
     const preferred = await resolveMediaAccountId(c, method, upstreamPath);
     const result = await proxyUpstream({
@@ -1854,18 +1901,16 @@ async function handleSessionMedia(
     );
 
     if (logging) {
+      const keepBody = settings.logBodies === true || result.status >= 400;
       void appendRequestLog({
-        mode: "chat",
-        path,
-        model,
-        stream: false,
-        userId: user?.id,
+        ...baseLog,
         accountId: result.accountId,
         accountName: result.accountName,
         status: result.status,
         ok: result.status >= 200 && result.status < 300,
         latencyMs: Date.now() - t0,
-        response: settings.logBodies === true || result.status >= 400 ? parsed : undefined,
+        response: keepBody ? parsed : undefined,
+        usage: extractUsage(parsed),
         error: errText,
       });
     }
@@ -1874,11 +1919,7 @@ async function handleSessionMedia(
     const msg = e instanceof Error ? e.message : String(e);
     if (logging) {
       void appendRequestLog({
-        mode: "chat",
-        path,
-        model,
-        stream: false,
-        userId: user?.id,
+        ...baseLog,
         status: 503,
         ok: false,
         latencyMs: Date.now() - t0,
@@ -1907,17 +1948,10 @@ async function handleMediaProxy(
       return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400);
     }
   }
-  const model =
-    body && typeof body === "object" && typeof (body as any).model === "string"
-      ? String((body as any).model)
-      : undefined;
   const settings = await loadSettings();
   const logging = settings.logEnabled !== false;
   const baseLog = {
-    mode: "chat" as const,
-    path,
-    model,
-    stream: false,
+    ...buildMediaLogFields(c, method, path, upstreamPath, body, settings),
     apiKeyId,
     apiKeyAlias,
     userId: apiKeyUserId,
@@ -1964,6 +1998,7 @@ async function handleMediaProxy(
     );
 
     if (logging) {
+      const keepBody = settings.logBodies === true || result.status >= 400;
       void appendRequestLog({
         ...baseLog,
         accountId: result.accountId,
@@ -1971,7 +2006,8 @@ async function handleMediaProxy(
         status: result.status,
         ok: result.status >= 200 && result.status < 300,
         latencyMs: Date.now() - t0,
-        response: settings.logBodies === true || result.status >= 400 ? parsed : undefined,
+        response: keepBody ? parsed : undefined,
+        usage: extractUsage(parsed),
         error: errText,
       });
     }

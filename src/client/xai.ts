@@ -35,7 +35,7 @@ export async function fetchUpstreamModels(
   };
 }
 
-export type ProxyMode = "responses" | "chat";
+export type ProxyMode = "responses" | "chat" | "media";
 
 export interface ProxyRequest {
   mode: ProxyMode;

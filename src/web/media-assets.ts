@@ -46,7 +46,11 @@ export function mediaViewHtml(page: string): string {
                             <button class="btn btn-ghost btn-sm" type="button" id="btnMediaAiPrompt" data-i18n="mediaAiPrompt">AI polish</button>
                           </div>
                           <textarea id="mediaPrompt" class="input media-prompt" rows="5" data-i18n-placeholder="mediaPromptPh" placeholder="A cinematic neon alley in rain, 35mm film still"></textarea>
-                          <div class="media-help" data-i18n="mediaPromptHelp">Describe subject, lighting, lens and mood. AI polish rewrites via your selected key.</div>
+                          <div class="media-polish-box">
+                            <label class="media-polish-label" for="mediaAiInstruction" data-i18n="mediaAiInstruction">Polish notes (optional)</label>
+                            <input id="mediaAiInstruction" class="input media-polish-input" data-i18n-placeholder="mediaAiInstructionPh" placeholder="e.g. more cinematic, keep Chinese, add rain and neon" />
+                          </div>
+                          <div class="media-help" data-i18n="mediaPromptHelp">Describe subject, lighting, lens and mood. AI polish streams into the prompt box.</div>
                         </div>
 
                         <div class="field" id="mediaModelField">
@@ -242,8 +246,11 @@ export const mediaI18nZh = {
   mediaModeStatus:"查询",
   mediaPrompt:"提示词",
   mediaPromptPh:"雨夜霓虹巷，35mm 胶片静帧，电影感",
-  mediaPromptHelp:"写清主体、光线、镜头与氛围。可用 AI 润色（走你选中的密钥）。",
+  mediaPromptHelp:"描述主体、光影、镜头与氛围。AI 润色会流式写入提示词框，可填可选要求。",
   mediaAiPrompt:"AI 润色",
+  mediaAiInstruction:"润色要求（可选）",
+  mediaAiInstructionPh:"例如：更电影感、保持中文、加雨夜霓虹",
+  mediaAiStreaming:"流式润色中…",
   mediaModel:"模型",
   mediaAspect:"比例",
   mediaDuration:"时长（秒）",
@@ -352,8 +359,11 @@ export const mediaI18nEn = {
   mediaModeStatus:"Status",
   mediaPrompt:"Prompt",
   mediaPromptPh:"A cinematic neon alley in rain, 35mm film still",
-  mediaPromptHelp:"Describe subject, lighting, lens and mood. AI polish rewrites via your selected key.",
+  mediaPromptHelp:"Describe subject, lighting, lens and mood. AI polish streams into the prompt box; optional notes supported.",
   mediaAiPrompt:"AI polish",
+  mediaAiInstruction:"Polish notes (optional)",
+  mediaAiInstructionPh:"e.g. more cinematic, keep Chinese, add rain and neon",
+  mediaAiStreaming:"Streaming polish…",
   mediaModel:"Model",
   mediaAspect:"Aspect",
   mediaDuration:"Duration (s)",
@@ -503,6 +513,8 @@ export const mediaClientJs = String.raw`
       if (json) h["Content-Type"] = "application/json";
       if (secret) h.Authorization = "Bearer " + secret;
       else Object.assign(h, headers());
+      // Help logs identify Media Studio traffic
+      h["x-title"] = "Media Studio";
       const pin = ($("mediaAccountPin") && $("mediaAccountPin").value || "").trim();
       const sticky = opts && opts.accountId ? String(opts.accountId).trim() : "";
       const acc = pin || sticky || mediaLastAccountId || "";
@@ -1086,8 +1098,9 @@ export const mediaClientJs = String.raw`
       if ($("mediaLegacySecret")) $("mediaLegacySecret").value = "";
     }
 
-    function openMediaLegacyKeyModal(action) {
-      const k = mediaSelectedKey("studio");
+    function openMediaLegacyKeyModal(action, which) {
+      const source = which === "mcp" ? "mcp" : "studio";
+      const k = mediaSelectedKey(source);
       if (!k) {
         toast(t("mediaNeedKey"), "err");
         return;
@@ -1130,13 +1143,14 @@ export const mediaClientJs = String.raw`
         toast(t("mediaLegacySaved"), "ok");
         if (action === "run") runMedia({ skipLegacyCheck: true });
         else if (action === "ai") runMediaAiPrompt({ skipLegacyCheck: true });
+        else if (action === "copy_mcp") copyMediaMcpConfig({ skipLegacyCheck: true });
       } catch (e) {
         toast(e.message || t("mediaFailed"), "err");
       }
     }
 
     async function createMediaKeyFromLegacy() {
-      const k = mediaSelectedKey("studio") || (mediaKeys || []).find((x) => x && x.id === mediaLegacyKeyId);
+      const k = mediaSelectedKey("mcp") || mediaSelectedKey("studio") || (mediaKeys || []).find((x) => x && x.id === mediaLegacyKeyId);
       if (!k) return toast(t("mediaNeedKey"), "err");
       const baseName = String(k.alias || "key").replace(/\s+Media$/i, "");
       const alias = baseName + (t("mediaLegacyNameSuffix") || " Media");
@@ -1173,6 +1187,7 @@ export const mediaClientJs = String.raw`
         toast(t("mediaLegacyCreated"), "ok");
         if (action === "run") runMedia({ skipLegacyCheck: true });
         else if (action === "ai") runMediaAiPrompt({ skipLegacyCheck: true });
+        else if (action === "copy_mcp") copyMediaMcpConfig({ skipLegacyCheck: true });
       } catch (e) {
         toast(e.message || t("mediaFailed"), "err");
       }
@@ -1184,40 +1199,156 @@ export const mediaClientJs = String.raw`
         return false;
       }
       if (!mediaKeySecret("studio")) {
-        openMediaLegacyKeyModal(action);
+        openMediaLegacyKeyModal(action, "studio");
         return false;
       }
       return true;
+    }
+
+    function ensureMcpKeyReady(action) {
+      if (!mediaHasKeySelection("mcp")) {
+        toast(t("mediaNeedKey"), "err");
+        return false;
+      }
+      if (!mediaKeySecret("mcp")) {
+        openMediaLegacyKeyModal(action || "copy_mcp", "mcp");
+        return false;
+      }
+      return true;
+    }
+
+    function copyMediaMcpConfig(opts) {
+      if (!(opts && opts.skipLegacyCheck) && !ensureMcpKeyReady("copy_mcp")) return false;
+      paintMediaMcpConfig();
+      const raw = ($("mediaMcpConfig") && ($("mediaMcpConfig").dataset.raw || $("mediaMcpConfig").textContent)) || "";
+      // Guard again: never copy placeholder prefix-only values.
+      if (!mediaKeySecret("mcp")) {
+        openMediaLegacyKeyModal("copy_mcp", "mcp");
+        return false;
+      }
+      copyText(raw);
+      return true;
+    }
+
+    async function streamMediaChatCompletion(body, onDelta) {
+      const res = await fetch("/v1/chat/completions", {
+        method: "POST",
+        headers: mediaAuthHeaders(true),
+        body: JSON.stringify(body),
+      });
+      const headersObj = {
+        "x-account-id": res.headers.get("x-account-id") || "",
+        "x-account-name": res.headers.get("x-account-name") || "",
+      };
+      if (!res.ok) {
+        const raw = await res.text();
+        let parsed = null;
+        try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = { raw: raw }; }
+        const msg = parsed && parsed.error && parsed.error.message
+          ? parsed.error.message
+          : (raw || ("HTTP " + res.status));
+        const err = new Error(msg);
+        err.status = res.status;
+        err.body = parsed;
+        err.headersObj = headersObj;
+        throw err;
+      }
+      rememberMediaAccount(headersObj);
+      if (!res.body || !res.body.getReader) {
+        const raw = await res.text();
+        let parsed = null;
+        try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+        const text = parsed && parsed.choices && parsed.choices[0] && parsed.choices[0].message
+          ? String(parsed.choices[0].message.content || "").trim()
+          : String(raw || "").trim();
+        if (text && onDelta) onDelta(text, text);
+        return text;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let full = "";
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          const trimmed = String(line || "").trim();
+          if (!trimmed || trimmed[0] === ":") continue;
+          if (!trimmed.startsWith("data:")) continue;
+          const data = trimmed.slice(5).trim();
+          if (!data || data === "[DONE]") continue;
+          let json = null;
+          try { json = JSON.parse(data); } catch { continue; }
+          const delta =
+            json && json.choices && json.choices[0] && json.choices[0].delta
+              ? (json.choices[0].delta.content || "")
+              : (json && json.choices && json.choices[0] && json.choices[0].message
+                ? (json.choices[0].message.content || "")
+                : "");
+          if (!delta) continue;
+          full += String(delta);
+          if (onDelta) onDelta(full, String(delta));
+        }
+      }
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith("data:")) {
+          const data = trimmed.slice(5).trim();
+          if (data && data !== "[DONE]") {
+            try {
+              const json = JSON.parse(data);
+              const delta =
+                json && json.choices && json.choices[0] && json.choices[0].delta
+                  ? (json.choices[0].delta.content || "")
+                  : "";
+              if (delta) {
+                full += String(delta);
+                if (onDelta) onDelta(full, String(delta));
+              }
+            } catch {}
+          }
+        }
+      }
+      return full.trim();
     }
 
     async function runMediaAiPrompt(opts) {
       const prompt = (($("mediaPrompt") && $("mediaPrompt").value) || "").trim();
       if (!prompt) return toast(t("mediaNeedPrompt"), "err");
       if (!(opts && opts.skipLegacyCheck) && !ensureStudioKeyReady("ai")) return;
+      const instruction = (($("mediaAiInstruction") && $("mediaAiInstruction").value) || "").trim();
       setMediaAiLoading(true);
-      setMediaStatus(t("mediaAiRunning"), "loading");
+      setMediaStatus(t("mediaAiStreaming") || t("mediaAiRunning"), "loading");
+      if ($("mediaPrompt")) {
+        $("mediaPrompt").value = "";
+        $("mediaPrompt").classList.add("is-streaming");
+      }
       try {
-        const r = await mediaFetch("/v1/chat/completions", {
-          method: "POST",
-          headers: mediaAuthHeaders(true),
-          body: JSON.stringify({
-            model: "grok-4.5",
-            temperature: 0.8,
-            messages: [
-              {
-                role: "system",
-                content: "You rewrite image/video prompts. Return only the improved prompt text, no quotes, no explanation. Keep the original language of the user prompt. Make it concrete, cinematic, and production-ready."
-              },
-              { role: "user", content: prompt }
-            ]
-          })
+        let system =
+          "You rewrite image/video prompts. Return only the improved prompt text, no quotes, no markdown, no explanation. Keep the original language of the user prompt unless the notes ask otherwise. Make it concrete, cinematic, and production-ready.";
+        if (instruction) {
+          system += " Extra rewrite notes from the user: " + instruction;
+        }
+        const userContent = instruction
+          ? ("Original prompt:\n" + prompt + "\n\nRewrite notes:\n" + instruction)
+          : prompt;
+        const text = await streamMediaChatCompletion({
+          model: "grok-4.5",
+          temperature: 0.8,
+          stream: true,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: userContent },
+          ],
+        }, (full) => {
+          if ($("mediaPrompt")) $("mediaPrompt").value = String(full || "").replace(/^["']|["']$/g, "");
         });
-        const text =
-          r.body && r.body.choices && r.body.choices[0] && r.body.choices[0].message && r.body.choices[0].message.content
-            ? String(r.body.choices[0].message.content).trim()
-            : "";
-        if (!text) throw new Error(t("mediaFailed"));
-        if ($("mediaPrompt")) $("mediaPrompt").value = text.replace(/^["']|["']$/g, "");
+        const cleaned = String(text || "").trim().replace(/^["']|["']$/g, "");
+        if (!cleaned) throw new Error(t("mediaFailed"));
+        if ($("mediaPrompt")) $("mediaPrompt").value = cleaned;
         setMediaStatus(t("mediaAiDone"), "ok");
         toast(t("mediaAiDone"), "ok");
         setTimeout(() => {
@@ -1225,9 +1356,14 @@ export const mediaClientJs = String.raw`
           if (el && el.textContent === t("mediaAiDone")) setMediaStatus("");
         }, 1800);
       } catch (e) {
+        // restore original prompt if stream failed with empty box
+        if ($("mediaPrompt") && !String($("mediaPrompt").value || "").trim()) {
+          $("mediaPrompt").value = prompt;
+        }
         setMediaStatus(e.message || t("mediaFailed"), "err");
         toast(e.message || t("mediaFailed"), "err");
       } finally {
+        if ($("mediaPrompt")) $("mediaPrompt").classList.remove("is-streaming");
         setMediaAiLoading(false);
       }
     }
@@ -1325,11 +1461,41 @@ export const mediaClientJs = String.raw`
     }
 
     async function copyText(text) {
-      try {
-        await navigator.clipboard.writeText(String(text || ""));
-        toast(t("mediaCopied"));
-      } catch {
+      const value = String(text == null ? "" : text);
+      if (!value) {
         toast(t("mediaFailed"), "err");
+        return false;
+      }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          throw new Error("clipboard_unavailable");
+        }
+        toast(t("mediaCopied"));
+        return true;
+      } catch {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = value;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.top = "-9999px";
+          ta.style.left = "-9999px";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          ta.setSelectionRange(0, ta.value.length);
+          const ok = document.execCommand("copy");
+          ta.remove();
+          if (!ok) throw new Error("copy_failed");
+          toast(t("mediaCopied"));
+          return true;
+        } catch {
+          toast(t("mediaFailed"), "err");
+          return false;
+        }
       }
     }
 
@@ -1524,9 +1690,7 @@ export const mediaClientJs = String.raw`
         });
       }
       if ($("btnMediaCopyCfg")) $("btnMediaCopyCfg").onclick = () => {
-        paintMediaMcpConfig();
-        const raw = ($("mediaMcpConfig") && ($("mediaMcpConfig").dataset.raw || $("mediaMcpConfig").textContent)) || "";
-        copyText(raw);
+        copyMediaMcpConfig();
       };
       if ($("mediaStudioKey")) $("mediaStudioKey").addEventListener("change", () => loadMediaModels());
       if ($("mediaMcpKey")) $("mediaMcpKey").addEventListener("change", () => paintMediaMcpConfig());

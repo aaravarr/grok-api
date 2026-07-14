@@ -73,6 +73,7 @@ export function detectClient(userAgent: string, headers: Record<string, string> 
 
   // Explicit product title (OpenRouter-style / many proxies)
   if (title) {
+    if (/media\s*studio/i.test(headers["x-title"] || "")) return "Media Studio";
     if (/claude\s*code/i.test(headers["x-title"] || "")) return "Claude Code";
     if (/cursor/i.test(headers["x-title"] || "")) return "Cursor";
     if (/opencode/i.test(headers["x-title"] || "")) return "OpenCode";
