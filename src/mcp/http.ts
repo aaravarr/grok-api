@@ -57,7 +57,7 @@ export async function handleMcpHttp(c: Context): Promise<Response> {
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     });
-    const server = createGrokMcpServer({
+    const server = await createGrokMcpServer({
       callerUserId: auth.callerUserId,
       accountId: auth.accountId,
     });

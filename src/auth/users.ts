@@ -34,6 +34,14 @@ export interface User {
   routeScope: RouteScope;
   /** Used when routeScope === "account" */
   routeAccountId: string | null;
+  /**
+   * Explicit MCP tool enable-list for this user (by tool name).
+   * null/undefined = use defaults (core tools on, heavy optional tools off).
+   * Array = exact enabled set after normalization.
+   */
+  mcpEnabledTools?: string[] | null;
+  /** @deprecated migrated into mcpEnabledTools */
+  mcpOptionalTools?: string[] | null;
   createdAt: number;
   updatedAt: number;
   lastLoginAt?: number;
@@ -70,6 +78,83 @@ function normalizeRouteScope(v: unknown): RouteScope {
   return "auto";
 }
 
+/** Full MCP tool catalog. Keep in sync with src/mcp/tools.ts */
+export const MCP_TOOL_CATALOG = [
+  { name: "grok_list_image_models", defaultEnabled: true },
+  { name: "grok_list_video_models", defaultEnabled: true },
+  { name: "grok_image_generate", defaultEnabled: true },
+  { name: "grok_image_edit", defaultEnabled: true },
+  { name: "grok_video_generate", defaultEnabled: true },
+  { name: "grok_video_edit", defaultEnabled: true },
+  { name: "grok_video_extend", defaultEnabled: true },
+  { name: "grok_video_status", defaultEnabled: true },
+  { name: "grok_list_voices", defaultEnabled: true },
+  { name: "grok_list_custom_voices", defaultEnabled: true },
+  { name: "grok_get_custom_voice", defaultEnabled: false },
+  { name: "grok_create_custom_voice", defaultEnabled: false },
+  { name: "grok_update_custom_voice", defaultEnabled: false },
+  { name: "grok_delete_custom_voice", defaultEnabled: false },
+  { name: "grok_get_custom_voice_audio", defaultEnabled: false },
+  { name: "grok_tts", defaultEnabled: true },
+  { name: "grok_voice_create_client_secret", defaultEnabled: true },
+] as const;
+
+export const MCP_TOOL_NAMES = MCP_TOOL_CATALOG.map((x) => x.name);
+export type McpToolName = (typeof MCP_TOOL_NAMES)[number];
+
+/** @deprecated use MCP_TOOL_CATALOG / tools with defaultEnabled=false */
+export const MCP_OPTIONAL_TOOL_NAMES = MCP_TOOL_CATALOG
+  .filter((x) => !x.defaultEnabled)
+  .map((x) => x.name);
+
+export type McpOptionalToolName = (typeof MCP_OPTIONAL_TOOL_NAMES)[number];
+
+const MCP_TOOL_NAME_SET = new Set<string>(MCP_TOOL_NAMES as unknown as string[]);
+
+export function defaultMcpEnabledTools(): string[] {
+  return MCP_TOOL_CATALOG.filter((x) => x.defaultEnabled).map((x) => x.name);
+}
+
+export function normalizeMcpToolNames(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const item of v) {
+    const name = String(item || "").trim();
+    if (!name || !MCP_TOOL_NAME_SET.has(name) || out.includes(name)) continue;
+    out.push(name);
+  }
+  return out;
+}
+
+/** Normalize an explicit enable-list. null/non-array => defaults; empty array stays empty. */
+export function normalizeMcpEnabledTools(v: unknown): string[] {
+  if (v == null) return defaultMcpEnabledTools();
+  if (!Array.isArray(v)) return defaultMcpEnabledTools();
+  return normalizeMcpToolNames(v);
+}
+
+/** @deprecated prefer normalizeMcpEnabledTools */
+export function normalizeMcpOptionalTools(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const allow = new Set<string>(MCP_OPTIONAL_TOOL_NAMES as unknown as string[]);
+  return normalizeMcpToolNames(v).filter((name) => allow.has(name));
+}
+
+export function resolveUserMcpEnabledTools(raw: {
+  mcpEnabledTools?: unknown;
+  mcpOptionalTools?: unknown;
+}): string[] {
+  if (raw.mcpEnabledTools != null) {
+    return normalizeMcpEnabledTools(raw.mcpEnabledTools);
+  }
+  // Migrate old optional-only field: defaults + previously enabled optional tools
+  const optional = normalizeMcpOptionalTools(raw.mcpOptionalTools);
+  if (!optional.length) return defaultMcpEnabledTools();
+  const base = new Set(defaultMcpEnabledTools());
+  for (const name of optional) base.add(name);
+  return MCP_TOOL_NAMES.filter((name) => base.has(name));
+}
+
 function normalizeUser(raw: Partial<User> & Pick<User, "id" | "username" | "passwordHash" | "role">): User {
   const quota =
     typeof raw.tokenQuota === "number" && Number.isFinite(raw.tokenQuota) && raw.tokenQuota >= 0
@@ -92,6 +177,8 @@ function normalizeUser(raw: Partial<User> & Pick<User, "id" | "username" | "pass
       typeof raw.routeAccountId === "string" && raw.routeAccountId.trim()
         ? raw.routeAccountId.trim()
         : null,
+    mcpEnabledTools: resolveUserMcpEnabledTools(raw),
+    mcpOptionalTools: normalizeMcpOptionalTools(raw.mcpOptionalTools),
     createdAt: raw.createdAt ?? 0,
     updatedAt: raw.updatedAt ?? 0,
     lastLoginAt: raw.lastLoginAt,
@@ -147,6 +234,12 @@ export function publicUser(u: User) {
     tokenRemaining: tokenQuota == null ? null : Math.max(0, tokenQuota - tokenUsed),
     routeScope: u.routeScope ?? "auto",
     routeAccountId: u.routeAccountId ?? null,
+    mcpEnabledTools: resolveUserMcpEnabledTools(u),
+    mcpOptionalTools: normalizeMcpOptionalTools(
+      resolveUserMcpEnabledTools(u).filter((name) =>
+        (MCP_OPTIONAL_TOOL_NAMES as unknown as string[]).includes(name),
+      ),
+    ),
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
     lastLoginAt: u.lastLoginAt,
@@ -343,6 +436,8 @@ export async function updateUser(
       | "tokenUsed"
       | "routeScope"
       | "routeAccountId"
+      | "mcpEnabledTools"
+      | "mcpOptionalTools"
     >
   >,
 ): Promise<User | undefined> {
@@ -375,6 +470,21 @@ export async function updateUser(
         patch.routeAccountId == null || patch.routeAccountId === ""
           ? null
           : String(patch.routeAccountId);
+    }
+    if (patch.mcpEnabledTools !== undefined) {
+      u.mcpEnabledTools = normalizeMcpEnabledTools(patch.mcpEnabledTools);
+      u.mcpOptionalTools = normalizeMcpOptionalTools(
+        u.mcpEnabledTools.filter((name) =>
+          (MCP_OPTIONAL_TOOL_NAMES as unknown as string[]).includes(name),
+        ),
+      );
+    } else if (patch.mcpOptionalTools !== undefined) {
+      // legacy write path
+      const optional = normalizeMcpOptionalTools(patch.mcpOptionalTools);
+      const base = new Set(defaultMcpEnabledTools());
+      for (const name of optional) base.add(name);
+      u.mcpEnabledTools = MCP_TOOL_NAMES.filter((name) => base.has(name));
+      u.mcpOptionalTools = optional;
     }
     u.updatedAt = now();
     return u;
@@ -414,4 +524,19 @@ export async function deleteUser(id: string): Promise<boolean> {
     store.sessions = store.sessions.filter((s) => s.userId !== id);
     return true;
   });
+}
+
+
+export async function getUserMcpEnabledTools(userId?: string | null): Promise<string[]> {
+  if (!userId) return defaultMcpEnabledTools();
+  const u = await getUser(userId);
+  if (!u) return defaultMcpEnabledTools();
+  return resolveUserMcpEnabledTools(u);
+}
+
+/** @deprecated use getUserMcpEnabledTools */
+export async function getUserMcpOptionalTools(userId?: string | null): Promise<string[]> {
+  const enabled = await getUserMcpEnabledTools(userId);
+  const allow = new Set<string>(MCP_OPTIONAL_TOOL_NAMES as unknown as string[]);
+  return enabled.filter((name) => allow.has(name));
 }

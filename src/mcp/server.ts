@@ -23,14 +23,22 @@ if (!API_KEY) {
   console.error("[grok-mcp] Prefer remote MCP: " + BASE + "/mcp");
 }
 
-async function api(method: string, path: string, body?: unknown, opts?: { accept?: string }) {
+async function api(
+  method: string,
+  path: string,
+  body?: unknown,
+  opts?: { accept?: string; rawBody?: any; contentType?: string | null },
+) {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${API_KEY}`,
     Accept: opts?.accept || "application/json",
   };
   if (ACCOUNT_ID) headers["x-account-id"] = ACCOUNT_ID;
-  let payload: string | undefined;
-  if (body !== undefined) {
+  let payload: any;
+  if (opts?.rawBody != null) {
+    payload = opts.rawBody;
+    if (opts.contentType) headers["Content-Type"] = opts.contentType;
+  } else if (body !== undefined && method !== "GET" && method !== "DELETE") {
     headers["Content-Type"] = "application/json";
     payload = JSON.stringify(body);
   }
@@ -78,7 +86,12 @@ const tools = [
   { name: "grok_video_extend", description: "Extend video (async). Input video should be <= ~15s. duration is ADDED extension length only (commonly 5-10s), not final total.", inputSchema: { type: "object", required: ["prompt", "video_url"], properties: { prompt: { type: "string" }, video_url: { type: "string", description: "source video <= ~15s" }, duration: { type: "number", description: "added seconds only, not total" }, model: { type: "string" } } } },
   { name: "grok_video_status", description: "Poll async video job until done/failed/expired. Sticky request_id->account is handled server-side.", inputSchema: { type: "object", required: ["request_id"], properties: { request_id: { type: "string" }, account_id: { type: "string" } } } },
   { name: "grok_list_voices", description: "List built-in TTS voices.", inputSchema: { type: "object", properties: {} } },
-  { name: "grok_list_custom_voices", description: "List custom voices (cap ~30).", inputSchema: { type: "object", properties: {} } },
+  { name: "grok_list_custom_voices", description: "List custom voices (cap ~30). Optional limit/pagination_token.", inputSchema: { type: "object", properties: { limit: { type: "number" }, pagination_token: { type: "string" } } } },
+  { name: "grok_get_custom_voice", description: "Get one custom voice by voice_id.", inputSchema: { type: "object", required: ["voice_id"], properties: { voice_id: { type: "string" } } } },
+  { name: "grok_create_custom_voice", description: "Create custom voice from audio_base64. Cap ~30. Reference audio max ~120s.", inputSchema: { type: "object", required: ["name", "audio_base64"], properties: { name: { type: "string" }, audio_base64: { type: "string" }, language: { type: "string" }, description: { type: "string" }, filename: { type: "string" }, content_type: { type: "string" } } } },
+  { name: "grok_update_custom_voice", description: "Update custom voice metadata (name/description/language).", inputSchema: { type: "object", required: ["voice_id"], properties: { voice_id: { type: "string" }, name: { type: "string" }, description: { type: "string" }, language: { type: "string" } } } },
+  { name: "grok_delete_custom_voice", description: "Delete custom voice to free a ~30-slot library entry.", inputSchema: { type: "object", required: ["voice_id"], properties: { voice_id: { type: "string" } } } },
+  { name: "grok_get_custom_voice_audio", description: "Download custom voice reference audio as audio_base64.", inputSchema: { type: "object", required: ["voice_id"], properties: { voice_id: { type: "string" } } } },
   { name: "grok_tts", description: "TTS. text<=15000; speed 0.7-1.5; codec mp3|wav|pcm|mulaw|alaw; tags supported. Returns audio_base64.", inputSchema: { type: "object", required: ["text"], properties: { text: { type: "string", description: "max 15000 chars" }, voice_id: { type: "string" }, language: { type: "string", description: "en|zh|auto|..." }, speed: { type: "number", description: "0.7-1.5" }, codec: { type: "string" }, sample_rate: { type: "number" }, bit_rate: { type: "number" }, with_timestamps: { type: "boolean" } } } },
   { name: "grok_voice_create_client_secret", description: "Create ephemeral Realtime client secret for browser WS auth only (not SIP, not the WS itself).", inputSchema: { type: "object", properties: { expires_after: { type: "object" }, session: { type: "object" } } } },
 ] as const;
@@ -142,7 +155,53 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       return r.status >= 400 ? errText(JSON.stringify(r.json)) : okText({ ...r.headers, body: r.json });
     }
     if (name === "grok_list_custom_voices") {
-      const r = await api("GET", "/v1/custom-voices");
+      const qs = new URLSearchParams();
+      if (args.limit != null) qs.set("limit", String(args.limit));
+      if (args.pagination_token) qs.set("pagination_token", String(args.pagination_token));
+      const q = qs.toString();
+      const r = await api("GET", "/v1/custom-voices" + (q ? `?${q}` : ""));
+      return r.status >= 400 ? errText(JSON.stringify(r.json)) : okText({ ...r.headers, body: r.json });
+    }
+    if (name === "grok_get_custom_voice") {
+      const id = encodeURIComponent(String(args.voice_id || "").trim());
+      if (!id) return errText("voice_id required");
+      const r = await api("GET", `/v1/custom-voices/${id}`);
+      return r.status >= 400 ? errText(JSON.stringify(r.json)) : okText({ ...r.headers, body: r.json });
+    }
+    if (name === "grok_create_custom_voice") {
+      // Prefer remote MCP server tools for multipart; stdio bridge uses JSON create endpoint.
+      const body: any = {
+        name: String(args.name || ""),
+        audio_base64: String(args.audio_base64 || ""),
+      };
+      if (args.language) body.language = args.language;
+      if (args.description) body.description = args.description;
+      if (args.filename) body.filename = args.filename;
+      if (args.content_type) body.content_type = args.content_type;
+      const r = await api("POST", "/v1/custom-voices", body);
+      return r.status >= 400 ? errText(JSON.stringify(r.json)) : okText({ ...r.headers, body: r.json });
+    }
+    if (name === "grok_update_custom_voice") {
+      const id = encodeURIComponent(String(args.voice_id || "").trim());
+      if (!id) return errText("voice_id required");
+      const body: any = {};
+      if (args.name != null) body.name = String(args.name);
+      if (args.description != null) body.description = String(args.description);
+      if (args.language != null) body.language = String(args.language);
+      if (!Object.keys(body).length) return errText("provide name/description/language to update");
+      const r = await api("PATCH", `/v1/custom-voices/${id}`, body);
+      return r.status >= 400 ? errText(JSON.stringify(r.json)) : okText({ ...r.headers, body: r.json });
+    }
+    if (name === "grok_delete_custom_voice") {
+      const id = encodeURIComponent(String(args.voice_id || "").trim());
+      if (!id) return errText("voice_id required");
+      const r = await api("DELETE", `/v1/custom-voices/${id}`);
+      return r.status >= 400 ? errText(JSON.stringify(r.json)) : okText({ ...r.headers, body: r.json });
+    }
+    if (name === "grok_get_custom_voice_audio") {
+      const id = encodeURIComponent(String(args.voice_id || "").trim());
+      if (!id) return errText("voice_id required");
+      const r = await api("GET", `/v1/custom-voices/${id}/audio`, undefined, { accept: "*/*" });
       return r.status >= 400 ? errText(JSON.stringify(r.json)) : okText({ ...r.headers, body: r.json });
     }
     if (name === "grok_tts") {

@@ -7,13 +7,30 @@ import {
   rememberVideoJob,
 } from "../account/video-jobs.js";
 import { proxyUpstream } from "../client/xai.js";
+import {
+  getUserMcpEnabledTools,
+  MCP_TOOL_NAMES,
+} from "../auth/users.js";
 
 export type McpAuthContext = {
   /** API key owner user id for pool routing */
   callerUserId: string | null;
   /** optional pin via x-account-id */
   accountId?: string;
+  /** explicit enabled tools for this user; nullish => defaults */
+  enabledTools?: string[];
 };
+
+/** @deprecated kept for import compatibility */
+export const MCP_OPTIONAL_TOOLS = new Set<string>(
+  [
+    "grok_get_custom_voice",
+    "grok_create_custom_voice",
+    "grok_update_custom_voice",
+    "grok_delete_custom_voice",
+    "grok_get_custom_voice_audio",
+  ],
+);
 
 function okText(data: unknown) {
   return {
@@ -35,11 +52,11 @@ function errText(msg: string) {
 
 async function callUpstream(
   auth: McpAuthContext,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
   accountId?: string,
-  opts?: { accept?: string | null },
+  opts?: { accept?: string | null; rawBody?: any; contentType?: string | null; checkCredits?: boolean },
 ) {
   let preferred = (accountId || auth.accountId || "").trim() || undefined;
   // Sticky account for status polls even when MCP bypasses /v1 handlers.
@@ -51,11 +68,13 @@ async function callUpstream(
   const result = await proxyUpstream({
     method,
     path,
-    body: method === "GET" ? undefined : body,
+    body: method === "GET" || method === "DELETE" ? undefined : body,
     accountId: preferred,
     callerUserId: auth.callerUserId,
-    checkCredits: true,
+    checkCredits: opts?.checkCredits !== false,
     accept: opts?.accept,
+    rawBody: opts?.rawBody,
+    contentType: opts?.contentType,
   });
   const bytes = result.body
     ? Buffer.from(await new Response(result.body).arrayBuffer())
@@ -110,14 +129,72 @@ async function callUpstream(
   };
 }
 
+
+function guessAudioExt(contentType: string, filename?: string): string {
+  const f = String(filename || "").toLowerCase();
+  if (f.includes(".")) return f.split(".").pop() || "wav";
+  const ct = contentType.toLowerCase();
+  if (ct.includes("mpeg") || ct.includes("mp3")) return "mp3";
+  if (ct.includes("wav")) return "wav";
+  if (ct.includes("flac")) return "flac";
+  if (ct.includes("ogg")) return "ogg";
+  if (ct.includes("mp4") || ct.includes("m4a")) return "m4a";
+  return "wav";
+}
+
+function buildMultipartForm(parts: Array<{ name: string; value?: string; filename?: string; contentType?: string; data?: Buffer }>) {
+  const boundary = "----grokBoundary" + Date.now().toString(16) + Math.random().toString(16).slice(2);
+  const chunks: Buffer[] = [];
+  for (const p of parts) {
+    if (p.data) {
+      const filename = p.filename || "audio.wav";
+      const ctype = p.contentType || "application/octet-stream";
+      chunks.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="${p.name}"; filename="${filename}"\r\n` +
+        `Content-Type: ${ctype}\r\n\r\n`,
+        "utf8",
+      ));
+      chunks.push(p.data);
+      chunks.push(Buffer.from("\r\n", "utf8"));
+    } else if (p.value != null) {
+      chunks.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="${p.name}"\r\n\r\n` +
+        `${p.value}\r\n`,
+        "utf8",
+      ));
+    }
+  }
+  chunks.push(Buffer.from(`--${boundary}--\r\n`, "utf8"));
+  return {
+    body: Buffer.concat(chunks),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  };
+}
+
 /** Build a fresh MCP server instance bound to one request's API key identity. */
-export function createGrokMcpServer(auth: McpAuthContext): McpServer {
+export async function createGrokMcpServer(auth: McpAuthContext): Promise<McpServer> {
+  const enabled = new Set(
+    (auth.enabledTools ?? (await getUserMcpEnabledTools(auth.callerUserId))).map((x) => String(x)),
+  );
+  const known = new Set<string>(MCP_TOOL_NAMES as unknown as string[]);
+  const allowTool = (name: string) => {
+    if (!known.has(name)) return true;
+    return enabled.has(name);
+  };
+
   const server = new McpServer(
     { name: "grok-api-mcp", version: "1.0.0" },
     { capabilities: { tools: {} } },
   );
 
-  server.registerTool(
+  function register(name: string, config: any, handler: (...args: any[]) => any) {
+    if (!allowTool(name)) return;
+    (server.registerTool as any)(name, config, handler);
+  }
+
+  register(
     "grok_list_image_models",
     {
       title: "List image models",
@@ -135,7 +212,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "grok_list_video_models",
     {
       title: "List video models",
@@ -153,7 +230,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "grok_image_generate",
     {
       title: "Generate image",
@@ -187,7 +264,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "grok_image_edit",
     {
       title: "Edit image",
@@ -219,7 +296,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "grok_video_generate",
     {
       title: "Generate video",
@@ -253,7 +330,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "grok_video_edit",
     {
       title: "Edit video",
@@ -281,7 +358,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "grok_video_extend",
     {
       title: "Extend video",
@@ -311,7 +388,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "grok_video_status",
     {
       title: "Video status",
@@ -337,7 +414,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
   );
 
 
-  server.registerTool(
+  register(
     "grok_list_voices",
     {
       title: "List TTS voices",
@@ -355,16 +432,24 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "grok_list_custom_voices",
     {
       title: "List custom voices",
-      description: "List custom voices available to the routed SuperGrok account. Free tier typically caps around 30 custom voices.",
-      inputSchema: {},
+      description:
+        "List custom voices owned by the routed SuperGrok account/team. Cap is typically ~30. Supports optional limit (1-1000) and pagination_token.",
+      inputSchema: {
+        limit: z.number().optional().describe("1-1000, default 100"),
+        pagination_token: z.string().optional().describe("Next-page token from previous response"),
+      },
     },
-    async () => {
+    async (args) => {
       try {
-        const r = await callUpstream(auth, "GET", "/custom-voices");
+        const qs = new URLSearchParams();
+        if (args.limit != null) qs.set("limit", String(args.limit));
+        if (args.pagination_token) qs.set("pagination_token", String(args.pagination_token));
+        const q = qs.toString();
+        const r = await callUpstream(auth, "GET", "/custom-voices" + (q ? `?${q}` : ""));
         if (r.status >= 400) return errText(JSON.stringify(r.json));
         return okText({ ...r.headers, body: r.json });
       } catch (e) {
@@ -373,7 +458,148 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
+    "grok_get_custom_voice",
+    {
+      title: "Get custom voice",
+      description: "Get one custom voice by voice_id (8-char id).",
+      inputSchema: {
+        voice_id: z.string().describe("Custom voice id"),
+      },
+    },
+    async (args) => {
+      try {
+        const id = encodeURIComponent(String(args.voice_id || "").trim());
+        if (!id) return errText("voice_id required");
+        const r = await callUpstream(auth, "GET", `/custom-voices/${id}`);
+        if (r.status >= 400) return errText(JSON.stringify(r.json));
+        return okText({ ...r.headers, body: r.json });
+      } catch (e) {
+        return errText(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  register(
+    "grok_create_custom_voice",
+    {
+      title: "Create custom voice",
+      description:
+        "Create a custom voice from reference audio. Caps around 30 voices. Reference audio max ~120s; formats: wav/mp3/flac/ogg/m4a/mp4/etc. Requires name + audio_base64 (or data URI). Optional language/description/filename/content_type. Availability may be region/plan gated.",
+      inputSchema: {
+        name: z.string().describe("Display name"),
+        audio_base64: z.string().describe("Base64 audio bytes or data:audio/...;base64,..."),
+        language: z.string().optional().describe("e.g. en, zh"),
+        description: z.string().optional(),
+        filename: z.string().optional().describe("e.g. sample.wav"),
+        content_type: z.string().optional().describe("e.g. audio/wav, audio/mpeg"),
+      },
+    },
+    async (args) => {
+      try {
+        const name = String(args.name || "").trim();
+        const audioB64 = String(args.audio_base64 || "").trim();
+        if (!name) return errText("name required");
+        if (!audioB64) return errText("audio_base64 required");
+        const clean = audioB64.replace(/^data:[^;]+;base64,/, "");
+        const data = Buffer.from(clean, "base64");
+        if (!data.length) return errText("empty audio_base64");
+        const filename = String(args.filename || `voice.${guessAudioExt(String(args.content_type || ""), args.filename)}`);
+        const fileCt = String(args.content_type || "application/octet-stream");
+        const parts: Array<{ name: string; value?: string; filename?: string; contentType?: string; data?: Buffer }> = [
+          { name: "name", value: name },
+        ];
+        if (args.language) parts.push({ name: "language", value: String(args.language) });
+        if (args.description) parts.push({ name: "description", value: String(args.description) });
+        parts.push({ name: "file", filename, contentType: fileCt, data });
+        const mp = buildMultipartForm(parts);
+        const r = await callUpstream(auth, "POST", "/custom-voices", undefined, undefined, {
+          rawBody: mp.body,
+          contentType: mp.contentType,
+        });
+        if (r.status >= 400) return errText(JSON.stringify(r.json));
+        return okText({ ...r.headers, body: r.json });
+      } catch (e) {
+        return errText(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  register(
+    "grok_update_custom_voice",
+    {
+      title: "Update custom voice",
+      description: "Update custom voice metadata (name/description/language). Use this to manage the ~30-slot library without recreating audio.",
+      inputSchema: {
+        voice_id: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        language: z.string().optional(),
+      },
+    },
+    async (args) => {
+      try {
+        const id = encodeURIComponent(String(args.voice_id || "").trim());
+        if (!id) return errText("voice_id required");
+        const body: any = {};
+        if (args.name != null) body.name = String(args.name);
+        if (args.description != null) body.description = String(args.description);
+        if (args.language != null) body.language = String(args.language);
+        if (!Object.keys(body).length) return errText("provide name/description/language to update");
+        const r = await callUpstream(auth, "PATCH", `/custom-voices/${id}`, body);
+        if (r.status >= 400) return errText(JSON.stringify(r.json));
+        return okText({ ...r.headers, body: r.json });
+      } catch (e) {
+        return errText(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  register(
+    "grok_delete_custom_voice",
+    {
+      title: "Delete custom voice",
+      description: "Delete a custom voice by voice_id to free one of the limited (~30) slots.",
+      inputSchema: {
+        voice_id: z.string(),
+      },
+    },
+    async (args) => {
+      try {
+        const id = encodeURIComponent(String(args.voice_id || "").trim());
+        if (!id) return errText("voice_id required");
+        const r = await callUpstream(auth, "DELETE", `/custom-voices/${id}`);
+        if (r.status >= 400) return errText(JSON.stringify(r.json));
+        return okText({ ...r.headers, body: r.json });
+      } catch (e) {
+        return errText(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  register(
+    "grok_get_custom_voice_audio",
+    {
+      title: "Get custom voice audio",
+      description: "Download the reference audio for a custom voice. Returns audio_base64 JSON.",
+      inputSchema: {
+        voice_id: z.string(),
+      },
+    },
+    async (args) => {
+      try {
+        const id = encodeURIComponent(String(args.voice_id || "").trim());
+        if (!id) return errText("voice_id required");
+        const r = await callUpstream(auth, "GET", `/custom-voices/${id}/audio`, undefined, undefined, { accept: "*/*" });
+        if (r.status >= 400) return errText(JSON.stringify(r.json));
+        return okText({ ...r.headers, body: r.json });
+      } catch (e) {
+        return errText(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  register(
     "grok_tts",
     {
       title: "Text to speech",
@@ -426,7 +652,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "grok_voice_create_client_secret",
     {
       title: "Create realtime voice client secret",

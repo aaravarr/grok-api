@@ -52,6 +52,8 @@ http://127.0.0.1:8787/mcp
 
 ## Tools
 
+> 工具列表可按用户配置：`GET/PATCH /api/me/mcp-tools`。默认开启常用工具，自定义音色管理工具默认关闭；任意工具都可勾选启用/取消。API Key 归属用户后，`/mcp` 只返回该用户启用的工具。
+
 | Tool | 说明 |
 |---|---|
 | `grok_list_image_models` | 图片模型列表 |
@@ -63,7 +65,12 @@ http://127.0.0.1:8787/mcp
 | `grok_video_extend` | 视频续写（异步；输入建议 ≤ ~15s） |
 | `grok_video_status` | 查询视频任务 |
 | `grok_list_voices` | 内置 TTS 音色列表 |
-| `grok_list_custom_voices` | 自定义音色列表 |
+| `grok_list_custom_voices` | 自定义音色列表（约 30 上限） |
+| `grok_get_custom_voice` | 查询单个自定义音色 |
+| `grok_create_custom_voice` | 创建自定义音色（参考音频 ≤120s） |
+| `grok_update_custom_voice` | 更新自定义音色元数据 |
+| `grok_delete_custom_voice` | 删除自定义音色（腾名额） |
+| `grok_get_custom_voice_audio` | 下载自定义音色参考音频 |
 | `grok_tts` | 文本转语音（≤15000 字，返回 `audio_base64`） |
 | `grok_voice_create_client_secret` | Realtime 浏览器临时密钥 |
 
@@ -124,8 +131,15 @@ npm run mcp
   - `bit_rate`（mp3）：`32000`–`192000`
   - 支持标签：`[pause]` `[laugh]` `[sigh]` 以及 `<soft>` 等风格包裹
   - 默认返回 `audio_base64`（二进制包装）；`with_timestamps=true` 时偏 JSON 时间戳
-- **`grok_list_custom_voices`**
-  - 自定义音色数量通常有上限（约 30）
+- **Custom voices（约 30 上限，建议用删除腾位）**
+  - 默认不进入 MCP 工具列表；在 Media 页「可选 MCP 工具」开启后，该用户 API Key 才能看到
+  - `grok_list_custom_voices`：列表（`limit` / `pagination_token`）
+  - `grok_get_custom_voice`：详情
+  - `grok_create_custom_voice`：`name` + `audio_base64`；参考音频最长约 **120 秒**；格式 wav/mp3/flac/ogg/m4a/mp4 等
+  - `grok_update_custom_voice`：改 `name` / `description` / `language`（不改参考音频）
+  - `grok_delete_custom_voice`：删除以释放名额
+  - `grok_get_custom_voice_audio`：下载参考音频（`audio_base64`）
+  - 部分区域/套餐可能受限；创建失败时先 list 看是否已满 30
 - **`grok_voice_create_client_secret`**
   - 只生成**短时**浏览器 Realtime 凭证
   - **不会**替你建立 `wss://api.x.ai/v1/realtime`
@@ -139,7 +153,7 @@ npm run mcp
 - `grok_list_voices` — 查可用内置音色（如 `eve` / `ara`）
 - `grok_tts` — 文本转语音；支持 `<soft>`、`<excited>`、`[laugh]` 等表达标签
 - `grok_voice_create_client_secret` — 给浏览器 Realtime Voice 会话拿临时密钥（不负责 WS 长连接）
-- `grok_list_custom_voices` — 列出自定义音色（账号有权限时）
+- `grok_list_custom_voices` / `grok_create_custom_voice` / `grok_update_custom_voice` / `grok_delete_custom_voice` — 管理约 30 个自定义音色名额
 
 `grok_tts` 默认走二进制音频，MCP 会包装成：
 

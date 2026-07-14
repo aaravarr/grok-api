@@ -92,6 +92,9 @@ import {
   setUserUsername,
   setupAdmin,
   updateUser,
+  MCP_TOOL_CATALOG,
+  normalizeMcpEnabledTools,
+  resolveUserMcpEnabledTools,
   getUserByUsername,
   type RouteScope,
   type User,
@@ -303,6 +306,72 @@ export function createApp() {
 
   // ---------- User self-service (/api/me/*) ----------
   app.use("/api/me/*", requireLogin);
+
+  app.get("/api/me/mcp-tools", async (c) => {
+    const user = c.get("user")!;
+    const enabled = resolveUserMcpEnabledTools(user);
+    const enabledSet = new Set(enabled);
+    return c.json({
+      tools: MCP_TOOL_CATALOG.map((item) => ({
+        name: item.name,
+        enabled: enabledSet.has(item.name),
+        defaultEnabled: item.defaultEnabled,
+      })),
+      // legacy alias for older clients
+      optionalTools: MCP_TOOL_CATALOG.map((item) => ({
+        name: item.name,
+        enabled: enabledSet.has(item.name),
+        defaultEnabled: item.defaultEnabled,
+      })),
+      enabledTools: enabled,
+      enabledOptionalTools: enabled,
+    });
+  });
+
+  app.patch("/api/me/mcp-tools", async (c) => {
+    const user = c.get("user")!;
+    const body = (await c.req.json().catch(() => ({}))) as {
+      enabledTools?: string[];
+      enabledOptionalTools?: string[];
+      enable?: string[];
+      disable?: string[];
+    };
+    let next = resolveUserMcpEnabledTools(user);
+    if (Array.isArray(body.enabledTools)) {
+      next = normalizeMcpEnabledTools(body.enabledTools);
+    } else if (Array.isArray(body.enabledOptionalTools)) {
+      // accept full list under legacy key as well
+      next = normalizeMcpEnabledTools(body.enabledOptionalTools);
+    } else {
+      const enable = normalizeMcpEnabledTools([
+        ...next,
+        ...(Array.isArray(body.enable) ? body.enable : []),
+      ]);
+      const disable = new Set(
+        (Array.isArray(body.disable) ? body.disable : []).map((x) => String(x || "").trim()).filter(Boolean),
+      );
+      next = enable.filter((n) => !disable.has(n));
+      next = normalizeMcpEnabledTools(next);
+    }
+    const updated = await updateUser(user.id, { mcpEnabledTools: next });
+    if (!updated) return c.json({ error: "user not found" }, 404);
+    const enabled = resolveUserMcpEnabledTools(updated);
+    const enabledSet = new Set(enabled);
+    return c.json({
+      tools: MCP_TOOL_CATALOG.map((item) => ({
+        name: item.name,
+        enabled: enabledSet.has(item.name),
+        defaultEnabled: item.defaultEnabled,
+      })),
+      optionalTools: MCP_TOOL_CATALOG.map((item) => ({
+        name: item.name,
+        enabled: enabledSet.has(item.name),
+        defaultEnabled: item.defaultEnabled,
+      })),
+      enabledTools: enabled,
+      enabledOptionalTools: enabled,
+    });
+  });
 
   app.get("/api/me/routing", async (c) => {
     const user = c.get("user")!;
@@ -1733,7 +1802,20 @@ export function createApp() {
   app.post("/api/me/media/realtime/client_secrets", requireLogin, (c) =>
     handleSessionMedia(c, "POST", "/realtime/client_secrets"),
   );
-  app.get("/api/me/media/custom-voices", requireLogin, (c) => handleSessionMedia(c, "GET", "/custom-voices"));
+  app.get("/api/me/media/custom-voices", requireLogin, (c) => handleSessionMedia(c, "GET", "/custom-voices" + mediaQuery(c)));
+  app.post("/api/me/media/custom-voices", requireLogin, (c) => handleCustomVoiceCreate(c, true));
+  app.get("/api/me/media/custom-voices/:voiceId", requireLogin, (c) =>
+    handleSessionMedia(c, "GET", "/custom-voices/" + encodeURIComponent(String(c.req.param("voiceId") || ""))),
+  );
+  app.patch("/api/me/media/custom-voices/:voiceId", requireLogin, (c) =>
+    handleSessionMedia(c, "PATCH", "/custom-voices/" + encodeURIComponent(String(c.req.param("voiceId") || ""))),
+  );
+  app.delete("/api/me/media/custom-voices/:voiceId", requireLogin, (c) =>
+    handleSessionMedia(c, "DELETE", "/custom-voices/" + encodeURIComponent(String(c.req.param("voiceId") || ""))),
+  );
+  app.get("/api/me/media/custom-voices/:voiceId/audio", requireLogin, (c) =>
+    handleSessionMedia(c, "GET", "/custom-voices/" + encodeURIComponent(String(c.req.param("voiceId") || "")) + "/audio", { accept: "*/*" }),
+  );
 
   // ---------- Proxy ----------
   app.post("/v1/responses", (c) => handleProxy(c, "responses"));
@@ -1767,7 +1849,20 @@ export function createApp() {
   app.post("/v1/realtime/client_secrets", (c) =>
     handleMediaProxy(c, "POST", "/realtime/client_secrets"),
   );
-  app.get("/v1/custom-voices", (c) => handleMediaProxy(c, "GET", "/custom-voices"));
+  app.get("/v1/custom-voices", (c) => handleMediaProxy(c, "GET", "/custom-voices" + mediaQuery(c)));
+  app.post("/v1/custom-voices", (c) => handleCustomVoiceCreate(c, false));
+  app.get("/v1/custom-voices/:voiceId", (c) =>
+    handleMediaProxy(c, "GET", "/custom-voices/" + encodeURIComponent(String(c.req.param("voiceId") || ""))),
+  );
+  app.patch("/v1/custom-voices/:voiceId", (c) =>
+    handleMediaProxy(c, "PATCH", "/custom-voices/" + encodeURIComponent(String(c.req.param("voiceId") || ""))),
+  );
+  app.delete("/v1/custom-voices/:voiceId", (c) =>
+    handleMediaProxy(c, "DELETE", "/custom-voices/" + encodeURIComponent(String(c.req.param("voiceId") || ""))),
+  );
+  app.get("/v1/custom-voices/:voiceId/audio", (c) =>
+    handleMediaProxy(c, "GET", "/custom-voices/" + encodeURIComponent(String(c.req.param("voiceId") || "")) + "/audio", { accept: "*/*" }),
+  );
 
   return app;
 }
@@ -1792,13 +1887,15 @@ function mediaModelFromPath(upstreamPath: string, bodyModel?: string): string | 
   if (/\/tts\/voices/i.test(p)) return "tts-voices";
   if (/\/tts\/?$/i.test(p)) return "tts";
   if (/client_secrets/i.test(p)) return "voice-client-secret";
+  if (/custom-voices\/.+\/audio/i.test(p)) return "custom-voice-audio";
+  if (/custom-voices\//i.test(p)) return "custom-voice";
   if (/custom-voices/i.test(p)) return "custom-voices";
   return undefined;
 }
 
 function buildMediaLogFields(
   c: Context<{ Variables: Variables }>,
-  method: "GET" | "POST",
+  method: string,
   path: string,
   upstreamPath: string,
   body: unknown,
@@ -1826,7 +1923,7 @@ function buildMediaLogFields(
 
 async function resolveMediaAccountId(
   c: Context<{ Variables: Variables }>,
-  method: "GET" | "POST",
+  method: string,
   upstreamPath: string,
 ): Promise<string | undefined> {
   const pinned = (c.req.header("x-account-id") ?? "").trim() || undefined;
@@ -1838,7 +1935,7 @@ async function resolveMediaAccountId(
 }
 
 async function maybeRememberMediaJob(
-  method: "GET" | "POST",
+  method: string,
   upstreamPath: string,
   status: number,
   parsed: unknown,
@@ -1862,9 +1959,190 @@ async function maybeRememberMediaJob(
   });
 }
 
+
+function mediaQuery(c: Context<{ Variables: Variables }>): string {
+  const url = new URL(c.req.url);
+  const qs = url.searchParams.toString();
+  return qs ? `?${qs}` : "";
+}
+
+function guessAudioExt(contentType: string, filename?: string): string {
+  const f = String(filename || "").toLowerCase();
+  if (f.includes(".")) return f.split(".").pop() || "wav";
+  const ct = contentType.toLowerCase();
+  if (ct.includes("mpeg") || ct.includes("mp3")) return "mp3";
+  if (ct.includes("wav")) return "wav";
+  if (ct.includes("flac")) return "flac";
+  if (ct.includes("ogg")) return "ogg";
+  if (ct.includes("mp4") || ct.includes("m4a")) return "m4a";
+  return "wav";
+}
+
+function buildMultipartForm(parts: Array<{ name: string; value?: string; filename?: string; contentType?: string; data?: Buffer }>) {
+  const boundary = "----grokBoundary" + Date.now().toString(16) + Math.random().toString(16).slice(2);
+  const chunks: Buffer[] = [];
+  for (const p of parts) {
+    if (p.data) {
+      const filename = p.filename || "audio.wav";
+      const ctype = p.contentType || "application/octet-stream";
+      chunks.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="${p.name}"; filename="${filename}"\r\n` +
+        `Content-Type: ${ctype}\r\n\r\n`,
+        "utf8",
+      ));
+      chunks.push(p.data);
+      chunks.push(Buffer.from("\r\n", "utf8"));
+    } else if (p.value != null) {
+      chunks.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="${p.name}"\r\n\r\n` +
+        `${p.value}\r\n`,
+        "utf8",
+      ));
+    }
+  }
+  chunks.push(Buffer.from(`--${boundary}--\r\n`, "utf8"));
+  return {
+    body: Buffer.concat(chunks),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  };
+}
+
+async function handleCustomVoiceCreate(
+  c: Context<{ Variables: Variables }>,
+  session: boolean,
+) {
+  const t0 = Date.now();
+  const path = session ? "/api/me/media/custom-voices" : "/v1/custom-voices";
+  const user = session ? c.get("user") : null;
+  const apiKeyId = session ? undefined : c.get("apiKeyId");
+  const apiKeyAlias = session ? undefined : c.get("apiKeyAlias");
+  const callerUserId = session ? (user?.id ?? null) : c.get("apiKeyUserId");
+  const settings = await loadSettings();
+  const logging = settings.logEnabled !== false;
+  const baseLog = {
+    mode: "media" as const,
+    path,
+    model: "custom-voice-create",
+    stream: false,
+    userId: callerUserId ?? undefined,
+    apiKeyId,
+    apiKeyAlias,
+  };
+
+  try {
+    const ct = (c.req.header("content-type") || "").toLowerCase();
+    let rawBody: Buffer;
+    let contentType: string;
+    let logReq: any = { multipart: true };
+
+    if (ct.includes("multipart/form-data")) {
+      // Pass through upstream-compatible multipart body as-is.
+      rawBody = Buffer.from(await c.req.arrayBuffer());
+      contentType = c.req.header("content-type") || "multipart/form-data";
+    } else {
+      let body: any;
+      try { body = await c.req.json(); }
+      catch { return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400); }
+      const name = String(body?.name || "").trim();
+      const audioB64 = String(body?.audio_base64 || body?.file_base64 || "").trim();
+      if (!name) return c.json({ error: { message: "name is required", type: "invalid_request" } }, 400);
+      if (!audioB64) {
+        return c.json({
+          error: {
+            message: "audio_base64 is required (or send multipart/form-data with file field)",
+            type: "invalid_request",
+          },
+        }, 400);
+      }
+      const clean = audioB64.replace(/^data:[^;]+;base64,/, "");
+      let data: Buffer;
+      try { data = Buffer.from(clean, "base64"); }
+      catch { return c.json({ error: { message: "invalid audio_base64", type: "invalid_request" } }, 400); }
+      if (!data.length) return c.json({ error: { message: "empty audio", type: "invalid_request" } }, 400);
+      // Reference audio max ~120s; rough guard by size (~3MB soft warn only via log fields)
+      const filename = String(body?.filename || `voice.${guessAudioExt(String(body?.content_type || ""), body?.filename)}`);
+      const fileCt = String(body?.content_type || "application/octet-stream");
+      const parts: Array<{ name: string; value?: string; filename?: string; contentType?: string; data?: Buffer }> = [
+        { name: "name", value: name },
+        { name: "file", filename, contentType: fileCt, data },
+      ];
+      if (body?.language) parts.splice(1, 0, { name: "language", value: String(body.language) });
+      if (body?.description) parts.splice(1, 0, { name: "description", value: String(body.description) });
+      const mp = buildMultipartForm(parts);
+      rawBody = mp.body;
+      contentType = mp.contentType;
+      logReq = {
+        name,
+        language: body?.language,
+        description: body?.description,
+        filename,
+        content_type: fileCt,
+        byte_length: data.length,
+      };
+    }
+
+    const preferred = (c.req.header("x-account-id") ?? "").trim() || undefined;
+    const result = await proxyUpstream({
+      method: "POST",
+      path: "/custom-voices",
+      accountId: preferred,
+      callerUserId,
+      checkCredits: true,
+      rawBody,
+      contentType,
+    });
+    const respCt = result.headers.get("content-type") ?? "application/json";
+    const headers: Record<string, string> = {
+      "Content-Type": respCt,
+      "x-account-id": result.accountId,
+      "x-account-name": result.accountName,
+    };
+    const bytes = result.body ? Buffer.from(await new Response(result.body).arrayBuffer()) : Buffer.alloc(0);
+    let parsed: unknown = undefined;
+    let errText: string | undefined;
+    try { parsed = bytes.length ? JSON.parse(bytes.toString("utf8")) : undefined; }
+    catch { parsed = bytes.toString("utf8"); }
+    if (result.status >= 400) {
+      const p: any = parsed;
+      errText = typeof parsed === "object" && parsed
+        ? String((p && p.error && p.error.message) || (p && p.error) || (p && p.code) || ("HTTP " + result.status))
+        : String(parsed || ("HTTP " + result.status));
+    }
+    if (logging) {
+      const keepBody = settings.logBodies === true || result.status >= 400;
+      void appendRequestLog({
+        ...baseLog,
+        request: logReq,
+        accountId: result.accountId,
+        accountName: result.accountName,
+        status: result.status,
+        ok: result.status >= 200 && result.status < 300,
+        latencyMs: Date.now() - t0,
+        response: keepBody ? parsed : undefined,
+        error: errText,
+      });
+    }
+    return new Response(bytes, { status: result.status, headers });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (logging) {
+      void appendRequestLog({
+        ...baseLog,
+        status: 503,
+        ok: false,
+        latencyMs: Date.now() - t0,
+        error: msg,
+      });
+    }
+    return c.json({ error: { message: msg, type: "proxy_error" } }, 503);
+  }
+}
+
 async function handleSessionMedia(
   c: Context<{ Variables: Variables }>,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   upstreamPath: string,
   opts?: { accept?: string },
 ) {
@@ -1872,9 +2150,18 @@ async function handleSessionMedia(
   const t0 = Date.now();
   const path = "/api/me/media" + (upstreamPath.startsWith("/") ? upstreamPath : "/" + upstreamPath);
   let body: unknown = undefined;
-  if (method !== "GET") {
-    try { body = await c.req.json(); }
-    catch { return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400); }
+  if (method !== "GET" && method !== "DELETE") {
+    const ct = (c.req.header("content-type") || "").toLowerCase();
+    if (ct.includes("application/json") || ct === "" || ct.includes("text/plain")) {
+      try { body = await c.req.json(); }
+      catch {
+        // allow empty body for PATCH-like updates that send no content
+        if (method === "PATCH" || method === "PUT") body = {};
+        else return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400);
+      }
+    } else {
+      return c.json({ error: { message: "Unsupported content-type for this route", type: "invalid_request" } }, 400);
+    }
   }
   const settings = await loadSettings();
   const logging = settings.logEnabled !== false;
@@ -1966,7 +2253,7 @@ async function handleSessionMedia(
 
 async function handleMediaProxy(
   c: Context<{ Variables: Variables }>,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   upstreamPath: string,
   opts?: { accept?: string },
 ) {
@@ -1976,11 +2263,17 @@ async function handleMediaProxy(
   const apiKeyUserId = c.get("apiKeyUserId");
   const path = "/v1" + (upstreamPath.startsWith("/") ? upstreamPath : "/" + upstreamPath);
   let body: unknown = undefined;
-  if (method !== "GET") {
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400);
+  if (method !== "GET" && method !== "DELETE") {
+    const ct = (c.req.header("content-type") || "").toLowerCase();
+    if (ct.includes("application/json") || ct === "" || ct.includes("text/plain")) {
+      try { body = await c.req.json(); }
+      catch {
+        // allow empty body for PATCH-like updates that send no content
+        if (method === "PATCH" || method === "PUT") body = {};
+        else return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400);
+      }
+    } else {
+      return c.json({ error: { message: "Unsupported content-type for this route", type: "invalid_request" } }, 400);
     }
   }
   const settings = await loadSettings();

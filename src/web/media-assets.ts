@@ -203,25 +203,16 @@ export function mediaViewHtml(page: string): string {
                       <div class="media-step"><strong>3</strong><span data-i18n="mediaStep3">Paste into Codex / Claude Desktop MCP settings</span></div>
                     </div>
 
-                    <details class="media-tools">
+                    <details class="media-tools media-tools-config" id="mediaMcpToolConfig" open>
                       <summary>
-                        <span data-i18n="mediaToolsTitle">Tools</span>
+                        <span data-i18n="mediaMcpToolsTitle">MCP tools</span>
                         <span class="media-tools-caret" aria-hidden="true"></span>
                       </summary>
-                      <ul class="media-tool-list">
-                        <li><code>grok_list_image_models</code><span data-i18n="mediaToolImgModels">List image models</span></li>
-                        <li><code>grok_list_video_models</code><span data-i18n="mediaToolVidModels">List video models</span></li>
-                        <li><code>grok_image_generate</code><span data-i18n="mediaToolImgGen">Text → image</span></li>
-                        <li><code>grok_image_edit</code><span data-i18n="mediaToolImgEdit">Edit image</span></li>
-                        <li><code>grok_video_generate</code><span data-i18n="mediaToolVidGen">Text/image → video</span></li>
-                        <li><code>grok_video_edit</code><span data-i18n="mediaToolVidEdit">Edit video</span></li>
-                        <li><code>grok_video_extend</code><span data-i18n="mediaToolVidExt">Extend video</span></li>
-                        <li><code>grok_video_status</code><span data-i18n="mediaToolVidStatus">Poll job</span></li>
-                        <li><code>grok_list_voices</code><span data-i18n="mediaToolVoices">List TTS voices</span></li>
-                        <li><code>grok_list_custom_voices</code><span data-i18n="mediaToolCustomVoices">List custom voices</span></li>
-                        <li><code>grok_tts</code><span data-i18n="mediaToolTts">Text → speech</span></li>
-                        <li><code>grok_voice_create_client_secret</code><span data-i18n="mediaToolVoiceSecret">Realtime client secret</span></li>
-                      </ul>
+                      <div class="media-mcp-tools-cfg">
+                        <p class="media-side-copy" data-i18n="mediaMcpToolsHint">Pick which MCP tools this account exposes. Defaults keep common tools on and custom-voice management off to save agent context. Changes save automatically.</p>
+                        <div id="mediaMcpToolToggles" class="media-mcp-tool-toggles"></div>
+                        <div class="msg" id="mediaMcpToolsMsg"></div>
+                      </div>
                     </details>
                   </div>
                 </div>
@@ -290,9 +281,20 @@ export const mediaI18nZh = {
   mediaToolVidExt:"视频续写",
   mediaToolVidStatus:"任务查询",
   mediaToolVoices:"TTS 音色列表",
-  mediaToolCustomVoices:"自定义音色",
+  mediaToolCustomVoices:"自定义音色列表",
+  mediaToolGetCustomVoice:"查询自定义音色",
+  mediaToolCreateCustomVoice:"创建自定义音色",
+  mediaToolUpdateCustomVoice:"更新自定义音色",
+  mediaToolDeleteCustomVoice:"删除自定义音色",
+  mediaToolCustomVoiceAudio:"自定义音色音频",
   mediaToolTts:"文本转语音",
   mediaToolVoiceSecret:"临时密钥",
+  mediaMcpToolsTitle:"MCP 工具",
+  mediaMcpToolsHint:"选择对外暴露的 MCP 工具。默认开启常用工具，自定义音色管理默认关闭以节省 agent 上下文。勾选后自动保存。",
+  mediaMcpToolsSaved:"MCP 工具配置已更新",
+  mediaMcpToolsLoadFail:"加载工具开关失败",
+  mediaMcpToolDefaultOn:"默认开启",
+  mediaMcpToolDefaultOff:"默认关闭",
   mediaStep1:"创建或选择一个密钥",
   mediaStep2:"复制远程 MCP 配置",
   mediaStep3:"粘贴到 Codex / Claude Desktop 的 MCP 设置",
@@ -408,8 +410,19 @@ export const mediaI18nEn = {
   mediaToolVidStatus:"Poll job",
   mediaToolVoices:"List TTS voices",
   mediaToolCustomVoices:"List custom voices",
+  mediaToolGetCustomVoice:"Get custom voice",
+  mediaToolCreateCustomVoice:"Create custom voice",
+  mediaToolUpdateCustomVoice:"Update custom voice",
+  mediaToolDeleteCustomVoice:"Delete custom voice",
+  mediaToolCustomVoiceAudio:"Custom voice audio",
   mediaToolTts:"Text → speech",
   mediaToolVoiceSecret:"Client secret",
+  mediaMcpToolsTitle:"MCP tools",
+  mediaMcpToolsHint:"Choose which MCP tools this account exposes. Defaults keep common tools on and custom-voice management off to save agent context. Changes save automatically.",
+  mediaMcpToolsSaved:"MCP tool settings updated",
+  mediaMcpToolsLoadFail:"Failed to load tool switches",
+  mediaMcpToolDefaultOn:"On by default",
+  mediaMcpToolDefaultOff:"Off by default",
   mediaStep1:"Create or pick an API key",
   mediaStep2:"Copy the remote MCP config",
   mediaStep3:"Paste into Codex / Claude Desktop MCP settings",
@@ -1728,12 +1741,147 @@ export const mediaClientJs = String.raw`
       showMediaResultPanel(false);
     }
 
+    let mediaMcpToolsBaseline = [];
+    let mediaMcpToolsSaving = false;
+    let mediaMcpToolsSaveTimer = 0;
+
+    function mediaMcpToolLabel(name) {
+      const labels = {
+        grok_list_image_models: t("mediaToolImgModels"),
+        grok_list_video_models: t("mediaToolVidModels"),
+        grok_image_generate: t("mediaToolImgGen"),
+        grok_image_edit: t("mediaToolImgEdit"),
+        grok_video_generate: t("mediaToolVidGen"),
+        grok_video_edit: t("mediaToolVidEdit"),
+        grok_video_extend: t("mediaToolVidExt"),
+        grok_video_status: t("mediaToolVidStatus"),
+        grok_list_voices: t("mediaToolVoices"),
+        grok_list_custom_voices: t("mediaToolCustomVoices"),
+        grok_get_custom_voice: t("mediaToolGetCustomVoice"),
+        grok_create_custom_voice: t("mediaToolCreateCustomVoice"),
+        grok_update_custom_voice: t("mediaToolUpdateCustomVoice"),
+        grok_delete_custom_voice: t("mediaToolDeleteCustomVoice"),
+        grok_get_custom_voice_audio: t("mediaToolCustomVoiceAudio"),
+        grok_tts: t("mediaToolTts"),
+        grok_voice_create_client_secret: t("mediaToolVoiceSecret"),
+      };
+      return labels[name] || name;
+    }
+
+    function normalizeMediaMcpToolList(list) {
+      return Array.from(new Set((list || []).map((x) => String(x || "").trim()).filter(Boolean))).sort();
+    }
+
+    function currentMediaMcpEnabledTools() {
+      const host = $("mediaMcpToolToggles");
+      if (!host) return [];
+      return normalizeMediaMcpToolList(
+        Array.from(host.querySelectorAll("input[data-mcp-tool]"))
+          .filter((el) => el.checked)
+          .map((el) => el.getAttribute("data-mcp-tool"))
+      );
+    }
+
+    function sameMediaMcpToolList(a, b) {
+      const aa = normalizeMediaMcpToolList(a);
+      const bb = normalizeMediaMcpToolList(b);
+      if (aa.length !== bb.length) return false;
+      for (let i = 0; i < aa.length; i++) if (aa[i] !== bb[i]) return false;
+      return true;
+    }
+
+    function scheduleMediaMcpToolsSave() {
+      if (mediaMcpToolsSaveTimer) clearTimeout(mediaMcpToolsSaveTimer);
+      mediaMcpToolsSaveTimer = setTimeout(() => {
+        mediaMcpToolsSaveTimer = 0;
+        void saveMediaMcpTools();
+      }, 280);
+    }
+
+    async function loadMediaMcpTools() {
+      const host = $("mediaMcpToolToggles");
+      if (!host) return;
+      try {
+        const res = await fetch("/api/me/mcp-tools", { headers: headers() });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error((data && data.error) || t("mediaMcpToolsLoadFail"));
+        const tools = Array.isArray(data.tools)
+          ? data.tools
+          : (Array.isArray(data.optionalTools) ? data.optionalTools : []);
+        host.innerHTML = tools.map((item) => {
+          const name = String(item.name || "");
+          const on = !!item.enabled;
+          const defOn = !!item.defaultEnabled;
+          const label = mediaMcpToolLabel(name);
+          const badge = defOn ? t("mediaMcpToolDefaultOn") : t("mediaMcpToolDefaultOff");
+          return (
+            '<label class="media-mcp-tool-item' + (on ? " is-on" : "") + '">' +
+              '<input type="checkbox" data-mcp-tool="' + esc(name) + '"' + (on ? " checked" : "") + '/>' +
+              '<span class="media-mcp-tool-meta">' +
+                '<span class="media-mcp-tool-top"><code>' + esc(name) + '</code><em class="media-mcp-tool-badge">' + esc(badge) + '</em></span>' +
+                '<em>' + esc(label) + '</em>' +
+              '</span>' +
+            '</label>'
+          );
+        }).join("") || ('<div class="muted">' + esc(t("mediaMcpToolsHint")) + "</div>");
+        mediaMcpToolsBaseline = normalizeMediaMcpToolList(
+          tools.filter((item) => item && item.enabled).map((item) => item.name)
+        );
+        host.querySelectorAll("input[data-mcp-tool]").forEach((el) => {
+          el.addEventListener("change", () => {
+            const item = el.closest(".media-mcp-tool-item");
+            if (item) item.classList.toggle("is-on", !!el.checked);
+            const msg = $("mediaMcpToolsMsg");
+            if (msg) { msg.className = "msg"; msg.textContent = ""; }
+            scheduleMediaMcpToolsSave();
+          });
+        });
+      } catch (e) {
+        host.innerHTML = '<div class="msg error">' + esc(e && e.message ? e.message : String(e)) + "</div>";
+        mediaMcpToolsBaseline = [];
+      }
+    }
+
+    async function saveMediaMcpTools() {
+      const host = $("mediaMcpToolToggles");
+      const msg = $("mediaMcpToolsMsg");
+      if (!host || mediaMcpToolsSaving) return;
+      const enabledTools = currentMediaMcpEnabledTools();
+      if (sameMediaMcpToolList(enabledTools, mediaMcpToolsBaseline)) return;
+      mediaMcpToolsSaving = true;
+      try {
+        const res = await fetch("/api/me/mcp-tools", {
+          method: "PATCH",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ enabledTools }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error((data && data.error) || "save failed");
+        mediaMcpToolsBaseline = normalizeMediaMcpToolList(
+          Array.isArray(data.enabledTools) ? data.enabledTools : enabledTools
+        );
+        if (msg) { msg.className = "msg ok"; msg.textContent = t("mediaMcpToolsSaved"); }
+        toast(t("mediaMcpToolsSaved"), "ok");
+        if (!sameMediaMcpToolList(currentMediaMcpEnabledTools(), mediaMcpToolsBaseline)) {
+          mediaMcpToolsSaving = false;
+          scheduleMediaMcpToolsSave();
+          return;
+        }
+      } catch (e) {
+        const err = e && e.message ? e.message : String(e);
+        if (msg) { msg.className = "msg error"; msg.textContent = err; }
+        toast(err || t("mediaFailed"), "err");
+      } finally {
+        mediaMcpToolsSaving = false;
+      }
+    }
+
     async function initMediaPage() {
       bindMediaPage();
       paintMediaModeOptions();
       await ensureMediaKeys();
       applyMediaModeUI();
       paintMediaMcpConfig();
-      await loadMediaModels();
+      await Promise.all([loadMediaModels(), loadMediaMcpTools()]);
     }
 `;
