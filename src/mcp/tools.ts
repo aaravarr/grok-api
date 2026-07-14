@@ -157,14 +157,15 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     "grok_image_generate",
     {
       title: "Generate image",
-      description: "Generate image(s) with grok-imagine-image.",
+      description:
+        "Generate image(s) with grok-imagine-image / grok-imagine-image-quality. Limits: aspect_ratio e.g. 1:1,16:9,9:16,4:3,3:4,3:2,2:3,auto; resolution 1k|2k; n for batch variations (examples use up to 4). response_format url|b64_json (default url). Returned image URLs are temporary — download promptly.",
       inputSchema: {
         prompt: z.string().describe("Image prompt"),
-        model: z.string().optional().describe("Default grok-imagine-image"),
-        n: z.number().optional().describe("Count, default 1"),
-        aspect_ratio: z.string().optional().describe("e.g. 1:1, 16:9, auto"),
-        resolution: z.string().optional().describe("e.g. 1k"),
-        response_format: z.enum(["url", "b64_json"]).optional(),
+        model: z.string().optional().describe("Default grok-imagine-image (or grok-imagine-image-quality)"),
+        n: z.number().optional().describe("Number of images/variations, default 1 (batch supported)"),
+        aspect_ratio: z.string().optional().describe("1:1 | 16:9 | 9:16 | 4:3 | 3:4 | 3:2 | 2:3 | auto"),
+        resolution: z.string().optional().describe("1k | 2k"),
+        response_format: z.enum(["url", "b64_json"]).optional().describe("Default url; URLs are temporary"),
       },
     },
     async (args) => {
@@ -190,13 +191,14 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     "grok_image_edit",
     {
       title: "Edit image",
-      description: "Edit an image with prompt + source image URL/data.",
+      description:
+        "Edit an image with prompt + one source image. Source: public URL, data:image/...;base64, or file_id-compatible URL string. Body must be JSON (not multipart). Single-image edit: output aspect usually follows the source. Multi-image editing (up to 3 refs) is a separate upstream capability not fully exposed by this tool yet — pass one image_url only. Returned URLs temporary.",
       inputSchema: {
-        prompt: z.string(),
-        image_url: z.string().describe("http(s) url or data:image/...;base64,..."),
-        model: z.string().optional(),
-        n: z.number().optional(),
-        response_format: z.enum(["url", "b64_json"]).optional(),
+        prompt: z.string().describe("Edit instruction / style transfer request"),
+        image_url: z.string().describe("Public URL or data:image/...;base64,... (single source)"),
+        model: z.string().optional().describe("Default grok-imagine-image (or quality)"),
+        n: z.number().optional().describe("Count, default 1"),
+        response_format: z.enum(["url", "b64_json"]).optional().describe("Default url"),
       },
     },
     async (args) => {
@@ -221,14 +223,15 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     "grok_video_generate",
     {
       title: "Generate video",
-      description: "Start async video generation. Returns request_id; poll with grok_video_status. Note: grok-imagine-video-1.5 is image-to-video only (image_url required); pure text-to-video is not supported on that model.",
+      description:
+        "Start async video generation. Returns request_id; poll with grok_video_status. Limits from xAI docs: duration 1-15s; aspect_ratio e.g. 1:1, 16:9, 9:16, 4:3, 3:4; resolution 480p/720p/1080p (model-dependent). Model notes: grok-imagine-video supports T2V/I2V; grok-imagine-video-1.5 is image-to-video ONLY (image_url required, pure T2V rejected). For I2V, image becomes first frame; if aspect_ratio is set it may stretch the image. Do not mix image and reference_images modes. Async job; poll every few seconds.",
       inputSchema: {
-        prompt: z.string(),
-        model: z.string().optional(),
-        duration: z.number().optional().describe("1-15 seconds"),
-        aspect_ratio: z.string().optional(),
-        resolution: z.string().optional(),
-        image_url: z.string().optional().describe("First-frame image URL/data for I2V. Required for grok-imagine-video-1.5 (no pure T2V)."),
+        prompt: z.string().describe("Video prompt"),
+        model: z.string().optional().describe("Default grok-imagine-video. Use grok-imagine-video-1.5 only for I2V with image_url."),
+        duration: z.number().optional().describe("Output duration in seconds, allowed 1-15. Default 6."),
+        aspect_ratio: z.string().optional().describe("e.g. 1:1, 16:9, 9:16, 4:3, 3:4. Default often 16:9."),
+        resolution: z.string().optional().describe("480p | 720p | 1080p (availability depends on model)."),
+        image_url: z.string().optional().describe("First-frame image URL/data for image-to-video. REQUIRED for grok-imagine-video-1.5."),
       },
     },
     async (args) => {
@@ -254,11 +257,12 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     "grok_video_edit",
     {
       title: "Edit video",
-      description: "Start async video edit. Returns request_id.",
+      description:
+        "Start async video edit. Returns request_id; poll with grok_video_status. Hard limits from xAI docs: input video must be .mp4 with supported codecs (H.264/H.265/AV1 etc.); input length max ~8.7 seconds; duration/aspect_ratio/resolution are NOT customizable for edits (output inherits input duration & aspect, resolution capped at 720p). Prefer short clips.",
       inputSchema: {
-        prompt: z.string(),
-        video_url: z.string(),
-        model: z.string().optional(),
+        prompt: z.string().describe("What to change while preserving the rest of the scene"),
+        video_url: z.string().describe("Source .mp4 URL/data. Max input length ~8.7s."),
+        model: z.string().optional().describe("Default grok-imagine-video"),
       },
     },
     async (args) => {
@@ -281,12 +285,13 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     "grok_video_extend",
     {
       title: "Extend video",
-      description: "Start async video extension. Returns request_id.",
+      description:
+        "Start async video extension (continue from last frame). Returns request_id; poll with grok_video_status. CRITICAL limits: input source video should be <= ~15 seconds (docs/examples use 10s input + extension; longer inputs are likely rejected). duration is the ADDED extension length only (not final total); examples commonly use 5-10s. Final length = input_length + duration. Prefer .mp4 source. Use for seamless continuation, not arbitrary rewrites (use grok_video_edit for rewrite).",
       inputSchema: {
-        prompt: z.string(),
-        video_url: z.string(),
-        duration: z.number().optional().describe("extension seconds 2-10"),
-        model: z.string().optional(),
+        prompt: z.string().describe("What should happen next after the last frame"),
+        video_url: z.string().describe("Source video URL/data to extend. Keep input <= ~15s; prefer .mp4."),
+        duration: z.number().optional().describe("Seconds of NEW content to append only (not total). Commonly 5-10. Example: input 10s + duration 5 => output 15s."),
+        model: z.string().optional().describe("Default grok-imagine-video"),
       },
     },
     async (args) => {
@@ -310,10 +315,11 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     "grok_video_status",
     {
       title: "Video status",
-      description: "Poll async video job status by request_id. Prefer the same account used to create the job (server also remembers request_id -> account).",
+      description:
+        "Poll async video job status by request_id. Status may be pending/processing/done/failed/expired. When done, body.video.url is temporary. Server remembers request_id->account for sticky routing; optional account_id can pin further. Poll every few seconds until done/failed/expired.",
       inputSchema: {
-        request_id: z.string(),
-        account_id: z.string().optional().describe("Optional sticky account id returned by create call headers"),
+        request_id: z.string().describe("request_id from generate/edit/extend"),
+        account_id: z.string().optional().describe("Optional sticky account id from create call headers"),
       },
     },
     async (args) => {
@@ -353,7 +359,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     "grok_list_custom_voices",
     {
       title: "List custom voices",
-      description: "List custom voices available to the routed SuperGrok account.",
+      description: "List custom voices available to the routed SuperGrok account. Free tier typically caps around 30 custom voices.",
       inputSchema: {},
     },
     async () => {
@@ -372,19 +378,19 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     {
       title: "Text to speech",
       description:
-        "Generate speech audio from text. Supports expressive tags such as <soft>, <excited>, [laugh]. Returns JSON with audio_base64 (or upstream JSON when with_timestamps=true). Useful for short-drama dubbing.",
+        "Generate speech audio from text (POST /v1/tts). Limits: text max 15000 chars; language recommended (en, zh, ja, ko, ... or auto); speed 0.7-1.5; codec mp3|wav|pcm|mulaw|alaw; sample_rate 8000|16000|22050|24000|44100|48000; bit_rate for mp3 32000..192000. Supports tags: [pause],[long-pause],[laugh],[chuckle],[giggle],[cry],[breath],[sigh],... and style wrappers like <soft>/<excited>. Returns audio_base64 JSON (binary wrapped) unless with_timestamps=true. Useful for short-drama dubbing.",
       inputSchema: {
-        text: z.string().describe("Speech text, max ~15000 chars. Supports emotion tags."),
+        text: z.string().describe("Speech text, max 15000 chars. Supports speech tags."),
         voice_id: z.string().optional().describe("Built-in or custom voice id, default eve"),
-        language: z.string().optional().describe("e.g. zh, en"),
-        speed: z.number().optional().describe("Playback speed multiplier"),
-        codec: z.enum(["mp3", "wav", "pcm", "opus", "aac", "flac"]).optional(),
-        sample_rate: z.number().optional().describe("e.g. 24000"),
-        bit_rate: z.number().optional().describe("e.g. 128000 for mp3"),
+        language: z.string().optional().describe("BCP-47 or auto: en, zh, ja, ko, ... Recommended for quality."),
+        speed: z.number().optional().describe("0.7-1.5, default 1.0"),
+        codec: z.enum(["mp3", "wav", "pcm", "mulaw", "alaw"]).optional().describe("Default mp3"),
+        sample_rate: z.number().optional().describe("8000|16000|22050|24000|44100|48000"),
+        bit_rate: z.number().optional().describe("mp3 only: 32000|64000|96000|128000|192000"),
         with_timestamps: z
           .boolean()
           .optional()
-          .describe("If true, prefer JSON response with timestamps; default false (binary wrapped as base64)"),
+          .describe("If true, prefer JSON with timestamps; default false (binary wrapped as base64)"),
         output_format: z
           .object({
             codec: z.string().optional(),
@@ -425,7 +431,7 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     {
       title: "Create realtime voice client secret",
       description:
-        "Create an ephemeral client secret for browser Realtime voice sessions (POST /realtime/client_secrets). Does not open the WebSocket itself.",
+        "Create an ephemeral client secret for browser Realtime voice sessions (POST /realtime/client_secrets). Short-lived Bearer/sec-websocket-protocol credential only. Does NOT open the Realtime WebSocket (wss://api.x.ai/v1/realtime) and is not for SIP call_id sessions. Use for browser clients; server-side can use API key directly.",
       inputSchema: {
         expires_after: z
           .object({
