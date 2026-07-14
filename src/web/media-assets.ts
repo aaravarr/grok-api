@@ -497,15 +497,23 @@ export const mediaClientJs = String.raw`
       return Boolean(mediaSelectedKeyId(which));
     }
 
-    function mediaAuthHeaders(json) {
+    function mediaAuthHeaders(json, opts) {
       const secret = mediaKeySecret("studio");
       const h = {};
       if (json) h["Content-Type"] = "application/json";
       if (secret) h.Authorization = "Bearer " + secret;
       else Object.assign(h, headers());
       const pin = ($("mediaAccountPin") && $("mediaAccountPin").value || "").trim();
-      if (pin) h["x-account-id"] = pin;
+      const sticky = opts && opts.accountId ? String(opts.accountId).trim() : "";
+      const acc = pin || sticky || mediaLastAccountId || "";
+      if (acc) h["x-account-id"] = acc;
       return h;
+    }
+
+    function rememberMediaAccount(headersObj) {
+      const id = headersObj && (headersObj["x-account-id"] || headersObj["x-account-id".toLowerCase()]);
+      if (id) mediaLastAccountId = String(id).trim();
+      return mediaLastAccountId;
     }
 
     function mediaPath(sessionPath, publicPath) {
@@ -847,6 +855,7 @@ export const mediaClientJs = String.raw`
 
     let mediaLastRequestId = "";
     let mediaPollAttempt = 0;
+    let mediaLastAccountId = "";
     let mediaLastProgressPct = 0;
 
     function setMediaRequestId(id) {
@@ -1031,7 +1040,8 @@ export const mediaClientJs = String.raw`
       setMediaStatus(t("mediaPolling"), "loading");
       try {
         const path = mediaPath("/api/me/media/videos/" + encodeURIComponent(requestId), "/v1/videos/" + encodeURIComponent(requestId));
-        const r = await mediaFetch(path, { headers: mediaAuthHeaders(false) });
+        const r = await mediaFetch(path, { headers: mediaAuthHeaders(false, { accountId: mediaLastAccountId }) });
+        rememberMediaAccount(r.headersObj);
         const terminal = isTerminalVideo(r.body);
         const st = String((r.body && (r.body.status || r.body.state)) || "").toLowerCase();
         const failed = ["failed", "error", "cancelled", "canceled"].includes(st);
@@ -1253,6 +1263,7 @@ export const mediaClientJs = String.raw`
       if (meta.needsVideo && !videoUrl) return toast(t("mediaNeedVideo"), "err");
 
       mediaBusy = true;
+      mediaLastAccountId = "";
       if ($("btnMediaRun")) $("btnMediaRun").disabled = true;
       showMediaResultPanel(true);
       if ($("mediaResult")) $("mediaResult").innerHTML = '<div class="media-empty"><div class="media-empty-title">' + esc(t("mediaRunning")) + "</div></div>";
@@ -1283,6 +1294,7 @@ export const mediaClientJs = String.raw`
           if (duration) body.duration = duration;
         }
         const r = await mediaFetch(path, { method: "POST", headers: mediaAuthHeaders(true), body: JSON.stringify(body) });
+        rememberMediaAccount(r.headersObj);
         const rid = r.body && (r.body.request_id || r.body.id || r.body.job_id);
         if (rid) setMediaRequestId(String(rid));
         if (meta.isVideo && rid && !isTerminalVideo(r.body)) {

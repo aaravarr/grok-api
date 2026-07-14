@@ -34,6 +34,12 @@ import { refreshTokens,
 import { getValidAccessToken } from "../account/token.js";
 import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
+import {
+  extractVideoRequestId,
+  extractVideoRequestIdFromPath,
+  lookupVideoJobAccount,
+  rememberVideoJob,
+} from "../account/video-jobs.js";
 import { fetchUpstreamModels, proxyLLM, proxyUpstream, type ProxyMode } from "../client/xai.js";
 import { normalizeToolsInBody } from "../client/tool-schema.js";
 import { parseCpaGrokJson } from "../account/cpa-import.js";
@@ -1752,6 +1758,45 @@ export function createApp() {
 }
 
 
+
+async function resolveMediaAccountId(
+  c: Context<{ Variables: Variables }>,
+  method: "GET" | "POST",
+  upstreamPath: string,
+): Promise<string | undefined> {
+  const pinned = (c.req.header("x-account-id") ?? "").trim() || undefined;
+  if (pinned) return pinned;
+  if (method !== "GET") return undefined;
+  const requestId = extractVideoRequestIdFromPath(upstreamPath);
+  if (!requestId) return undefined;
+  return lookupVideoJobAccount(requestId);
+}
+
+async function maybeRememberMediaJob(
+  method: "GET" | "POST",
+  upstreamPath: string,
+  status: number,
+  parsed: unknown,
+  accountId: string,
+  accountName: string,
+  callerUserId?: string | null,
+): Promise<void> {
+  if (status < 200 || status >= 300) return;
+  const isVideoCreate =
+    method === "POST" &&
+    (/^\/videos\/(generations|edits|extensions)\/?$/i.test(upstreamPath) ||
+      /\/videos\/(generations|edits|extensions)\/?$/i.test(upstreamPath));
+  if (!isVideoCreate) return;
+  const requestId = extractVideoRequestId(parsed);
+  if (!requestId) return;
+  await rememberVideoJob({
+    requestId,
+    accountId,
+    accountName,
+    callerUserId,
+  });
+}
+
 async function handleSessionMedia(
   c: Context<{ Variables: Variables }>,
   method: "GET" | "POST",
@@ -1772,7 +1817,7 @@ async function handleSessionMedia(
   const settings = await loadSettings();
   const logging = settings.logEnabled !== false;
   try {
-    const preferred = c.req.header("x-account-id") ?? undefined;
+    const preferred = await resolveMediaAccountId(c, method, upstreamPath);
     const result = await proxyUpstream({
       method,
       path: upstreamPath,
@@ -1798,6 +1843,16 @@ async function handleSessionMedia(
         ? String((p && p.error && p.error.message) || (p && p.error) || (p && p.code) || ("HTTP " + result.status))
         : String(parsed || ("HTTP " + result.status));
     }
+    await maybeRememberMediaJob(
+      method,
+      upstreamPath,
+      result.status,
+      parsed,
+      result.accountId,
+      result.accountName,
+      user?.id ?? null,
+    );
+
     if (logging) {
       void appendRequestLog({
         mode: "chat",
@@ -1868,7 +1923,7 @@ async function handleMediaProxy(
     userId: apiKeyUserId,
   };
   try {
-    const preferred = c.req.header("x-account-id") ?? undefined;
+    const preferred = await resolveMediaAccountId(c, method, upstreamPath);
     const result = await proxyUpstream({
       method,
       path: upstreamPath,
@@ -1898,6 +1953,16 @@ async function handleMediaProxy(
           ? String((p && p.error && p.error.message) || (p && p.error) || (p && p.code) || ("HTTP " + result.status))
           : String(parsed || ("HTTP " + result.status));
     }
+    await maybeRememberMediaJob(
+      method,
+      upstreamPath,
+      result.status,
+      parsed,
+      result.accountId,
+      result.accountName,
+      apiKeyUserId,
+    );
+
     if (logging) {
       void appendRequestLog({
         ...baseLog,

@@ -32,12 +32,13 @@ async function callUpstream(
   method: "GET" | "POST",
   path: string,
   body?: unknown,
+  accountId?: string,
 ) {
   const result = await proxyUpstream({
     method,
     path,
     body: method === "GET" ? undefined : body,
-    accountId: auth.accountId,
+    accountId: accountId || auth.accountId,
     callerUserId: auth.callerUserId,
     checkCredits: true,
   });
@@ -261,16 +262,18 @@ export function createGrokMcpServer(auth: McpAuthContext): McpServer {
     "grok_video_status",
     {
       title: "Video status",
-      description: "Poll async video job status by request_id.",
+      description: "Poll async video job status by request_id. Prefer the same account used to create the job (server also remembers request_id -> account).",
       inputSchema: {
         request_id: z.string(),
+        account_id: z.string().optional().describe("Optional sticky account id returned by create call headers"),
       },
     },
     async (args) => {
       try {
         const id = encodeURIComponent(String(args.request_id || ""));
         if (!id) return errText("request_id required");
-        const r = await callUpstream(auth, "GET", `/videos/${id}`);
+        const sticky = args.account_id ? String(args.account_id) : undefined;
+        const r = await callUpstream(auth, "GET", `/videos/${id}`, undefined, sticky);
         if (r.status >= 400) return errText(JSON.stringify(r.json));
         return okText({ status_http: r.status, ...r.headers, body: r.json });
       } catch (e) {

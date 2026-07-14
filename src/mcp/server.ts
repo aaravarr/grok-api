@@ -114,6 +114,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (name === "grok_video_status") {
       const id = encodeURIComponent(String(args.request_id || ""));
       if (!id) return errText("request_id required");
+      // Sticky account is handled by server-side request_id mapping; optional pin via env still works.
       const r = await api("GET", `/v1/videos/${id}`);
       return r.status >= 400 ? errText(JSON.stringify(r.json)) : okText({ status_http: r.status, ...r.headers, body: r.json });
     }
