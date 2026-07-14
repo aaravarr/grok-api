@@ -58,17 +58,49 @@ function endpoint(base: string, mode: ProxyMode): string {
 }
 
 export async function proxyLLM(req: ProxyRequest): Promise<ProxyResponse> {
+  return proxyUpstream({
+    method: "POST",
+    path: req.mode === "responses" ? "/responses" : "/chat/completions",
+    body: req.body,
+    accountId: req.accountId,
+    callerUserId: req.callerUserId,
+    maxRetries: req.maxRetries,
+    checkCredits: true,
+  });
+}
+
+export type UpstreamProxyRequest = {
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** Path under upstream base, e.g. /images/generations */
+  path: string;
+  body?: unknown;
+  accountId?: string;
+  callerUserId?: string | null;
+  maxRetries?: number;
+  checkCredits?: boolean;
+  /** If true, do not JSON.stringify body (raw string/ArrayBuffer) */
+  rawBody?: any;
+  contentType?: string | null;
+};
+
+/**
+ * Generic upstream proxy with account-pool routing + retry on exhausted/retryable.
+ */
+export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyResponse> {
   const maxRetries = req.maxRetries ?? 3;
   const tried = new Set<string>();
   let lastError = "unknown";
   const base = await getUpstreamBaseUrl();
+  const method = req.method ?? "POST";
+  const checkCredits = req.checkCredits !== false;
+  const path = req.path.startsWith("/") ? req.path : `/${req.path}`;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     let routed;
     try {
       routed = await routeAccount({
         preferredId: attempt === 0 ? req.accountId : undefined,
-        checkCredits: true,
+        checkCredits,
         forceAuto: attempt > 0,
         callerUserId: req.callerUserId,
       });
@@ -80,18 +112,27 @@ export async function proxyLLM(req: ProxyRequest): Promise<ProxyResponse> {
     if (tried.has(routed.account.id)) break;
     tried.add(routed.account.id);
 
-    const res = await outboundFetch(endpoint(base, req.mode), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${routed.accessToken}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "User-Agent": "grok-api/1.0",
-      },
-      body: JSON.stringify(req.body),
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${routed.accessToken}`,
+      Accept: "application/json",
+      "User-Agent": "grok-api/1.0",
+    };
+    let body: any;
+    if (req.rawBody != null) {
+      body = req.rawBody;
+      if (req.contentType) headers["Content-Type"] = req.contentType;
+    } else if (req.body !== undefined && method !== "GET" && method !== "DELETE") {
+      headers["Content-Type"] = "application/json";
+      body = JSON.stringify(req.body);
+    }
+
+    const res = await outboundFetch(`${base}${path}`, {
+      method,
+      headers,
+      body,
     });
 
-    if (res.ok) {
+    if (res.ok || res.status === 202) {
       await onSuccess(routed.account.id);
       return {
         status: res.status,
@@ -127,3 +168,4 @@ export async function proxyLLM(req: ProxyRequest): Promise<ProxyResponse> {
 
   throw new Error(`代理失败（已尝试 ${tried.size} 个账号）: ${lastError}`);
 }
+

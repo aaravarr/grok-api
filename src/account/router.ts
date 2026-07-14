@@ -193,6 +193,9 @@ export async function onProviderError(
     "subscription",
     "no remaining",
     "credit",
+    "spending-limit",
+    "run out of credits",
+    "personal-team-blocked",
   ];
 
   if (status === 402 || status === 429) {
@@ -202,7 +205,24 @@ export async function onProviderError(
       return "exhausted";
     }
   }
-  if (status === 401 || status === 403) {
+  // SuperGrok / Imagine media quota often returns 403 spending-limit
+  if (status === 403) {
+    const quota403 =
+      lower.includes("spending-limit") ||
+      lower.includes("run out of credits") ||
+      lower.includes("need a grok subscription") ||
+      lower.includes("personal-team-blocked") ||
+      lower.includes("insufficient") ||
+      lower.includes("quota") ||
+      lower.includes("credit");
+    if (quota403) {
+      await markStatus(accountId, "exhausted", `HTTP ${status}: ${bodyText.slice(0, 300)}`);
+      return "exhausted";
+    }
+    await markStatus(accountId, "expired", `HTTP ${status}: ${bodyText.slice(0, 300)}`);
+    return "fatal";
+  }
+  if (status === 401) {
     await markStatus(accountId, "expired", `HTTP ${status}: ${bodyText.slice(0, 300)}`);
     return "fatal";
   }
@@ -227,3 +247,4 @@ export async function switchAccount(accountId: string): Promise<Account> {
   }
   return (await getAccount(accountId))!;
 }
+

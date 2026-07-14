@@ -1,4 +1,5 @@
 import { styles } from "./styles.js";
+import { mediaClientJs, mediaI18nEn, mediaI18nZh, mediaViewHtml } from "./media-assets.js";
 
 export type AppPage =
   | "overview"
@@ -9,10 +10,11 @@ export type AppPage =
   | "logs"
   | "settings"
   | "contribute"
-  | "leaderboard";
+  | "leaderboard"
+  | "media";
 
 export function appPageHtml(page: AppPage | string): string {
-  if (!['overview','accounts','keys','users','usage','logs','settings','contribute','leaderboard'].includes(page)) page = 'overview';
+  if (!['overview','accounts','keys','users','usage','logs','settings','contribute','leaderboard','media'].includes(page)) page = 'overview';
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -41,6 +43,7 @@ ${styles()}
           <a class="nav-item ${page==='overview'?'on':''}" href="/overview" data-view="overview"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span><span data-i18n="navOverview">Overview</span></a>
           <a class="nav-item ${page==='accounts'?'on':''}" href="/accounts" data-view="accounts" data-admin-only><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span data-i18n="navAccounts">Accounts</span></a>
           <a class="nav-item ${page==='keys'?'on':''}" href="/keys" data-view="keys"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg></span><span data-i18n="navKeys">API Keys</span></a>
+          <a class="nav-item ${page==='media'?'on':''}" href="/media" data-view="media"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></span><span data-i18n="navMedia">Media</span></a>
           <a class="nav-item ${page==='users'?'on':''}" href="/users" data-view="users" data-admin-only><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span data-i18n="navUsers">Users</span></a>
         </div>
         <div class="nav-group">
@@ -233,6 +236,7 @@ ${styles()}
                 <div class="card-bd ov-qa-bd">
                   <div class="quick-actions" id="quickActions">
                     <button type="button" class="qa" data-goto="keys"><strong data-i18n="navKeys">API Keys</strong><span data-i18n="qaKey">Issue client keys</span></button>
+                    <button type="button" class="qa" data-goto="media"><strong data-i18n="navMedia">Media</strong><span data-i18n="qaMedia">Generate images & videos</span></button>
                     <button type="button" class="qa" data-goto="usage"><strong data-i18n="navUsage">Usage</strong><span data-i18n="qaUsage">Charts & distribution</span></button>
                     <button type="button" class="qa" data-goto="contribute"><strong data-i18n="navContribute">Contribute</strong><span data-i18n="qaContrib">Share SuperGrok capacity</span></button>
                     <button type="button" class="qa" data-goto="leaderboard"><strong data-i18n="navLeaderboard">Leaderboard</strong><span data-i18n="qaLb">See top contributors</span></button>
@@ -825,6 +829,8 @@ ${styles()}
           </div>
         </section>
 
+${mediaViewHtml(page)}
+
         <!-- SETTINGS -->
         <section class="view ${page==='settings'?'on':''}" id="view-settings">
           <div class="settings-stack">
@@ -973,7 +979,7 @@ ${styles()}
   <div class="modal-mask" id="keyModal">
     <div class="modal" role="dialog">
       <h3 id="keyModalTitle" data-i18n="createKey">Create API Key</h3>
-      <p id="keyModalSub" data-i18n="keyOnce">The full key is shown only once. Copy it now.</p>
+      <p id="keyModalSub" data-i18n="keyOnce">You can view and copy the full key anytime after creation.</p>
       <div id="keyForm">
         <div class="field"><label data-i18n="colAlias">Alias</label><input id="keyAlias" class="input" style="width:100%" placeholder="production" /></div>
         <div class="field"><label data-i18n="validDays">Valid days (empty = never)</label><input id="keyDays" class="input" style="width:100%" type="number" min="1" placeholder="30" /></div>
@@ -983,6 +989,43 @@ ${styles()}
       <div class="row">
         <button class="btn btn-secondary" type="button" id="keyCancel" data-i18n="close">Close</button>
         <button class="btn" type="button" id="keySubmit" data-i18n="create">Create</button>
+      </div>
+    </div>
+  </div>
+
+
+
+  <div class="media-lightbox" id="mediaLightbox" hidden aria-hidden="true">
+    <div class="media-lightbox-backdrop" data-lb-close="1"></div>
+    <div class="media-lightbox-stage" id="mediaLightboxStage">
+      <img id="mediaLightboxImg" alt="" draggable="false" />
+    </div>
+    <div class="media-lightbox-toolbar">
+      <button type="button" class="media-lb-btn" id="mediaLbZoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+      <button type="button" class="media-lb-btn" id="mediaLbZoomReset" title="Reset" aria-label="Reset">1:1</button>
+      <button type="button" class="media-lb-btn" id="mediaLbZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+      <button type="button" class="media-lb-btn" id="mediaLbClose" title="Close" aria-label="Close">✕</button>
+    </div>
+    <div class="media-lightbox-hint" id="mediaLightboxHint">Scroll to zoom · drag to pan · Esc to close</div>
+  </div>
+
+  <div class="modal-mask" id="mediaLegacyKeyModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mediaLegacyTitle">
+      <h3 id="mediaLegacyTitle" data-i18n="mediaLegacyTitle">Legacy API key</h3>
+      <p id="mediaLegacySub" class="modal-sub" data-i18n="mediaLegacySub">This key has no stored full secret. Paste the full key to unlock it, or create a new key with the same settings.</p>
+      <div class="field">
+        <label data-i18n="mediaLegacySelected">Selected key</label>
+        <div class="mono" id="mediaLegacyKeyMeta">–</div>
+      </div>
+      <div class="field">
+        <label data-i18n="mediaLegacyPaste">Full API key</label>
+        <input id="mediaLegacySecret" class="input mono" style="width:100%" data-i18n-placeholder="mediaLegacyPastePh" placeholder="gk_..." autocomplete="off" />
+      </div>
+      <div class="hint" data-i18n="mediaLegacyHint">Paste the original full key to enable view/copy and media usage for this record.</div>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <button class="btn btn-secondary" type="button" id="mediaLegacyCancel" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-secondary" type="button" id="mediaLegacyCreate" data-i18n="mediaLegacyCreate">Create new key</button>
+        <button class="btn" type="button" id="mediaLegacySave" data-i18n="mediaLegacySave">Save full key</button>
       </div>
     </div>
   </div>
@@ -1151,7 +1194,7 @@ ${styles()}
 
   <script>
     const PAGE = ${JSON.stringify(page)};
-    const PAGE_HREF = { overview:"/overview", accounts:"/accounts", keys:"/keys", users:"/users", usage:"/usage", logs:"/logs", settings:"/settings", contribute:"/contribute", leaderboard:"/leaderboard" };
+    const PAGE_HREF = { overview:"/overview", accounts:"/accounts", keys:"/keys", users:"/users", usage:"/usage", logs:"/logs", settings:"/settings", contribute:"/contribute", leaderboard:"/leaderboard", media:"/media" };
     const PAGE_SIZE = 8;
     const LOG_PAGE = 15;
     const PALETTE = ["#0070f3","#7928ca","#0a7a3e","#ab570a","#ee0000","#00a0a0","#333","#888"];
@@ -1165,6 +1208,7 @@ ${styles()}
       settings: { titleKey: "navSettings", subKey: "subSettings", admin: true },
       contribute: { titleKey: "navContribute", subKey: "subContribute" },
       leaderboard: { titleKey: "navLeaderboard", subKey: "subLeaderboard" },
+      media: { titleKey: "navMedia", subKey: "subMedia" },
     };
     const I18N = {
       zh: {
@@ -1179,8 +1223,8 @@ ${styles()}
         authToReg:"没有账号？注册", authToLogin:"已有账号？登录",
         authPassMismatch:"两次密码不一致",
         navOps:"运营", navAnalyze:"分析", navOps2:"运维", navSystem:"系统",
-        navOverview:"总览", navAccounts:"账号", navKeys:"密钥", navUsers:"用户", navUsage:"用量", navLogs:"日志", navSettings:"设置",
-        subOverview:"池状态 · 流量 · 快捷入口", subAccounts:"OAuth 池 · 路由与额度", subKeys:"客户端鉴权密钥",
+        navOverview:"总览", navAccounts:"账号", navKeys:"密钥", navUsers:"用户", navUsage:"用量", navLogs:"日志", navSettings:"设置", navMedia:"媒体",
+        subOverview:"池状态 · 流量 · 快捷入口", subAccounts:"OAuth 池 · 路由与额度", subKeys:"客户端鉴权密钥", subMedia:"Imagine 图片 / 视频 · MCP 配置",
         subUsers:"注册用户与角色", subUsage:"Token / 次数 / 模型分布", subLogs:"完整请求排查（低频）", subSettings:"代理与日志策略",
         usersHint:"管理注册用户", colUser:"用户", colRole:"角色", colQuota:"额度",
         allowRegister:"允许注册", userSettings:"用户注册",
@@ -1195,7 +1239,7 @@ ${styles()}
         renameUserHint:"2–32 位 · 字母数字 _ . - 或中文", renameUserSave:"保存",
         renameUserOk:"用户名已更新", renameUserEmpty:"请输入用户名",
         viewMore:"查看详情 →", viewAllLogs:"全部日志 →",
-        qaAcc:"账号池与额度", qaKey:"创建与管理密钥", qaUsage:"趋势与分布", qaLogs:"请求排查",
+        qaAcc:"账号池与额度", qaKey:"创建与管理密钥", qaMedia:"在线生成图片与视频", qaUsage:"趋势与分布", qaLogs:"请求排查",
         qaSettings:"端点与代理",
         ovKicker:"控制台",
         ovHello:"总览",
@@ -1311,8 +1355,8 @@ ${styles()}
         memberAddNoHit:"未找到该用户（需完整用户名）", memberAddPicked:(n)=>n ? ("已选 "+n+" 人") : "未选择",
         colAlias:"别名", colKey:"密钥", colExpires:"过期",
         keysTitle:"客户端密钥", keysHint:"Bearer gk_…",
-        createKey:"创建密钥", create:"创建", close:"关闭",
-        keyOnce:"完整密钥只会显示一次，请立即复制。",
+        createKey:"创建密钥", viewKey:"查看", hideKey:"隐藏", copyKey:"复制密钥", create:"创建", close:"关闭",
+        keyOnce:"创建后可随时查看与复制完整密钥。",
         validDays:"有效天数（空=永不过期）", note:"备注",
         copy:"复制", copied:"已复制", endpoint:"接口",
         use:"使用", credits:"查额度", reset:"恢复", del:"删除",
@@ -1382,7 +1426,7 @@ ${styles()}
         visHintPrivate:"仅贡献者本人可用",
         visHintRestricted:"仅名单内成员可用（含贡献者）",
         filterSearch:"搜索…", filterAllStatus:"全部状态", filterAllRole:"全部角色", filterAllVis:"全部可见性",
-        editKey:"编辑", editKeyTitle:"编辑密钥", editKeySub:"修改别名、有效期或备注。不会重新生成密钥。",
+        editKey:"编辑", editKeyTitle:"编辑密钥", editKeySub:"修改别名、有效期或备注。完整密钥可在列表中查看复制。",
         keyUpdated:"密钥已更新", save:"保存", never:"永不过期",
         lbKicker:"公开排行", lbTitle:"贡献者排行榜",
         lbSub:"两个榜：总贡献（公开+私有）与公开贡献。管理员已排除。",
@@ -1396,6 +1440,7 @@ ${styles()}
         lbTableTotal:"总贡献排名", lbTablePublic:"公开贡献排名",
         colRank:"名次", colSeats:"席位", colActive:"可用",
         copyCode:"复制代码",
+        ${Object.entries(mediaI18nZh).map(([k,v]) => JSON.stringify(k)+":"+JSON.stringify(v)).join(",")}
       },
       en: {
         title:"Account Pool", subtitle:"SuperGrok OAuth pool · credit-aware routing · OpenAI-compatible proxy.",
@@ -1409,8 +1454,8 @@ ${styles()}
         authToReg:"No account? Register", authToLogin:"Have an account? Sign in",
         authPassMismatch:"Passwords do not match",
         navOps:"Operate", navAnalyze:"Analyze", navOps2:"Ops", navSystem:"System",
-        navOverview:"Overview", navAccounts:"Accounts", navKeys:"API Keys", navUsers:"Users", navUsage:"Usage", navLogs:"Logs", navSettings:"Settings",
-        subOverview:"Pool health · traffic · shortcuts", subAccounts:"OAuth pool · routing & credits", subKeys:"Client auth keys",
+        navOverview:"Overview", navAccounts:"Accounts", navKeys:"API Keys", navUsers:"Users", navUsage:"Usage", navLogs:"Logs", navSettings:"Settings", navMedia:"Media",
+        subOverview:"Pool health · traffic · shortcuts", subAccounts:"OAuth pool · routing & credits", subKeys:"Client auth keys", subMedia:"Imagine image / video · MCP setup",
         subUsers:"Registered users & roles", subUsage:"Tokens / calls / models", subLogs:"Full request debug (rare)", subSettings:"Proxy & log policy",
         usersHint:"Manage registered users", colUser:"User", colRole:"Role", colQuota:"Quota",
         allowRegister:"Allow registration", userSettings:"Registration",
@@ -1425,7 +1470,7 @@ ${styles()}
         renameUserHint:"2–32 chars · letters, numbers, _ . - or CJK", renameUserSave:"Save",
         renameUserOk:"Username updated", renameUserEmpty:"Enter a username",
         viewMore:"Details →", viewAllLogs:"All logs →",
-        qaAcc:"Pool & credits", qaKey:"Create and manage keys", qaUsage:"Trends & mix", qaLogs:"Request debug",
+        qaAcc:"Pool & credits", qaKey:"Create and manage keys", qaMedia:"Generate images & videos", qaUsage:"Trends & mix", qaLogs:"Request debug",
         qaSettings:"Endpoints & proxy",
         ovKicker:"Console",
         ovHello:"Overview",
@@ -1541,8 +1586,8 @@ ${styles()}
         memberAddNoHit:"User not found (full username required)", memberAddPicked:(n)=>n ? (n+" selected") : "None selected",
         colAlias:"Alias", colKey:"Key", colExpires:"Expires",
         keysTitle:"Client keys", keysHint:"Bearer gk_…",
-        createKey:"Create key", create:"Create", close:"Close",
-        keyOnce:"The full key is shown only once. Copy it now.",
+        createKey:"Create key", viewKey:"View", hideKey:"Hide", copyKey:"Copy key", create:"Create", close:"Close",
+        keyOnce:"You can view and copy the full key anytime after creation.",
         validDays:"Valid days (empty = never)", note:"Note",
         copy:"Copy", copied:"Copied", endpoint:"Endpoint",
         use:"Use", credits:"Credits", reset:"Reset", del:"Delete",
@@ -1612,7 +1657,7 @@ ${styles()}
         visHintPrivate:"Only the donor can use it",
         visHintRestricted:"Only listed members (incl. donor)",
         filterSearch:"Search…", filterAllStatus:"All status", filterAllRole:"All roles", filterAllVis:"All visibility",
-        editKey:"Edit", editKeyTitle:"Edit API key", editKeySub:"Update alias, validity, or note. The secret is not rotated.",
+        editKey:"Edit", editKeyTitle:"Edit API key", editKeySub:"Update alias, validity, or note. Full key remains viewable in the list.",
         keyUpdated:"API key updated", save:"Save", never:"never",
         lbKicker:"Public ranking", lbTitle:"Contributor leaderboard",
         lbSub:"Two boards: total seats (public + private) and public-only seats. Admins are excluded.",
@@ -1626,6 +1671,7 @@ ${styles()}
         lbTableTotal:"Total ranking", lbTablePublic:"Public ranking",
         colRank:"Rank", colSeats:"Seats", colActive:"Active",
         copyCode:"Copy code",
+        ${Object.entries(mediaI18nEn).map(([k,v]) => JSON.stringify(k)+":"+JSON.stringify(v)).join(",")}
       }
     };
 
@@ -2262,7 +2308,16 @@ ${styles()}
         return opt ? (opt.textContent || opt.value || "") : "";
       }
       function syncLabel() {
-        labelEl.textContent = selectedText() || "–";
+        const opt = sel.options[sel.selectedIndex];
+        const title = selectedText() || "–";
+        const desc = opt && opt.getAttribute("data-desc");
+        if (desc) {
+          labelEl.innerHTML = '<span class="cselect-title">' + esc(title) + '</span><span class="cselect-desc">' + esc(desc) + "</span>";
+          btn.classList.add("has-desc");
+        } else {
+          labelEl.textContent = title;
+          btn.classList.remove("has-desc");
+        }
       }
       function closeMenu() {
         wrap.classList.remove("open");
@@ -2287,7 +2342,7 @@ ${styles()}
         if (searchInput) setTimeout(() => { try { searchInput.focus(); } catch {} }, 0);
       }
       function optionSearchText(opt) {
-        return ((opt.textContent || "") + " " + (opt.value || "")).toLowerCase();
+        return ((opt.textContent || "") + " " + (opt.value || "") + " " + (opt.getAttribute("data-desc") || "")).toLowerCase();
       }
       function optionRank(opt, q) {
         if (!q) return 0;
@@ -2319,11 +2374,17 @@ ${styles()}
         items.forEach(({ opt, idx }) => {
           const b = document.createElement("button");
           b.type = "button";
-          b.className = "cselect-opt" + (opt.selected ? " on" : "");
+          b.className = "cselect-opt" + (opt.selected ? " on" : "") + (opt.getAttribute("data-desc") ? " has-desc" : "");
           b.setAttribute("role", "option");
           b.setAttribute("aria-selected", opt.selected ? "true" : "false");
           b.disabled = opt.disabled;
-          b.textContent = opt.textContent || opt.value || "";
+          const title = opt.textContent || opt.value || "";
+          const desc = opt.getAttribute("data-desc") || "";
+          if (desc) {
+            b.innerHTML = '<span class="cselect-title">' + esc(title) + '</span><span class="cselect-desc">' + esc(desc) + "</span>";
+          } else {
+            b.textContent = title;
+          }
           b.dataset.value = opt.value;
           b.dataset.idx = String(idx);
           b.addEventListener("click", (e) => {
@@ -2808,14 +2869,21 @@ ${styles()}
       tbody.innerHTML = slice.map((k) => {
         const st = keyStatus(k);
         const owner = k.username || k.userId || "–";
+        const secret = k.key || "";
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(k.alias) + '</div><div class="mono">' + esc(k.note || "") + "</div></div>" +
-          '<div class="mono">' + esc(k.keyPrefix) + "</div>" +
+          '<div class="mono key-cell"><div>' + esc(k.keyPrefix) + '</div>' +
+            (secret ? ('<div class="key-secret mono" data-key-secret="' + esc(k.id) + '" hidden></div>') : '') +
+          "</div>" +
           (showOwner ? '<div><div class="name">' + esc(owner) + '</div><div class="mono">' + esc(k.userId || "") + "</div></div>" : "") +
           '<div><span class="badge ' + (st === "active" ? "active" : "error") + '">' + st + "</span></div>" +
           '<div class="dt-time">' + (k.expiresAt ? fmtTime(k.expiresAt) : t("never")) + "</div>" +
           '<div class="mono dt-num" title="' + esc(String(k.useCount ?? 0)) + '">' + esc(fmtNum(k.useCount ?? 0)) + "</div>" +
           '<div class="dt-actions">' +
+          (secret ? (
+            '<button class="btn btn-secondary btn-sm" type="button" data-act="viewkey" data-id="' + esc(k.id) + '">' + esc(t("viewKey")) + "</button>" +
+            '<button class="btn btn-secondary btn-sm" type="button" data-act="copykey" data-id="' + esc(k.id) + '">' + esc(t("copyKey")) + "</button>"
+          ) : "") +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="editkey" data-id="' + esc(k.id) + '">' + esc(t("editKey")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="toggle" data-id="' + esc(k.id) + '" data-en="' + (k.enabled ? "0" : "1") + '">' +
           esc(k.enabled ? t("disable") : t("enable")) + "</button>" +
@@ -2823,12 +2891,27 @@ ${styles()}
           "</div></div>";
       }).join("");
       tbody.querySelectorAll("button[data-act]").forEach((btn) => {
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", async () => {
           const id = btn.getAttribute("data-id");
           const act = btn.getAttribute("data-act");
           if (act === "editkey") openKeyEdit(id);
           if (act === "toggle") toggleKey(id, btn.getAttribute("data-en") === "1");
           if (act === "delkey") delKey(id);
+          if (act === "viewkey") {
+            const k = allKeys.find((x) => x.id === id);
+            const el = tbody.querySelector('[data-key-secret="' + id + '"]');
+            if (!k || !el) return;
+            const open = el.hidden;
+            el.hidden = !open;
+            el.textContent = open ? (k.key || "") : "";
+            btn.textContent = open ? t("hideKey") : t("viewKey");
+          }
+          if (act === "copykey") {
+            const k = allKeys.find((x) => x.id === id);
+            if (!k || !k.key) return toast(t("mediaNoKeySecret") || "no key", "err");
+            try { await navigator.clipboard.writeText(k.key); toast(t("mediaCopied") || t("copy")); }
+            catch { toast(String("copy failed"), "err"); }
+          }
         });
       });
     }
@@ -3685,6 +3768,9 @@ ${styles()}
         const maxPage = Math.max(1, Math.ceil(allKeys.length / PAGE_SIZE));
         if (keyPage > maxPage) keyPage = maxPage;
         renderKeys();
+        if (typeof paintMediaKeySelects === "function") {
+          try { mediaKeys = allKeys.slice(); paintMediaKeySelects(); } catch {}
+        }
       } catch (e) {
         if ($("tbodyKeys")) $("tbodyKeys").innerHTML = '<div class="dt-empty">' + esc(String(e.message || e)) + "</div>";
       } finally {
@@ -5682,6 +5768,8 @@ ${styles()}
     };
     if ($("btnLogout")) $("btnLogout").onclick = logout;
 
+${mediaClientJs}
+
     async function loadViewData(name, opts) {
       if (!currentUser) return;
       const target = VIEW_META[name] ? name : "overview";
@@ -5706,6 +5794,8 @@ ${styles()}
         tasks.push(loadMyAccounts(), loadMyRouting(), loadLeaderboardLite());
       } else if (target === "leaderboard") {
         tasks.push(loadLeaderboard());
+      } else if (target === "media") {
+        tasks.push(initMediaPage());
       } else if (target === "settings") {
         tasks.push(loadMeta());
       }

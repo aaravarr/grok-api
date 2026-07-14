@@ -11,7 +11,8 @@ startTokenRefreshScheduler();
 
 console.log(`[grok-api] http://${config.host}:${config.port}`);
 console.log(`[grok-api] admin UI  → /`);
-console.log(`[grok-api] api       → POST /v1/chat/completions | /v1/responses`);
+console.log(`[grok-api] api       → POST /v1/chat/completions | /v1/responses | /v1/images/* | /v1/videos/*`);
+console.log(`[grok-api] mcp       → /mcp  (remote Streamable HTTP, Bearer gk_...)`);
 console.log(`[grok-api] data      → ${config.authFile}`);
 
 serve({

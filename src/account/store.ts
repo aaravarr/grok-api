@@ -781,6 +781,7 @@ export async function createApiKey(input: {
     const rec: ApiKeyRecord = {
       id: randomId(8),
       keyHash: hash,
+      secret: key,
       keyPrefix: prefix,
       alias: input.alias.trim() || `key-${store.apiKeys.length + 1}`,
       enabled: true,
@@ -803,7 +804,7 @@ export async function getApiKey(id: string): Promise<ApiKeyRecord | undefined> {
 
 export async function updateApiKey(
   id: string,
-  patch: Partial<Pick<ApiKeyRecord, "alias" | "enabled" | "expiresAt" | "note">>,
+  patch: Partial<Pick<ApiKeyRecord, "alias" | "enabled" | "expiresAt" | "note" | "secret" | "keyPrefix" | "keyHash">>,
 ): Promise<ApiKeyRecord | undefined> {
   return mutate((store) => {
     const idx = store.apiKeys.findIndex((k) => k.id === id);
@@ -908,6 +909,9 @@ export function publicApiKey(k: ApiKeyRecord) {
   return {
     id: k.id,
     keyPrefix: k.keyPrefix,
+    /** Full key when available (new keys + migrated). */
+    key: k.secret || null,
+    hasSecret: Boolean(k.secret),
     alias: k.alias,
     enabled: k.enabled,
     createdAt: k.createdAt,

@@ -8,6 +8,7 @@ import {
   canUserUseAccount,
   sanitizeAllowedUserIds,
   createApiKey,
+  hashApiKey,
   deleteAccount,
   deleteApiKey,
   getAccount,
@@ -33,7 +34,7 @@ import { refreshTokens,
 import { getValidAccessToken } from "../account/token.js";
 import { fetchAccountCredits } from "../account/billing.js";
 import { switchAccount } from "../account/router.js";
-import { fetchUpstreamModels, proxyLLM, type ProxyMode } from "../client/xai.js";
+import { fetchUpstreamModels, proxyLLM, proxyUpstream, type ProxyMode } from "../client/xai.js";
 import { normalizeToolsInBody } from "../client/tool-schema.js";
 import { parseCpaGrokJson } from "../account/cpa-import.js";
 import { getProxyInfo, setProxyOverride } from "../proxy.js";
@@ -46,6 +47,7 @@ import {
 } from "../settings.js";
 import { authPageHtml } from "../web/auth-page.js";
 import { appPageHtml } from "../web/app-page.js";
+import { handleMcpHttp } from "../mcp/http.js";
 import { homePageHtml } from "../web/home-page.js";
 import {
   appendRequestLog,
@@ -103,7 +105,22 @@ function bearer(c: Context): string {
 
 export function createApp() {
   const app = new Hono<{ Variables: Variables }>();
-  app.use("*", cors());
+  app.use(
+    "*",
+    cors({
+      origin: "*",
+      allowHeaders: [
+        "Content-Type",
+        "Authorization",
+        "x-account-id",
+        "mcp-session-id",
+        "mcp-protocol-version",
+        "Last-Event-ID",
+      ],
+      exposeHeaders: ["mcp-session-id", "mcp-protocol-version", "x-account-id", "x-account-name"],
+      allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+    }),
+  );
 
   app.use("*", async (c, next) => {
     c.set("apiKeyId", null);
@@ -120,7 +137,7 @@ export function createApp() {
   app.get("/setup", (c) => c.html(authPageHtml("setup")));
   app.get("/", (c) => c.html(homePageHtml()));
   app.get("/overview", (c) => c.html(appPageHtml("overview")));
-  for (const p of ["accounts", "keys", "users", "usage", "logs", "settings", "contribute", "leaderboard"] as const) {
+  for (const p of ["accounts", "keys", "users", "usage", "logs", "settings", "contribute", "leaderboard", "media"] as const) {
     app.get("/" + p, (c) => c.html(appPageHtml(p)));
   }
   app.get("/app", (c) => c.redirect("/overview"));
@@ -132,6 +149,10 @@ export function createApp() {
       needsSetup: await needsSetup(),
     }),
   );
+
+  // Remote MCP (Streamable HTTP). Clients only need URL + API key.
+  app.all("/mcp", (c) => handleMcpHttp(c));
+  app.all("/mcp/*", (c) => handleMcpHttp(c));
 
   // Self-hosted Geist fonts (avoid fonts.googleapis.com in China)
   app.get("/static/fonts/:file", async (c) => {
@@ -367,16 +388,31 @@ export function createApp() {
       expiresAt?: number | null;
       expiresInDays?: number | null;
       note?: string;
+      secret?: string;
     };
     const patch: {
       alias?: string;
       enabled?: boolean;
       expiresAt?: number | null;
       note?: string;
+      secret?: string;
+      keyPrefix?: string;
+      keyHash?: string;
     } = {};
     if (body.alias !== undefined) patch.alias = body.alias;
     if (body.enabled !== undefined) patch.enabled = body.enabled;
     if (body.note !== undefined) patch.note = body.note;
+    if (body.secret !== undefined) {
+      const secret = String(body.secret || "").trim();
+      if (!secret) return c.json({ error: "secret required" }, 400);
+      const hash = hashApiKey(secret);
+      if (existing.keyHash && hash !== existing.keyHash) {
+        return c.json({ error: "secret does not match this API key" }, 400);
+      }
+      patch.secret = secret;
+      patch.keyHash = hash;
+      patch.keyPrefix = `${secret.slice(0, 12)}…${secret.slice(-4)}`;
+    }
     if (body.expiresInDays !== undefined) {
       patch.expiresAt =
         body.expiresInDays != null && body.expiresInDays > 0
@@ -1549,22 +1585,39 @@ export function createApp() {
   });
 
   app.patch("/api/admin/keys/:id", async (c) => {
+    const existing = await getApiKey(c.req.param("id"));
+    if (!existing) return c.json({ error: "not found" }, 404);
     const body = (await c.req.json()) as {
       alias?: string;
       enabled?: boolean;
       expiresAt?: number | null;
       expiresInDays?: number | null;
       note?: string;
+      secret?: string;
     };
     const patch: {
       alias?: string;
       enabled?: boolean;
       expiresAt?: number | null;
       note?: string;
+      secret?: string;
+      keyPrefix?: string;
+      keyHash?: string;
     } = {};
     if (body.alias !== undefined) patch.alias = body.alias;
     if (body.enabled !== undefined) patch.enabled = body.enabled;
     if (body.note !== undefined) patch.note = body.note;
+    if (body.secret !== undefined) {
+      const secret = String(body.secret || "").trim();
+      if (!secret) return c.json({ error: "secret required" }, 400);
+      const hash = hashApiKey(secret);
+      if (existing.keyHash && hash !== existing.keyHash) {
+        return c.json({ error: "secret does not match this API key" }, 400);
+      }
+      patch.secret = secret;
+      patch.keyHash = hash;
+      patch.keyPrefix = `${secret.slice(0, 12)}…${secret.slice(-4)}`;
+    }
     if (body.expiresInDays !== undefined) {
       patch.expiresAt =
         body.expiresInDays != null && body.expiresInDays > 0
@@ -1657,6 +1710,18 @@ export function createApp() {
     return c.json({ stats });
   });
 
+  // ---------- Media (session console + Imagine) ----------
+  app.get("/api/me/media/image-models", requireLogin, (c) => handleSessionMedia(c, "GET", "/image-generation-models"));
+  app.get("/api/me/media/video-models", requireLogin, (c) => handleSessionMedia(c, "GET", "/video-generation-models"));
+  app.post("/api/me/media/images/generations", requireLogin, (c) => handleSessionMedia(c, "POST", "/images/generations"));
+  app.post("/api/me/media/images/edits", requireLogin, (c) => handleSessionMedia(c, "POST", "/images/edits"));
+  app.post("/api/me/media/videos/generations", requireLogin, (c) => handleSessionMedia(c, "POST", "/videos/generations"));
+  app.post("/api/me/media/videos/edits", requireLogin, (c) => handleSessionMedia(c, "POST", "/videos/edits"));
+  app.post("/api/me/media/videos/extensions", requireLogin, (c) => handleSessionMedia(c, "POST", "/videos/extensions"));
+  app.get("/api/me/media/videos/:requestId", requireLogin, (c) =>
+    handleSessionMedia(c, "GET", "/videos/" + encodeURIComponent(String(c.req.param("requestId") || ""))),
+  );
+
   // ---------- Proxy ----------
   app.post("/v1/responses", (c) => handleProxy(c, "responses"));
   app.post("/v1/chat/completions", (c) => handleProxy(c, "chat"));
@@ -1671,7 +1736,194 @@ export function createApp() {
     }
   });
 
+  // Imagine / media APIs (SuperGrok OAuth pool)
+  app.get("/v1/image-generation-models", (c) => handleMediaProxy(c, "GET", "/image-generation-models"));
+  app.get("/v1/video-generation-models", (c) => handleMediaProxy(c, "GET", "/video-generation-models"));
+  app.post("/v1/images/generations", (c) => handleMediaProxy(c, "POST", "/images/generations"));
+  app.post("/v1/images/edits", (c) => handleMediaProxy(c, "POST", "/images/edits"));
+  app.post("/v1/videos/generations", (c) => handleMediaProxy(c, "POST", "/videos/generations"));
+  app.post("/v1/videos/edits", (c) => handleMediaProxy(c, "POST", "/videos/edits"));
+  app.post("/v1/videos/extensions", (c) => handleMediaProxy(c, "POST", "/videos/extensions"));
+  app.get("/v1/videos/:requestId", (c) =>
+    handleMediaProxy(c, "GET", "/videos/" + encodeURIComponent(String(c.req.param("requestId") || ""))),
+  );
+
   return app;
+}
+
+
+async function handleSessionMedia(
+  c: Context<{ Variables: Variables }>,
+  method: "GET" | "POST",
+  upstreamPath: string,
+) {
+  const user = c.get("user");
+  const t0 = Date.now();
+  const path = "/api/me/media" + (upstreamPath.startsWith("/") ? upstreamPath : "/" + upstreamPath);
+  let body: unknown = undefined;
+  if (method !== "GET") {
+    try { body = await c.req.json(); }
+    catch { return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400); }
+  }
+  const model =
+    body && typeof body === "object" && typeof (body as any).model === "string"
+      ? String((body as any).model)
+      : undefined;
+  const settings = await loadSettings();
+  const logging = settings.logEnabled !== false;
+  try {
+    const preferred = c.req.header("x-account-id") ?? undefined;
+    const result = await proxyUpstream({
+      method,
+      path: upstreamPath,
+      body: method === "GET" ? undefined : body,
+      accountId: preferred,
+      callerUserId: user?.id ?? null,
+      checkCredits: true,
+    });
+    const contentType = result.headers.get("content-type") ?? "application/json";
+    const headers: Record<string, string> = {
+      "Content-Type": contentType,
+      "x-account-id": result.accountId,
+      "x-account-name": result.accountName,
+    };
+    const bytes = result.body ? Buffer.from(await new Response(result.body).arrayBuffer()) : Buffer.alloc(0);
+    let parsed: unknown = undefined;
+    let errText: string | undefined;
+    try { parsed = bytes.length ? JSON.parse(bytes.toString("utf8")) : undefined; }
+    catch { parsed = bytes.toString("utf8"); }
+    if (result.status >= 400) {
+      const p: any = parsed;
+      errText = typeof parsed === "object" && parsed
+        ? String((p && p.error && p.error.message) || (p && p.error) || (p && p.code) || ("HTTP " + result.status))
+        : String(parsed || ("HTTP " + result.status));
+    }
+    if (logging) {
+      void appendRequestLog({
+        mode: "chat",
+        path,
+        model,
+        stream: false,
+        userId: user?.id,
+        accountId: result.accountId,
+        accountName: result.accountName,
+        status: result.status,
+        ok: result.status >= 200 && result.status < 300,
+        latencyMs: Date.now() - t0,
+        response: settings.logBodies === true || result.status >= 400 ? parsed : undefined,
+        error: errText,
+      });
+    }
+    return new Response(bytes, { status: result.status, headers });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (logging) {
+      void appendRequestLog({
+        mode: "chat",
+        path,
+        model,
+        stream: false,
+        userId: user?.id,
+        status: 503,
+        ok: false,
+        latencyMs: Date.now() - t0,
+        error: msg,
+      });
+    }
+    return c.json({ error: { message: msg, type: "proxy_error" } }, 503);
+  }
+}
+
+async function handleMediaProxy(
+  c: Context<{ Variables: Variables }>,
+  method: "GET" | "POST",
+  upstreamPath: string,
+) {
+  const t0 = Date.now();
+  const apiKeyId = c.get("apiKeyId");
+  const apiKeyAlias = c.get("apiKeyAlias");
+  const apiKeyUserId = c.get("apiKeyUserId");
+  const path = "/v1" + (upstreamPath.startsWith("/") ? upstreamPath : "/" + upstreamPath);
+  let body: unknown = undefined;
+  if (method !== "GET") {
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: { message: "Invalid JSON body", type: "invalid_request" } }, 400);
+    }
+  }
+  const model =
+    body && typeof body === "object" && typeof (body as any).model === "string"
+      ? String((body as any).model)
+      : undefined;
+  const settings = await loadSettings();
+  const logging = settings.logEnabled !== false;
+  const baseLog = {
+    mode: "chat" as const,
+    path,
+    model,
+    stream: false,
+    apiKeyId,
+    apiKeyAlias,
+    userId: apiKeyUserId,
+  };
+  try {
+    const preferred = c.req.header("x-account-id") ?? undefined;
+    const result = await proxyUpstream({
+      method,
+      path: upstreamPath,
+      body: method === "GET" ? undefined : body,
+      accountId: preferred,
+      callerUserId: apiKeyUserId,
+      checkCredits: true,
+    });
+    const contentType = result.headers.get("content-type") ?? "application/json";
+    const headers: Record<string, string> = {
+      "Content-Type": contentType,
+      "x-account-id": result.accountId,
+      "x-account-name": result.accountName,
+    };
+    const bytes = result.body ? Buffer.from(await new Response(result.body).arrayBuffer()) : Buffer.alloc(0);
+    let parsed: unknown = undefined;
+    let errText: string | undefined;
+    try {
+      parsed = bytes.length ? JSON.parse(bytes.toString("utf8")) : undefined;
+    } catch {
+      parsed = bytes.toString("utf8");
+    }
+    if (result.status >= 400) {
+      const p: any = parsed;
+      errText =
+        typeof parsed === "object" && parsed
+          ? String((p && p.error && p.error.message) || (p && p.error) || (p && p.code) || ("HTTP " + result.status))
+          : String(parsed || ("HTTP " + result.status));
+    }
+    if (logging) {
+      void appendRequestLog({
+        ...baseLog,
+        accountId: result.accountId,
+        accountName: result.accountName,
+        status: result.status,
+        ok: result.status >= 200 && result.status < 300,
+        latencyMs: Date.now() - t0,
+        response: settings.logBodies === true || result.status >= 400 ? parsed : undefined,
+        error: errText,
+      });
+    }
+    return new Response(bytes, { status: result.status, headers });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (logging) {
+      void appendRequestLog({
+        ...baseLog,
+        status: 503,
+        ok: false,
+        latencyMs: Date.now() - t0,
+        error: msg,
+      });
+    }
+    return c.json({ error: { message: msg, type: "proxy_error" } }, 503);
+  }
 }
 
 async function requireLogin(c: Context<{ Variables: Variables }>, next: Next) {
@@ -1926,3 +2178,4 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: ProxyMode
     return c.json({ error: { message: msg, type: "proxy_error" } }, 503);
   }
 }
+

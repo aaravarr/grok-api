@@ -71,8 +71,10 @@ export interface Account {
 
 export interface ApiKeyRecord {
   id: string;
-  /** Full key only returned once at creation; stored hashed after. */
+  /** Full key hash for verification. */
   keyHash: string;
+  /** Full plaintext key for re-display/copy in self-hosted console. Legacy keys may omit. */
+  secret?: string;
   /** Prefix for display e.g. gk_live_ab12… */
   keyPrefix: string;
   alias: string;
