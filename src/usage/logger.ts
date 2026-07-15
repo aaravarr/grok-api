@@ -51,7 +51,9 @@ export interface AppendLogInput {
   status: number;
   ok: boolean;
   latencyMs: number;
-  /** TTFT from request start to first upstream byte */
+  /** Ms from proxy accept to outbound LLM fetch */
+  localPrepMs?: number;
+  /** TTFT from outbound LLM fetch start to first upstream body byte */
   firstTokenMs?: number;
   error?: string;
   request?: unknown;

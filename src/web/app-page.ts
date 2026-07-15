@@ -562,6 +562,7 @@ ${styles()}
                 <div data-i18n="colStatus">Status</div>
                 <div data-i18n="colTokens">Tokens</div>
                 <div data-i18n="colLatency">Latency</div>
+                <div data-i18n="colPrep">Prep</div>
                 <div data-i18n="colTtft">TTFT</div>
                 <div data-i18n="colTps">TPS</div>
                 <div data-i18n="colAccount" data-admin-only>Account</div>
@@ -1290,6 +1291,8 @@ ${mediaViewHtml(page)}
         cacheHitNone:"缓存命中 –",
         cacheHitTip:(c,p)=>"缓存输入 "+c+" / 总输入 "+p,
         ttftLegacyHint:"旧日志未记录首字延迟",
+        logLocalPrep:"本地准备",
+        logTtftFromUpstream:"从发出上游起算",
         ttftLegacyShort:"未记录",
         tpsNoTtftHint:"旧日志无 TTFT，不计入看板 TPS",
         tpsLegacyHint:"按整段耗时估算（未扣首字）",
@@ -1311,7 +1314,7 @@ ${mediaViewHtml(page)}
         stripLogs:"精简正文", stripLogsConfirm:"将从历史日志中删除请求/响应正文（保留元数据与 Token），是否继续？",
         logsStripped:(n,b)=>"已精简 "+n+" 条 · 释放约 "+b,
         logDetail:"请求详情", logConvert:"协议转换", logConvertFrom:"原始路径", logConvertTo:"实际路径", logConvertReason:"转换原因", logNoConvert:"未转换", logFallbackBadge:"已转换", allDays:"全部日期", noLogs:"暂无请求日志",
-        colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟", colTtft:"首字", colTps:"TPS",
+        colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟", colPrep:"准备", colTtft:"首字", colTps:"TPS",
         routing:"路由", modeAuto:"自动", modeManual:"手动",
         accNamePh:"账号备注（可选）", addAccount:"添加账号",
         addAccountTitle:"添加账号",
@@ -1523,6 +1526,8 @@ ${mediaViewHtml(page)}
         cacheHitNone:"Cache hit –",
         cacheHitTip:(c,p)=>"Cached "+c+" / input "+p,
         ttftLegacyHint:"Legacy log — TTFT not recorded",
+        logLocalPrep:"Local prep",
+        logTtftFromUpstream:"from upstream send",
         ttftLegacyShort:"n/a",
         tpsNoTtftHint:"No TTFT — excluded from board TPS",
         tpsLegacyHint:"Estimated with full latency (TTFT not subtracted)",
@@ -1544,7 +1549,7 @@ ${mediaViewHtml(page)}
         stripLogs:"Strip bodies", stripLogsConfirm:"Remove request/response bodies from historical logs (keep metadata + tokens). Continue?",
         logsStripped:(n,b)=>"Stripped "+n+" rows · saved ~"+b,
         logDetail:"Request detail", logConvert:"Protocol conversion", logConvertFrom:"Original path", logConvertTo:"Effective path", logConvertReason:"Reason", logNoConvert:"No conversion", logFallbackBadge:"converted", allDays:"All days", noLogs:"No request logs yet",
-        colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency", colTtft:"TTFT", colTps:"TPS",
+        colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency", colPrep:"Prep", colTtft:"TTFT", colTps:"TPS",
         routing:"Routing", modeAuto:"Auto", modeManual:"Manual",
         accNamePh:"Account note (optional)", addAccount:"Add account",
         addAccountTitle:"Add account",
@@ -3040,13 +3045,16 @@ ${mediaViewHtml(page)}
     }
     /** Min post-TTFT duration for reliable TPS (matches server MIN_GEN_MS_FOR_TPS) */
     const MIN_GEN_MS_FOR_TPS = 50;
-    /** Generation ms excluding TTFT when firstTokenMs is present */
+    /** Generation ms excluding local prep + TTFT when firstTokenMs is present */
     function logGenLatencyMs(r) {
       const lat = r && r.latencyMs != null ? Number(r.latencyMs) : 0;
       if (!(lat > 0)) return 0;
       const ttft = r && r.firstTokenMs != null ? Number(r.firstTokenMs) : NaN;
       if (!Number.isFinite(ttft) || ttft < 0) return lat;
-      return Math.max(0, lat - Math.min(ttft, lat));
+      const prep = r && r.localPrepMs != null && Number.isFinite(Number(r.localPrepMs))
+        ? Math.max(0, Number(r.localPrepMs))
+        : 0;
+      return Math.max(0, lat - Math.min(prep + ttft, lat));
     }
     function hasLogTtft(r) {
       return r && r.firstTokenMs != null && Number.isFinite(Number(r.firstTokenMs));
@@ -3183,6 +3191,9 @@ ${mediaViewHtml(page)}
         const client = clientLabel(r);
         const uaTip = r.userAgent ? ' title="' + esc(r.userAgent) + '"' : "";
         const latTxt = r.latencyMs != null ? r.latencyMs + "ms" : "–";
+        const prepTxt = r.localPrepMs != null && Number.isFinite(Number(r.localPrepMs))
+          ? Math.round(Number(r.localPrepMs)) + "ms"
+          : "–";
         const accTxt = r.accountName || r.accountId || "–";
         const keyTxt = r.apiKeyAlias || r.apiKeyId || "–";
         return '<div class="dt-row clickable" data-id="' + esc(r.id) + '">' +
@@ -3195,6 +3206,7 @@ ${mediaViewHtml(page)}
           '<div><span class="badge ' + stCls + '">' + esc(r.status) + "</span></div>" +
           '<div class="mono" style="white-space:nowrap" title="' + esc(tok) + '">' + tok + "</div>" +
           '<div class="mono dt-num" title="' + esc(latTxt) + '">' + esc(latTxt) + "</div>" +
+          '<div class="mono dt-num" title="' + esc(t("logLocalPrep")) + '">' + esc(prepTxt) + "</div>" +
           '<div class="mono dt-num">' + fmtTtftCell(r) + "</div>" +
           '<div class="mono dt-num">' + fmtTpsCell(r) + "</div>" +
           (showAcc ? '<div class="mono" title="' + esc(accTxt) + '">' + esc(accTxt) + "</div>" : "") +
@@ -4231,9 +4243,14 @@ ${mediaViewHtml(page)}
             return bits.join("");
           })() +
           "</div></div>" +
-          '<div><div class="k">ttft</div><div class="v">' +
+          '<div><div class="k">' + esc(t("logLocalPrep")) + '</div><div class="v">' +
+          (log.localPrepMs != null && Number.isFinite(Number(log.localPrepMs))
+            ? esc(Math.round(Number(log.localPrepMs)) + "ms")
+            : '<span class="mute">–</span>') +
+          "</div></div>" +
+          '<div><div class="k">' + esc(t("colTtft")) + '</div><div class="v">' +
           (hasLogTtft(log)
-            ? esc(fmtTtft(log))
+            ? esc(fmtTtft(log)) + ' <span class="mute">(' + esc(t("logTtftFromUpstream")) + ')</span>'
             : '<span class="mute">' + esc(t("ttftLegacyHint")) + "</span>") +
           "</div></div>" +
           '<div><div class="k">tps</div><div class="v">' +

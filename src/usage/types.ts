@@ -45,8 +45,13 @@ export interface RequestLog {
   /** End-to-end time from proxy accept to response complete */
   latencyMs: number;
   /**
-   * Time to first upstream byte (TTFT), stream only when measurable.
-   * Absent on older logs / non-stream without progressive body.
+   * Ms from proxy accept to the outbound LLM HTTP call being issued.
+   * Local work only: route / sanitize / serialize / account pick.
+   */
+  localPrepMs?: number;
+  /**
+   * Time to first upstream body byte, measured from outbound LLM fetch start
+   * (not from proxy accept). Absent on older logs / non-stream without progressive body.
    */
   firstTokenMs?: number;
   error?: string;

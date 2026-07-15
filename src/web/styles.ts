@@ -555,8 +555,8 @@ export function styles(): string {
       background:var(--canvas-soft);font-size:12px;line-height:1.5;color:var(--body);
     }
     .route-panel .seg{width:fit-content;max-width:100%}
-    .dt-logs{--dt-min:1240px;--dt-cols:118px minmax(110px,1.1fr) minmax(100px,1fr) 72px minmax(160px,1.4fr) 80px 88px 64px minmax(120px,1fr) minmax(90px,.85fr)}
-    .dt-logs.no-account{--dt-min:1120px;--dt-cols:118px minmax(110px,1.1fr) minmax(100px,1fr) 72px minmax(160px,1.4fr) 80px 88px 64px minmax(120px,1fr)}
+    .dt-logs{--dt-min:1320px;--dt-cols:118px minmax(110px,1.1fr) minmax(100px,1fr) 72px minmax(160px,1.4fr) 80px 72px 88px 64px minmax(120px,1fr) minmax(90px,.85fr)}
+    .dt-logs.no-account{--dt-min:1200px;--dt-cols:118px minmax(110px,1.1fr) minmax(100px,1fr) 72px minmax(160px,1.4fr) 80px 72px 88px 64px minmax(120px,1fr)}
     .dt-logs .dt-num{font-family:var(--mono);font-size:12px;color:var(--mute)}
     .acc-err{
       color:var(--error);font-size:11px;line-height:1.3;margin-top:3px;
@@ -838,8 +838,8 @@ export function styles(): string {
       .filter-bar{padding:10px 12px}
       .filter-bar .input.grow{width:100%;min-width:0}
       .dt-contrib{--dt-min:1120px;--dt-cols:minmax(130px,1.1fr) 80px minmax(90px,.9fr) 128px 48px 80px minmax(100px,1fr) 100px 240px}
-      .dt-logs{--dt-min:1140px;--dt-cols:110px minmax(100px,1fr) minmax(90px,1fr) 64px minmax(140px,1.2fr) 76px 84px 56px minmax(110px,1fr) minmax(80px,.85fr)}
-      .dt-logs.no-account{--dt-min:1040px;--dt-cols:110px minmax(100px,1fr) minmax(90px,1fr) 64px minmax(140px,1.2fr) 76px 84px 56px minmax(110px,1fr)}
+      .dt-logs{--dt-min:1220px;--dt-cols:110px minmax(100px,1fr) minmax(90px,1fr) 64px minmax(140px,1.2fr) 72px 72px 80px 56px minmax(110px,1fr) minmax(80px,.85fr)}
+      .dt-logs.no-account{--dt-min:1120px;--dt-cols:110px minmax(100px,1fr) minmax(90px,1fr) 64px minmax(140px,1.2fr) 72px 72px 80px 56px minmax(110px,1fr)}
       .toast{top:max(12px,calc(env(safe-area-inset-top) + 8px));left:16px;right:16px;width:auto;max-width:none;transform:translateY(-6px);min-width:0}
       .toast.show{transform:translateY(0)}
       .modal-mask{padding:12px;padding-top:max(12px,env(safe-area-inset-top));align-items:flex-end}

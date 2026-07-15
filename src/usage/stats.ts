@@ -131,22 +131,29 @@ function hasTtft(log: { firstTokenMs?: number }): boolean {
   return log.firstTokenMs != null && Number.isFinite(Number(log.firstTokenMs));
 }
 
-/** Generation time for TPS: only when TTFT is recorded (latency − TTFT). */
+/** Generation time for TPS: only when TTFT is recorded (latency − prep − TTFT). */
 export function genLatencyMs(log: {
   latencyMs?: number;
   firstTokenMs?: number;
+  localPrepMs?: number;
 }): number {
   if (!hasTtft(log)) return 0;
   const lat = Number(log.latencyMs) || 0;
   if (!(lat > 0)) return 0;
   const f = Math.max(0, Number(log.firstTokenMs));
-  return Math.max(0, lat - Math.min(f, lat));
+  const prep =
+    log.localPrepMs != null && Number.isFinite(Number(log.localPrepMs))
+      ? Math.max(0, Number(log.localPrepMs))
+      : 0;
+  // end - firstByte ≈ latency - localPrep - upstreamTTFT
+  return Math.max(0, lat - Math.min(prep + f, lat));
 }
 
 /** True when TTFT sample is usable for TPS (enough post-TTFT duration). */
 export function isTpsSample(log: {
   latencyMs?: number;
   firstTokenMs?: number;
+  localPrepMs?: number;
 }): boolean {
   return genLatencyMs(log) >= MIN_GEN_MS_FOR_TPS;
 }

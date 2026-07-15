@@ -1844,7 +1844,7 @@ export function createApp() {
   app.post("/v1/chat/completions", (c) => handleProxy(c, "chat"));
   app.get("/v1/models", async (c) => {
     try {
-      const preferred = c.req.header("x-account-id") ?? undefined;
+      let preferred = c.req.header("x-account-id") ?? undefined;
       const result = await fetchUpstreamModels(preferred, c.get("apiKeyUserId"));
       return c.json(result.body, result.status as 200);
     } catch (e) {
@@ -2649,6 +2649,7 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
             body: sse,
             accountId: chatResult.accountId,
             accountName: chatResult.accountName,
+            upstreamStartedAt: chatResult.upstreamStartedAt,
           },
         };
       }
@@ -2678,16 +2679,63 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
           }),
           accountId: chatResult.accountId,
           accountName: chatResult.accountName,
+          upstreamStartedAt: chatResult.upstreamStartedAt,
         },
       };
     };
 
     if (mode === "responses") {
+      // ============================================================
+      // PHASE 1: decide path FIRST (no heavy sanitize/normalize yet)
+      // ============================================================
       continuityKeys = extractContinuityKeysFromRequest(body);
       userMessagesForStore = extractPlainMessagesFromInput((body as any)?.input);
       const lineage = await getConversationLineage(continuityKeys);
+      const isCompact = String(upstreamPath || "").includes("compact");
 
-      if (String(upstreamPath || "").includes("compact")) {
+      let route: "responses" | "chat" = "responses";
+      let routeReason = "responses_native";
+      if (isCompact) {
+        route = "responses";
+        routeReason = "responses_compact";
+      } else {
+        const eager = shouldEagerFallbackResponses(body, {
+          preferredMode: lineage.preferredMode ?? null,
+          storeHit: lineage.hit,
+        });
+        if (eager.eager) {
+          route = "chat";
+          routeReason = eager.reason || "session_lineage_chat";
+        }
+      }
+
+      // ============================================================
+      // PHASE 2: process ONLY for chosen path
+      // ============================================================
+      if (route === "chat") {
+        const fb = await runChatFallback(routeReason);
+        if (fb.ok) {
+          result = fb.result;
+        } else {
+          // Chat construction/upstream hard-failed. Surface via responses path once,
+          // without silently locking lineage on failure.
+          const rewritten = await rewriteResponsesBodyForContinuity(body);
+          const sanitized = await sanitizeResponsesInputItems(rewritten.body);
+          workBody = sanitized.body;
+          sanitizeMeta.modified = sanitized.modified;
+          sanitizeMeta.fixedReasoning = sanitized.fixedReasoning;
+          sanitizeMeta.convertedCustomCalls = sanitized.convertedCustomCalls;
+          sanitizeMeta.droppedItems = sanitized.droppedItems;
+          const upstreamBody = ensureStreamUsage("responses", normalizeToolsInBody(workBody, { mode: "responses" }));
+          result = await proxyLLM({
+            mode: "responses",
+            body: upstreamBody,
+            accountId: preferred,
+            callerUserId: apiKeyUserId,
+            path: upstreamPath,
+          });
+        }
+      } else if (isCompact) {
         // Pure responses compact path; never auto-fallback here.
         const b = { ...(workBody as any) };
         delete b.tools;
@@ -2697,65 +2745,32 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
         delete b.max_tool_calls;
         delete b.previous_response_id;
         workBody = b;
-        const upstreamBody = ensureStreamUsage(mode, normalizeToolsInBody(workBody, { mode }));
+        const upstreamBody = ensureStreamUsage("responses", normalizeToolsInBody(workBody, { mode: "responses" }));
         result = await proxyLLM({
-          mode,
+          mode: "responses",
           body: upstreamBody,
           accountId: preferred,
           callerUserId: apiKeyUserId,
           path: upstreamPath,
         });
       } else {
-        // Lineage-first policy:
-        // - chat lineage => always completions
-        // - responses lineage => always responses
-        // - unknown => only foreign/history residue goes completions; else responses
-        const eager = shouldEagerFallbackResponses(body, {
-          preferredMode: lineage.preferredMode ?? null,
-          storeHit: lineage.hit,
+        // Native responses path only: sanitize/normalize after route decision.
+        const rewritten = await rewriteResponsesBodyForContinuity(body);
+        const sanitized = await sanitizeResponsesInputItems(rewritten.body);
+        workBody = sanitized.body;
+        sanitizeMeta.modified = sanitized.modified;
+        sanitizeMeta.fixedReasoning = sanitized.fixedReasoning;
+        sanitizeMeta.convertedCustomCalls = sanitized.convertedCustomCalls;
+        sanitizeMeta.droppedItems = sanitized.droppedItems;
+        const upstreamBody = ensureStreamUsage("responses", normalizeToolsInBody(workBody, { mode: "responses" }));
+        result = await proxyLLM({
+          mode: "responses",
+          body: upstreamBody,
+          accountId: preferred,
+          callerUserId: apiKeyUserId,
+          path: upstreamPath,
         });
-
-        if (eager.eager) {
-          const fb = await runChatFallback(eager.reason || "session_lineage_chat");
-          if (fb.ok) {
-            result = fb.result;
-          } else {
-            // Do not silently lock lineage on failure; surface chat error as responses-shaped failure later.
-            // Fall back to attempting responses only if chat path hard-fails construction/upstream.
-            const rewritten = await rewriteResponsesBodyForContinuity(body);
-            const sanitized = await sanitizeResponsesInputItems(rewritten.body);
-            workBody = sanitized.body;
-            sanitizeMeta.modified = sanitized.modified;
-            sanitizeMeta.fixedReasoning = sanitized.fixedReasoning;
-            sanitizeMeta.convertedCustomCalls = sanitized.convertedCustomCalls;
-            sanitizeMeta.droppedItems = sanitized.droppedItems;
-            const upstreamBody = ensureStreamUsage(mode, normalizeToolsInBody(workBody, { mode }));
-            result = await proxyLLM({
-              mode,
-              body: upstreamBody,
-              accountId: preferred,
-              callerUserId: apiKeyUserId,
-              path: upstreamPath,
-            });
-          }
-        } else {
-          const rewritten = await rewriteResponsesBodyForContinuity(body);
-          const sanitized = await sanitizeResponsesInputItems(rewritten.body);
-          workBody = sanitized.body;
-          sanitizeMeta.modified = sanitized.modified;
-          sanitizeMeta.fixedReasoning = sanitized.fixedReasoning;
-          sanitizeMeta.convertedCustomCalls = sanitized.convertedCustomCalls;
-          sanitizeMeta.droppedItems = sanitized.droppedItems;
-          const upstreamBody = ensureStreamUsage(mode, normalizeToolsInBody(workBody, { mode }));
-          result = await proxyLLM({
-            mode,
-            body: upstreamBody,
-            accountId: preferred,
-            callerUserId: apiKeyUserId,
-            path: upstreamPath,
-          });
-          // IMPORTANT: no on-error auto fallback. Keep responses errors visible for investigation.
-        }
+        // IMPORTANT: no on-error auto fallback. Keep responses errors visible for investigation.
       }
     } else {
       continuityKeys = extractContinuityKeysFromChatBody(body);
@@ -2836,9 +2851,17 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
       return new Response(result.body, { status: result.status, headers });
     }
 
+    // True request clock starts when we fire the outbound LLM fetch.
+    const upstreamStartedAt =
+      typeof result.upstreamStartedAt === "number" && Number.isFinite(result.upstreamStartedAt)
+        ? result.upstreamStartedAt
+        : undefined;
+    const localPrepMs =
+      upstreamStartedAt != null ? Math.max(0, Math.round(upstreamStartedAt - t0)) : undefined;
     const ttftMs = (firstByteAt?: number) => {
       if (firstByteAt == null || !Number.isFinite(firstByteAt)) return undefined;
-      const ms = Math.max(0, Math.round(firstByteAt - t0));
+      const origin = upstreamStartedAt ?? t0;
+      const ms = Math.max(0, Math.round(firstByteAt - origin));
       return Number.isFinite(ms) ? ms : undefined;
     };
 
@@ -2893,6 +2916,7 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
             status: result.status,
             ok: picked.ok,
             latencyMs,
+            localPrepMs,
             firstTokenMs:
               firstTokenMs != null && firstTokenMs <= latencyMs ? firstTokenMs : undefined,
             response: picked.response,
@@ -2946,6 +2970,7 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
         status: result.status,
         ok: picked.ok,
         latencyMs,
+        localPrepMs,
         firstTokenMs:
           firstTokenMs != null && firstTokenMs <= latencyMs ? firstTokenMs : undefined,
         response: picked.response,

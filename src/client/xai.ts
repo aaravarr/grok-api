@@ -53,6 +53,8 @@ export interface ProxyResponse {
   body: ReadableStream<Uint8Array> | null;
   accountId: string;
   accountName: string;
+  /** Date.now() when the outbound LLM/upstream fetch was issued for this response */
+  upstreamStartedAt?: number;
 }
 
 function endpoint(base: string, mode: ProxyMode): string {
@@ -133,6 +135,7 @@ export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyRes
       body = JSON.stringify(req.body);
     }
 
+    const upstreamStartedAt = Date.now();
     const res = await outboundFetch(`${base}${path}`, {
       method,
       headers,
@@ -148,6 +151,7 @@ export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyRes
         body: res.body,
         accountId: routed.account.id,
         accountName: routed.account.name,
+        upstreamStartedAt,
       };
     }
 
@@ -171,6 +175,7 @@ export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyRes
       }),
       accountId: routed.account.id,
       accountName: routed.account.name,
+      upstreamStartedAt,
     };
   }
 

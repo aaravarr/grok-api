@@ -536,11 +536,18 @@ export function responsesToChatCompletions(
     messages.push({ role: 'system', content: src.instructions });
   }
 
-  for (const m of storedMessages || []) {
-    if (!m?.content?.trim()) continue;
-    const role = m.role === 'developer' ? 'system' : m.role;
-    if (!['system', 'user', 'assistant', 'tool'].includes(role)) continue;
-    messages.push({ role, content: m.content });
+  // Codex usually sends full history in input. Prepending our stored transcript
+  // double-counts history and DESTROYS prompt-cache prefix stability.
+  // Only use stored messages when client input is empty/minimal.
+  const inputItems = Array.isArray(src.input) ? src.input : src.input != null ? [src.input] : [];
+  const clientHasHistory = inputItems.length > 0;
+  if (!clientHasHistory) {
+    for (const m of storedMessages || []) {
+      if (!m?.content?.trim()) continue;
+      const role = m.role === 'developer' ? 'system' : m.role;
+      if (!['system', 'user', 'assistant', 'tool'].includes(role)) continue;
+      messages.push({ role, content: m.content });
+    }
   }
 
   appendResponsesInput(src.input, messages, toolContext);
@@ -555,10 +562,46 @@ export function responsesToChatCompletions(
     stream: src.stream === true,
   };
 
+  // cc-switch style passthrough fields (keep stable across turns for cache).
+  for (const key of [
+    'frequency_penalty',
+    'logit_bias',
+    'logprobs',
+    'metadata',
+    'n',
+    'parallel_tool_calls',
+    'presence_penalty',
+    'response_format',
+    'seed',
+    'service_tier',
+    'stop',
+    'stream_options',
+    'top_logprobs',
+    'user',
+    'prompt_cache_key',
+  ] as const) {
+    if (src[key] !== undefined) body[key] = src[key];
+  }
+
+  // If client didn't send prompt_cache_key, derive a stable one from Codex thread.
+  if (typeof body.prompt_cache_key !== 'string' || !String(body.prompt_cache_key).trim()) {
+    if (isObj(src.client_metadata)) {
+      const thread =
+        (typeof src.client_metadata.thread_id === 'string' && src.client_metadata.thread_id.trim()) ||
+        (typeof src.client_metadata.session_id === 'string' && src.client_metadata.session_id.trim()) ||
+        '';
+      if (thread) body.prompt_cache_key = 'codex-thread:' + thread;
+    }
+  }
+
   if (toolContext.tools.length) {
+    // Stable tool order helps prefix/cache; keep registration order.
     body.tools = toolContext.tools;
     if (src.tool_choice != null) body.tool_choice = mapToolChoice(src.tool_choice, toolContext);
-    if (src.parallel_tool_calls != null) body.parallel_tool_calls = src.parallel_tool_calls;
+  } else {
+    // Strict chat upstreams reject tool_choice/parallel_tool_calls without tools.
+    delete body.tool_choice;
+    delete body.parallel_tool_calls;
   }
 
   if (isObj(src.reasoning) && typeof src.reasoning.effort === 'string') {

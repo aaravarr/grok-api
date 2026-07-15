@@ -87,7 +87,10 @@ function prune(store: ConversationStore): ConversationStore {
   const valid = new Set(Object.keys(conversations));
   const aliases: Record<string, string> = {};
   for (const [k, v] of Object.entries(store.aliases || {})) {
-    if (valid.has(v)) aliases[k] = v;
+    if (!valid.has(v)) continue;
+    // Drop historical poison: bare content fingerprints mixed threads.
+    if (k.startsWith("fp_") || k.includes("::fp_")) continue;
+    aliases[k] = v;
   }
   return { conversations, aliases };
 }
@@ -151,6 +154,46 @@ export function isOpaqueInputItem(item: unknown): boolean {
   return false;
 }
 
+/**
+ * HARD RULE for session identity (Codex Desktop):
+ * - Primary key: client_metadata.thread_id (fallback session_id)
+ * - Secondary: previous_response_id / response_id / cmp_* only as aliases UNDER that thread
+ * - NEVER use plaintext content fingerprints as global keys (that caused cross-thread mixing)
+ */
+
+function codexThreadIdFromBody(body: Record<string, unknown>): string | null {
+  const meta = isObj(body.client_metadata) ? body.client_metadata : null;
+  if (meta) {
+    if (typeof meta.thread_id === "string" && meta.thread_id.trim()) return meta.thread_id.trim();
+    if (typeof meta.session_id === "string" && meta.session_id.trim()) return meta.session_id.trim();
+    const turnMeta = meta["x-codex-turn-metadata"];
+    if (typeof turnMeta === "string" && turnMeta.trim().startsWith("{")) {
+      try {
+        const tm = JSON.parse(turnMeta) as Record<string, unknown>;
+        if (isObj(tm)) {
+          if (typeof tm.thread_id === "string" && tm.thread_id.trim()) return tm.thread_id.trim();
+          if (typeof tm.session_id === "string" && tm.session_id.trim()) return tm.session_id.trim();
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  if (isObj(body.metadata)) {
+    if (typeof body.metadata.thread_id === "string" && body.metadata.thread_id.trim()) {
+      return body.metadata.thread_id.trim();
+    }
+    if (typeof body.metadata.session_id === "string" && body.metadata.session_id.trim()) {
+      return body.metadata.session_id.trim();
+    }
+  }
+  return null;
+}
+
+function threadConvId(threadId: string): string {
+  return `thread:${threadId}`;
+}
+
 export function extractContinuityKeysFromRequest(body: unknown): string[] {
   if (!isObj(body)) return [];
   const out: string[] = [];
@@ -159,12 +202,23 @@ export function extractContinuityKeysFromRequest(body: unknown): string[] {
     if (typeof v !== "string") return;
     const k = v.trim();
     if (!k || seen.has(k)) return;
+    // Never accept bare content fingerprints
+    if (k.startsWith("fp_") || k.includes("::fp_")) return;
     seen.add(k);
     out.push(k);
   };
+
+  const threadId = codexThreadIdFromBody(body);
+  if (threadId) {
+    add(threadConvId(threadId));
+    add(threadId);
+  }
+
+  // Continuity ids are secondary only
   add(body.previous_response_id);
   add(body.response_id);
   add(body.conversation_id);
+
   const walk = (node: unknown, depth = 0) => {
     if (depth > 6 || node == null) return;
     if (Array.isArray(node)) {
@@ -172,18 +226,15 @@ export function extractContinuityKeysFromRequest(body: unknown): string[] {
       return;
     }
     if (!isObj(node)) return;
-    const type = String(node.type || "").toLowerCase();
-    if (type.includes("compaction") || typeof node.encrypted_content === "string") add(node.id);
-    if (typeof node.id === "string" && (node.id.startsWith("cmp_") || node.id.startsWith("resp_") || node.id.startsWith("rs_"))) {
-      add(node.id);
+    if (typeof node.id === "string") {
+      const id = node.id.trim();
+      if (id.startsWith("cmp_") || id.startsWith("resp_") || id.startsWith("rs_")) add(id);
     }
     for (const v of Object.values(node)) {
       if (v && typeof v === "object") walk(v, depth + 1);
     }
   };
   walk(body.input);
-  const plain = extractPlainMessagesFromInput(body.input);
-  for (const fp of fingerprintPlainMessageVariants(plain)) add(fp);
   return out;
 }
 
@@ -278,23 +329,26 @@ export function extractContinuityKeysFromChatBody(body: unknown): string[] {
   const add = (v: unknown) => {
     if (typeof v !== "string") return;
     const k = v.trim();
-    if (!k || seen.has(k)) return;
+    if (!k || seen.has(k) || k.startsWith("fp_") || k.includes("::fp_")) return;
     seen.add(k);
     out.push(k);
   };
-  add(body.conversation_id);
-  add(body.previous_response_id);
-  add(body.response_id);
-  // Some clients put thread ids in metadata
+  const threadId = codexThreadIdFromBody(body);
+  if (threadId) {
+    add(threadConvId(threadId));
+    add(threadId);
+  }
   if (isObj(body.metadata)) {
     add(body.metadata.conversation_id);
     add(body.metadata.thread_id);
     add(body.metadata.session_id);
   }
-  const msgs = extractPlainMessagesFromChatBody(body);
-  for (const fp of fingerprintPlainMessageVariants(msgs)) out.push(fp);
+  add(body.conversation_id);
+  add(body.previous_response_id);
+  add(body.response_id);
   return out;
 }
+
 
 export async function loadConversationMessages(keys: string[]): Promise<ConversationMessage[]> {
   const rec = await loadConversation(keys);
@@ -306,6 +360,7 @@ export async function getConversationLineage(keys: string[]): Promise<{
   conversationId?: string;
   preferredMode?: ConversationPreferredMode | null;
   messageCount: number;
+  lastAccountId?: string | null;
 }> {
   const rec = await loadConversation(keys);
   if (!rec) return { hit: false, messageCount: 0 };
@@ -314,13 +369,29 @@ export async function getConversationLineage(keys: string[]): Promise<{
     conversationId: rec.id,
     preferredMode: rec.preferredMode ?? null,
     messageCount: Array.isArray(rec.messages) ? rec.messages.length : 0,
+    lastAccountId: rec.lastAccountId ?? null,
   };
 }
 
 async function loadConversation(keys: string[]): Promise<ConversationRecord | null> {
   if (!keys.length) return null;
   const store = await loadStore();
-  for (const key of keys) {
+
+  const threadKeys = keys.filter((k) => k.startsWith("thread:") || k.startsWith("session:"));
+  const strongKeys = keys.filter(
+    (k) =>
+      k.startsWith("resp_") ||
+      k.startsWith("cmp_") ||
+      k.startsWith("rs_") ||
+      k.startsWith("conv_"),
+  );
+
+  // If Codex thread id is present, ONLY resolve via thread/session. Never fall through to shared secondary keys.
+  const lookupOrder = threadKeys.length ? threadKeys : strongKeys;
+  const seen = new Set<string>();
+  for (const key of lookupOrder) {
+    if (seen.has(key)) continue;
+    seen.add(key);
     const id = store.aliases[key] || key;
     const rec = store.conversations[id];
     if (rec) return rec;
@@ -328,19 +399,13 @@ async function loadConversation(keys: string[]): Promise<ConversationRecord | nu
   return null;
 }
 
-async function findStoredOpaqueByEncryptedContent(enc: string): Promise<Record<string, unknown> | null> {
-  if (!enc) return null;
-  const store = await loadStore();
-  // prefer newest conversations
-  const recs = Object.values(store.conversations || {}).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  for (const rec of recs) {
-    for (const it of rec.opaqueItems || []) {
-      if (!isObj(it)) continue;
-      if (it.encrypted_content === enc) return it;
-    }
-  }
+
+async function findStoredOpaqueByEncryptedContent(_enc: string): Promise<Record<string, unknown> | null> {
+  // Intentionally disabled: global encrypted_content lookup can attach another thread's
+  // opaque items and mix sessions. Restore only from the matched conversation record.
   return null;
 }
+
 
 /**
  * Fix Codex re-serialized reasoning/compaction items without modifying encrypted payload.
@@ -867,14 +932,35 @@ export async function rememberConversationTurn(opts: {
 
   const store = await loadStore();
   let convId: string | undefined;
-  for (const k of prevKeys) {
+
+  // HARD: Codex thread_id is the only primary conversation id when present.
+  const threadKey =
+    prevKeys.find((k) => k.startsWith("thread:")) ||
+    prevKeys.find((k) => k.startsWith("session:")) ||
+    null;
+
+  const orderedKeys = [
+    ...(threadKey ? [threadKey] : []),
+    ...prevKeys.filter((k) => k.startsWith("thread:") || k.startsWith("session:")),
+    ...prevKeys.filter((k) => k.startsWith("resp_") || k.startsWith("cmp_") || k.startsWith("rs_")),
+  ];
+  const seenK = new Set<string>();
+  for (const k of orderedKeys) {
+    if (seenK.has(k)) continue;
+    seenK.add(k);
     const id = store.aliases[k] || (store.conversations[k] ? k : "");
     if (id && store.conversations[id]) {
       convId = id;
       break;
     }
   }
-  if (!convId) convId = responseId || prevKeys[0] || `conv_${now().toString(16)}`;
+  if (!convId) {
+    convId =
+      threadKey ||
+      responseId ||
+      prevKeys.find((k) => k.startsWith("resp_") || k.startsWith("cmp_")) ||
+      `conv_${now().toString(16)}`;
+  }
   if (!convId) return;
 
   const prev = store.conversations[convId];
@@ -920,20 +1006,39 @@ export async function rememberConversationTurn(opts: {
     lastAccountId: opts.accountId ?? prev?.lastAccountId ?? null,
   };
 
-  for (const k of prevKeys) store.aliases[k] = convId;
+  // Alias ONLY thread + response/compaction ids. Never content fingerprints.
+  if (threadKey) {
+    store.aliases[threadKey] = convId;
+    if (threadKey.startsWith("thread:") || threadKey.startsWith("session:")) {
+      store.aliases[threadKey.slice(threadKey.indexOf(":") + 1)] = convId;
+    }
+  }
+  for (const k of prevKeys) {
+    if (!k) continue;
+    if (k.startsWith("fp_") || k.includes("::fp_")) continue;
+    if (
+      k.startsWith("thread:") ||
+      k.startsWith("session:") ||
+      k.startsWith("resp_") ||
+      k.startsWith("cmp_") ||
+      k.startsWith("rs_") ||
+      k.startsWith("conv_")
+    ) {
+      store.aliases[k] = convId;
+    }
+  }
   if (responseId) {
     store.aliases[responseId] = convId;
-    // also index cmp ids inside opaque items
     for (const item of nextOpaque) {
       if (isObj(item) && typeof item.id === "string" && item.id.trim()) {
-        store.aliases[item.id.trim()] = convId;
+        const oid = item.id.trim();
+        if (oid.startsWith("cmp_") || oid.startsWith("resp_") || oid.startsWith("rs_")) {
+          store.aliases[oid] = convId;
+        }
       }
     }
   }
 
-  // Keep plaintext fingerprint aliases so chat lineage can be found after switching to /responses.
-  for (const fp of fingerprintPlainMessageVariants(messages)) store.aliases[fp] = convId;
-  for (const fp of fingerprintPlainMessageVariants(opts.userMessages || [])) store.aliases[fp] = convId;
-
   await saveStore(store);
 }
+

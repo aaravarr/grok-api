@@ -159,7 +159,7 @@ export interface CaptureResult {
   responseTruncated?: boolean;
   usage?: TokenUsage;
   error?: string;
-  /** Absolute Date.now() when first upstream byte was read (for TTFT) */
+  /** Absolute Date.now() when first upstream body byte was read (for upstream TTFT) */
   firstByteAt?: number;
 }
 
