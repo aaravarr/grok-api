@@ -1,15 +1,14 @@
 import type { Account } from "../types.js";
-import type { RouteScope, User } from "../auth/users.js";
+import type { RouteScope } from "../auth/users.js";
 import { getUser } from "../auth/users.js";
 import { fetchAccountCredits } from "./billing.js";
 import {
-  advanceToNextActive,
   canUserUseAccount,
-  ensureCurrentAccount,
   filterAccountsForCaller,
   getAccount,
   getRouting,
   hasAllowedUsers,
+  isAccountDonor,
   isPublicPoolAccount,
   isUserAllowedOnAccount,
   listAccounts,
@@ -27,10 +26,76 @@ export type RouteResult = {
 const EXHAUSTED_THRESHOLD = 0.5; // remaining percent
 
 /**
+ * Auto-routing priority (lower is better):
+ * 0 = personal contributor-only seats (caller is donor of a non-public seat)
+ * 1 = allowlisted seats that include the caller (caller is extra member, not donor)
+ * 2 = public shared pool (own public donations slightly ahead via secondary sort)
+ * 3 = other eligible seats (fallback)
+ */
+export function accountRoutePriority(
+  acc: Account,
+  callerUserId: string | null | undefined,
+): number {
+  const uid = callerUserId ?? null;
+  // Tier 0: personal non-public seats owned by caller (private / allowlist donor)
+  if (uid && isAccountDonor(acc, uid) && !isPublicPoolAccount(acc)) return 0;
+  // Tier 1: seats whose allowlist includes the caller (not the donor case above)
+  if (uid && isUserAllowedOnAccount(acc, uid) && !isAccountDonor(acc, uid)) return 1;
+  // Tier 2: public pool
+  if (isPublicPoolAccount(acc)) return 2;
+  // Own public donations still public-pool (tier 2); keep fallback for odd states
+  if (uid && isAccountDonor(acc, uid)) return 2;
+  return 3;
+}
+
+/** SuperGrok billing period end as epoch ms; unknown => +Infinity (use later). */
+export function accountPeriodEndMs(acc: Account): number {
+  const raw = acc.credits?.periodEnd;
+  if (raw == null || raw === "") return Number.POSITIVE_INFINITY;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return raw < 1e12 ? raw * 1000 : raw;
+  }
+  const s = String(raw).trim();
+  if (!s) return Number.POSITIVE_INFINITY;
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    if (!Number.isFinite(n)) return Number.POSITIVE_INFINITY;
+    return n < 1e12 ? n * 1000 : n;
+  }
+  const d = Date.parse(s);
+  return Number.isFinite(d) ? d : Number.POSITIVE_INFINITY;
+}
+
+function sortAccountsForAuto(
+  accounts: Account[],
+  callerUserId: string | null | undefined,
+): Account[] {
+  // priority tier → earliest SuperGrok period end → own seats → fewer uses → older lastUsed → id
+  return [...accounts].sort((a, b) => {
+    const pa = accountRoutePriority(a, callerUserId);
+    const pb = accountRoutePriority(b, callerUserId);
+    if (pa !== pb) return pa - pb;
+    const ea = accountPeriodEndMs(a);
+    const eb = accountPeriodEndMs(b);
+    if (ea !== eb) return ea - eb;
+    const oa = callerUserId && isAccountDonor(a, callerUserId) ? 0 : 1;
+    const ob = callerUserId && isAccountDonor(b, callerUserId) ? 0 : 1;
+    if (oa !== ob) return oa - ob;
+    const ua = a.useCount ?? 0;
+    const ub = b.useCount ?? 0;
+    if (ua !== ub) return ua - ub;
+    const la = a.lastUsedAt ?? 0;
+    const lb = b.lastUsedAt ?? 0;
+    if (la !== lb) return la - lb;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+/**
  * Route to one account.
  * - Respects caller routeScope (auto / public / mine / account) and private flags.
+ * - Auto priority: personal contributor seats → allowlisted seats → public pool; within each tier prefer earliest SuperGrok periodEnd.
  * - Only checks credits for the candidate currently being considered.
- * - Global admin auto/manual still applies within the eligible pool.
  */
 export async function routeAccount(opts?: {
   preferredId?: string;
@@ -93,50 +158,70 @@ export async function routeAccount(opts?: {
     return useAccount(pinnedId, checkCredits);
   }
 
-  const eligibleIds = eligible.map((a) => a.id);
-  if (eligibleIds.length === 0) {
+  const eligibleIds = new Set(eligible.map((a) => a.id));
+  if (eligibleIds.size === 0) {
     if (scope === "mine") throw new Error("你的号池为空，请先贡献账号或改用公共池");
     throw new Error("没有可用账号（未添加或全部不可用）");
   }
 
-  // Manual global mode: stick to selected only if public + still eligible
-  if (routing.mode === "manual" && routing.currentAccountId && !opts?.forceAuto) {
-    const cur = all.find((a) => a.id === routing.currentAccountId);
-    if (cur && !isPublicPoolAccount(cur)) {
-      // private / allowlist seats cannot be global current — fall through to public auto
-    } else if (eligibleIds.includes(routing.currentAccountId)) {
-      return useAccount(routing.currentAccountId, checkCredits);
-    }
-    // fall through to auto within pool
+  // Active candidates only for auto rotation
+  let candidates = eligible.filter((a) => a.status === "active" || a.status === "exhausted");
+  // Prefer non-exhausted first, but keep exhausted at end so credit recheck can revive
+  const active = candidates.filter((a) => a.status === "active");
+  const rest = candidates.filter((a) => a.status !== "active");
+  candidates = [...active, ...rest];
+
+  if (candidates.length === 0) {
+    throw new Error(
+      scope === "mine"
+        ? "你的号池没有可用账号（额度耗尽或全部失败）"
+        : "没有可用账号（额度耗尽或全部失败）",
+    );
   }
 
-  let candidate = await ensureCurrentAccount(eligibleIds);
-  if (!candidate) throw new Error(
-    scope === "mine"
-      ? "你的号池没有可用账号（额度耗尽或全部失败）"
-      : "没有可用账号（额度耗尽或全部失败）",
+  // Global admin manual mode: only stick when caller has no higher-priority private seats
+  // and the selected public seat is still eligible.
+  const hasPrivatePriority = candidates.some(
+    (a) => accountRoutePriority(a, callerUserId) <= 1,
   );
-
-  const tried = new Set<string>();
-  for (let i = 0; i < 20; i++) {
-    if (!candidate || tried.has(candidate.id)) break;
-    if (!eligibleIds.includes(candidate.id)) {
-      candidate = await advanceToNextActive(candidate.id, eligibleIds);
-      continue;
+  if (
+    routing.mode === "manual" &&
+    routing.currentAccountId &&
+    !opts?.forceAuto &&
+    !hasPrivatePriority &&
+    eligibleIds.has(routing.currentAccountId)
+  ) {
+    const cur = all.find((a) => a.id === routing.currentAccountId);
+    if (cur && isPublicPoolAccount(cur) && cur.status === "active") {
+      try {
+        return await useAccount(routing.currentAccountId, checkCredits);
+      } catch {
+        // fall through to priority auto
+      }
     }
-    tried.add(candidate.id);
+  }
+
+  // Auto / mine / public: priority-ordered attempts
+  const ordered = sortAccountsForAuto(candidates, callerUserId);
+  const tried = new Set<string>();
+  let lastErr: Error | null = null;
+  for (const acc of ordered) {
+    if (tried.has(acc.id)) continue;
+    tried.add(acc.id);
     try {
-      return await useAccount(candidate.id, checkCredits);
+      return await useAccount(acc.id, checkCredits);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("exhausted") || msg.includes("额度")) {
-        candidate = await advanceToNextActive(candidate.id, eligibleIds);
+      lastErr = e instanceof Error ? e : new Error(String(e));
+      const msg = lastErr.message;
+      if (msg.includes("exhausted") || msg.includes("额度") || msg.includes("expired") || msg.includes("account not found")) {
         continue;
       }
-      candidate = await advanceToNextActive(candidate.id, eligibleIds);
+      // transient / other — try next seat
+      continue;
     }
   }
-  throw new Error(
+
+  throw lastErr ?? new Error(
     scope === "mine"
       ? "你的号池没有可用账号（额度耗尽或全部失败）"
       : "没有可用账号（额度耗尽或全部失败）",
@@ -247,4 +332,3 @@ export async function switchAccount(accountId: string): Promise<Account> {
   }
   return (await getAccount(accountId))!;
 }
-

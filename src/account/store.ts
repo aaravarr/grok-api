@@ -552,7 +552,7 @@ export function isPublicPoolAccount(acc: Account): boolean {
 
 /**
  * Accounts eligible for a caller's route scope.
- * - auto: any seat the caller may use (public + allowlisted + own donations)
+ * - auto: any seat the caller may use; routing priority is personal seats → allowlisted → public
  * - public: shared seats + seats where caller is allowlisted
  * - mine: donated by caller, or caller is on allowedUserIds
  * - account: single id if allowed

@@ -359,10 +359,11 @@ ${styles()}
               <div class="dt-head">
                 <div data-i18n="colAccount">Account</div>
                 <div data-i18n="colStatus">Status</div>
-                <div data-i18n="colVisibility">Visibility</div>
                 <div data-i18n="colDonor">Donor</div>
+                <div data-i18n="colVisibility">Visibility</div>
                 <div data-i18n="colAllowed">Allowed users</div>
                 <div data-i18n="colCredits">Credits</div>
+                <div data-i18n="colSubExpires">Expires</div>
                 <div data-i18n="colUses">Uses</div>
                 <div data-i18n="colLastUsed">Last used</div>
                 <div data-i18n="colActions">Actions</div>
@@ -732,6 +733,7 @@ ${styles()}
                 <div data-i18n="colAccount">Account</div>
                 <div data-i18n="colStatus">Status</div>
                 <div data-i18n="colCredits">Credits</div>
+                <div data-i18n="colSubExpires">Expires</div>
                 <div data-i18n="colUses">Uses</div>
                 <div data-i18n="colVisibility">Visibility</div>
                 <div data-i18n="colMembers">Members</div>
@@ -1326,6 +1328,8 @@ ${mediaViewHtml(page)}
         cpaImportEmpty:"请先粘贴 JSON 或 refresh_token",
 
         accSyncName:"同步名称",
+        accRefresh:"刷新",
+        accRefreshOk:"已刷新额度与名称",
         accSyncNameOk:"已按邮箱/用户名更新名称",
         accDonorNone:"无贡献者", accDonorLabel:"贡献者",
         accAllowedLabel:"额外可用成员", accAllowedHint:"贡献者始终可用且不可取消；此处只配置额外成员。清空额外成员=仅贡献者（若为私有）或公共池规则",
@@ -1339,7 +1343,7 @@ ${mediaViewHtml(page)}
         accSaved:"账号已更新",
         deviceHint:"在浏览器打开验证页，输入以下 Device Code：",
         verifyUrl:"验证地址", waiting:"等待授权…",
-        colAccount:"账号", colStatus:"状态", colCredits:"额度", colUses:"调用", colLastUsed:"上次使用", colActions:"操作",
+        colAccount:"账号", colStatus:"状态", colCredits:"额度", colSubExpires:"订阅到期", colUses:"调用", colLastUsed:"上次使用", colActions:"操作",
         colDonor:"贡献者", colAllowed:"可用成员", colMembers:"可用成员", colPublic:"公开", colPrivate:"私有",
         visPublic:"公开池", visPrivate:"仅贡献者", visRestricted:"指定成员",
         memberDonor:"贡献者（不可取消）", memberExtra:"额外成员",
@@ -1557,6 +1561,8 @@ ${mediaViewHtml(page)}
         cpaImportEmpty:"Paste JSON or a refresh_token first",
 
         accSyncName:"Sync name",
+        accRefresh:"Refresh",
+        accRefreshOk:"Credits & name refreshed",
         accSyncNameOk:"Name updated from email/username",
         accDonorNone:"No donor", accDonorLabel:"Donor",
         accAllowedLabel:"Extra members", accAllowedHint:"Donor always has access and cannot be removed. Clear extras only.",
@@ -1570,7 +1576,7 @@ ${mediaViewHtml(page)}
         accSaved:"Account updated",
         deviceHint:"Enter this Device Code on the verification page:",
         verifyUrl:"URL", waiting:"Waiting for auth…",
-        colAccount:"Account", colStatus:"Status", colCredits:"Credits", colUses:"Uses", colLastUsed:"Last used", colActions:"Actions",
+        colAccount:"Account", colStatus:"Status", colCredits:"Credits", colSubExpires:"Expires", colUses:"Uses", colLastUsed:"Last used", colActions:"Actions",
         colDonor:"Donor", colAllowed:"Members", colMembers:"Members", colPublic:"Public", colPrivate:"Private",
         visPublic:"Public pool", visPrivate:"Donor only", visRestricted:"Named members",
         memberDonor:"Donor (always)", memberExtra:"Extra member",
@@ -2048,11 +2054,11 @@ ${mediaViewHtml(page)}
       if (!el) return 6;
       const root = el.closest(".dt");
       if (!root) return 6;
-      if (root.classList.contains("dt-accounts")) return 9;
+      if (root.classList.contains("dt-accounts")) return 10;
       if (root.classList.contains("dt-users")) return 6;
       if (root.classList.contains("dt-keys")) return root.classList.contains("has-owner") ? 7 : 6;
       if (root.classList.contains("dt-logs")) return root.classList.contains("no-account") ? 9 : 10;
-      if (root.classList.contains("dt-contrib")) return 8;
+      if (root.classList.contains("dt-contrib")) return 9;
       if (root.classList.contains("dt-lb-pub")) return 4;
       if (root.classList.contains("dt-lb")) return 6;
       const head = root.querySelector(".dt-head");
@@ -2197,6 +2203,42 @@ ${mediaViewHtml(page)}
       return t.slice(0, 72) + "…";
     }
 
+    function periodEndMs(v) {
+      if (v == null || v === "") return null;
+      if (typeof v === "number" && Number.isFinite(v)) return v < 1e12 ? v * 1000 : v;
+      const raw = String(v).trim();
+      if (!raw) return null;
+      if (/^\d+$/.test(raw)) {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return null;
+        return n < 1e12 ? n * 1000 : n;
+      }
+      const d = Date.parse(raw);
+      return Number.isFinite(d) ? d : null;
+    }
+    function formatPeriodEnd(v) {
+      const ms = periodEndMs(v);
+      if (ms == null) return "";
+      try {
+        return new Date(ms).toLocaleString(lang === "zh" ? "zh-CN" : "en-US", {
+          year: "numeric", month: "2-digit", day: "2-digit",
+          hour: "2-digit", minute: "2-digit",
+        });
+      } catch {
+        return String(v);
+      }
+    }
+    function formatPeriodEndShort(v) {
+      const ms = periodEndMs(v);
+      if (ms == null) return "";
+      try {
+        const d = new Date(ms);
+        const p = (n) => String(n).padStart(2, "0");
+        return p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+      } catch {
+        return formatPeriodEnd(v);
+      }
+    }
     function creditCell(a) {
       if (!a.credits) return '<span class="mono">' + esc(t("notChecked")) + "</span>";
       const used = a.credits.creditUsagePercent ?? 0;
@@ -2204,6 +2246,21 @@ ${mediaViewHtml(page)}
       const cls = rem < 10 ? "bad" : rem < 30 ? "warn" : "";
       return '<div class="meter ' + cls + '"><i style="width:' + Math.min(100, used) + '%"></i></div>' +
         '<div class="credit-txt">' + esc(t("usedLeft", used, rem)) + "</div>";
+    }
+    function subExpiresCell(a) {
+      const end = a && a.credits ? a.credits.periodEnd : null;
+      const full = formatPeriodEnd(end);
+      const text = formatPeriodEndShort(end);
+      if (!text) return '<span class="mono">–</span>';
+      const ms = periodEndMs(end);
+      let cls = "dt-time sub-expires";
+      let title = full || text;
+      if (ms != null) {
+        const left = ms - Date.now();
+        if (left <= 0) { cls += " is-expired"; title = (lang === "zh" ? "已过期 · " : "Expired · ") + title; }
+        else if (left < 3 * 86400_000) { cls += " is-soon"; title = (lang === "zh" ? "即将到期 · " : "Expiring soon · ") + title; }
+      }
+      return '<div class="' + cls + '" title="' + esc(title) + '"><div class="dt-time-main">' + esc(text) + "</div></div>";
     }
 
     function renderPager(el, page, totalItems, pageSize, onPage) {
@@ -2800,24 +2857,23 @@ ${mediaViewHtml(page)}
           (err ? '<div class="acc-err" title="' + esc(a.lastError) + '">' + esc(err) + "</div>" : "") +
           "</div>" +
           '<div title="' + esc(a.status) + '"><span class="badge ' + esc(a.status) + '">' + esc(statusLabel(a.status)) + "</span></div>" +
-          '<div title="' + esc(accVisHint(a)) + '"><span class="badge ' + accVisBadgeClass(a) + '">' + esc(accVisLabel(a)) + "</span></div>" +
           '<div><div class="name">' + esc(accDonorLabel(a)) + '</div>' +
           (a.donorUserId ? '<div class="mono" style="font-size:11px">' + esc(a.donorUserId.slice(0, 8)) + "</div>" : "") +
           "</div>" +
+          '<div title="' + esc(accVisHint(a)) + '"><span class="badge ' + accVisBadgeClass(a) + '">' + esc(accVisLabel(a)) + "</span></div>" +
           '<div class="mono" style="font-size:12px;line-height:1.35;word-break:break-word">' + esc(accAllowedLabel(a)) + "</div>" +
           "<div>" + creditCell(a) + "</div>" +
+          "<div>" + subExpiresCell(a) + "</div>" +
           '<div class="mono">' + a.useCount + "</div>" +
           '<div class="dt-time">' + fmtTime(a.lastUsedAt) + "</div>" +
           '<div class="dt-actions">' +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="use" data-id="' + esc(a.id) + '"' + useDisabled + '>' + esc(t("use")) + "</button>" +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="edit" data-id="' + esc(a.id) + '">' + esc(t("accEdit")) + "</button>" +
+          '<button class="btn btn-secondary btn-sm" type="button" data-act="refresh" data-id="' + esc(a.id) + '" title="' + esc((lang === "zh" ? "查额度 + 同步名称；有额度则自动恢复" : "Check credits + sync name; auto-restore when credits remain")) + '">' + esc(t("accRefresh")) + "</button>" +
+          '<button class="btn btn-danger btn-sm" type="button" data-act="del" data-id="' + esc(a.id) + '">' + esc(t("del")) + "</button>" +
           (a.status === "expired" || a.status === "pending" || a.status === "error"
             ? '<button class="btn btn-sm" type="button" data-act="reauth" data-id="' + esc(a.id) + '">' + esc(t("oauthReauth")) + "</button>"
             : "") +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="use" data-id="' + esc(a.id) + '"' + useDisabled + '>' + esc(t("use")) + "</button>" +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="edit" data-id="' + esc(a.id) + '">' + esc(t("accEdit")) + "</button>" +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>" +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="syncname" data-id="' + esc(a.id) + '">' + esc(t("accSyncName")) + "</button>" +
-          '<button class="btn btn-secondary btn-sm" type="button" data-act="reset" data-id="' + esc(a.id) + '">' + esc(t("reset")) + "</button>" +
-          '<button class="btn btn-danger btn-sm" type="button" data-act="del" data-id="' + esc(a.id) + '">' + esc(t("del")) + "</button>" +
           "</div></div>";
       }).join("");
       tbody.querySelectorAll("button[data-act]").forEach((btn) => {
@@ -2827,6 +2883,7 @@ ${mediaViewHtml(page)}
           const act = btn.getAttribute("data-act");
           if (act === "use") useAcc(id);
           if (act === "edit") openAccEdit(id);
+          if (act === "refresh") refreshAccount(id);
           if (act === "credits") checkCredits(id);
           if (act === "syncname") refreshAccProfile(id);
           if (act === "reset") resetAcc(id);
@@ -2872,7 +2929,8 @@ ${mediaViewHtml(page)}
         const secret = k.key || "";
         return '<div class="dt-row">' +
           '<div><div class="name">' + esc(k.alias) + '</div><div class="mono">' + esc(k.note || "") + "</div></div>" +
-          '<div class="mono key-cell"><div>' + esc(k.keyPrefix) + '</div>' +
+          '<div class="key-cell">' +
+            '<div class="mono key-prefix" data-key-prefix="' + esc(k.id) + '">' + esc(k.keyPrefix) + '</div>' +
             (secret ? ('<div class="key-secret mono" data-key-secret="' + esc(k.id) + '" hidden></div>') : '') +
           "</div>" +
           (showOwner ? '<div><div class="name">' + esc(owner) + '</div><div class="mono">' + esc(k.userId || "") + "</div></div>" : "") +
@@ -2900,17 +2958,50 @@ ${mediaViewHtml(page)}
           if (act === "viewkey") {
             const k = allKeys.find((x) => x.id === id);
             const el = tbody.querySelector('[data-key-secret="' + id + '"]');
+            const prefix = tbody.querySelector('[data-key-prefix="' + id + '"]');
             if (!k || !el) return;
             const open = el.hidden;
             el.hidden = !open;
             el.textContent = open ? (k.key || "") : "";
+            if (prefix) prefix.hidden = open;
             btn.textContent = open ? t("hideKey") : t("viewKey");
           }
           if (act === "copykey") {
             const k = allKeys.find((x) => x.id === id);
-            if (!k || !k.key) return toast(t("mediaNoKeySecret") || "no key", "err");
-            try { await navigator.clipboard.writeText(k.key); toast(t("mediaCopied") || t("copy")); }
-            catch { toast(String("copy failed"), "err"); }
+            if (!k) return;
+            const secret = String(k.key || k.secret || "").trim();
+            if (!secret) {
+              toast(lang === "zh" ? "该密钥没有可复制的明文（旧密钥）" : "No full secret available for this key", "err");
+              return;
+            }
+            try {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(secret);
+              } else {
+                throw new Error("clipboard_unavailable");
+              }
+              toast(t("copied"));
+            } catch {
+              try {
+                const ta = document.createElement("textarea");
+                ta.value = secret;
+                ta.setAttribute("readonly", "");
+                ta.style.position = "fixed";
+                ta.style.top = "-9999px";
+                ta.style.left = "-9999px";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                ta.setSelectionRange(0, ta.value.length);
+                const ok = document.execCommand("copy");
+                ta.remove();
+                if (!ok) throw new Error("copy_failed");
+                toast(t("copied"));
+              } catch {
+                toast(lang === "zh" ? "复制失败" : "Copy failed", "err");
+              }
+            }
           }
         });
       });
@@ -4189,6 +4280,7 @@ ${mediaViewHtml(page)}
           "</div>" +
           '<div><span class="badge ' + esc(a.status) + '">' + esc(a.status) + "</span></div>" +
           "<div>" + creditCell(a) + "</div>" +
+          "<div>" + subExpiresCell(a) + "</div>" +
           '<div class="mono">' + a.useCount + "</div>" +
           '<div title="' + esc(accVisHint(a)) + '"><span class="badge ' + accVisBadgeClass(a) + '">' + esc(accVisLabel(a)) + "</span></div>" +
           '<div class="members-cell" title="' + esc(membersTxt) + '">' +
@@ -5193,7 +5285,43 @@ ${mediaViewHtml(page)}
         const c = data.credits;
         showMsg($("msg"), t("usedLeft", c.creditUsagePercent, c.remainingPercent), "ok");
         await loadAccounts();
-      } catch (e) { showMsg($("msg"), e.message, "err"); }
+        return data;
+      } catch (e) { showMsg($("msg"), e.message, "err"); return null; }
+    }
+    /** Combined refresh: credits (auto-restores when remaining) + profile/name sync */
+    async function refreshAccount(id) {
+      try {
+        const creditRes = await fetch("/api/admin/accounts/" + encodeURIComponent(id) + "/credits", {
+          method: "POST", headers: headers(),
+        });
+        const creditData = await creditRes.json().catch(() => ({}));
+        if (!creditRes.ok) throw new Error(creditData.error || creditRes.statusText);
+        let nameNote = "";
+        try {
+          const profRes = await fetch("/api/admin/accounts/" + encodeURIComponent(id) + "/profile", {
+            method: "POST", headers: jsonHeaders(),
+            body: JSON.stringify({ rename: true }),
+          });
+          const profData = await profRes.json().catch(() => ({}));
+          if (profRes.ok && profData.account && profData.account.name) {
+            nameNote = " · " + profData.account.name;
+          }
+        } catch {
+          // name sync is best-effort after credits
+        }
+        const c = creditData.credits || {};
+        const rem = Number(c.remainingPercent);
+        const restored = Number.isFinite(rem) && rem > 0.5;
+        const creditTxt = t("usedLeft", Number(c.creditUsagePercent || 0), Number.isFinite(rem) ? rem : 0);
+        showMsg(
+          $("msg"),
+          t("accRefreshOk") + (restored ? (lang === "zh" ? " · 已自动恢复" : " · restored") : "") + " · " + creditTxt + nameNote,
+          "ok",
+        );
+        await loadAccounts();
+      } catch (e) {
+        showMsg($("msg"), e.message || String(e), "err");
+      }
     }
     async function delAcc(id) {
       if (!(await confirmDialog(t("confirmDelete") + " · " + id, { danger: true }))) return;

@@ -521,17 +521,25 @@ export function styles(): string {
     .dt-actions .btn{flex-shrink:0}
     .dt-time{display:flex;flex-direction:column;align-items:flex-start;gap:2px;overflow:hidden;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--mute)}
     .dt-time-main{white-space:nowrap}
-    /* actions col wide enough for: 使用 编辑 额度 同步名称 恢复 删除 */
-    .dt-accounts{--dt-min:1380px;--dt-cols:minmax(140px,1.2fr) 92px 92px minmax(90px,.85fr) minmax(90px,.9fr) minmax(90px,.9fr) 48px 110px 460px}
+    .dt-time.is-soon .dt-time-main{color:#b45309}
+    .dt-time.is-expired .dt-time-main{color:#b42318}
+    .sub-expires .dt-time-main{font-variant-numeric:tabular-nums}
+    /* actions: 使用 编辑 刷新 删除 [重新授权] */
+    .dt-accounts{--dt-min:1380px;--dt-cols:minmax(140px,1.2fr) 88px minmax(72px,.55fr) 88px minmax(90px,.85fr) minmax(100px,.95fr) 112px 52px 108px 280px}
     .dt-accounts .badge{max-width:none;overflow:visible;text-overflow:clip}
+    .dt-accounts .sub-expires{overflow:visible}
     .dt-accounts .dt-row > div:last-child,.dt-accounts .dt-head > div:last-child{overflow:visible}
     .dt-users{--dt-min:980px;--dt-cols:minmax(140px,1.4fr) 88px 88px minmax(110px,1.1fr) 120px 320px}
-    .dt-keys{--dt-min:860px;--dt-cols:minmax(120px,1.2fr) minmax(120px,1fr) 88px 140px 72px 200px}
-    .dt-keys.has-owner{--dt-min:1000px;--dt-cols:minmax(110px,1.1fr) minmax(110px,1fr) minmax(100px,1fr) 88px 130px 72px 200px}
+    .dt-keys{--dt-min:1080px;--dt-cols:minmax(120px,1.1fr) minmax(150px,1.2fr) 88px 140px 72px 340px}
+    .dt-keys.has-owner{--dt-min:1220px;--dt-cols:minmax(110px,1fr) minmax(150px,1.15fr) minmax(100px,.95fr) 88px 130px 72px 340px}
     .dt-keys .dt-num,.dt-logs .dt-num{
       font-variant-numeric:tabular-nums;white-space:nowrap;overflow:visible;text-overflow:clip;
     }
     .dt-keys .dt-num{text-align:right;padding-right:14px}
+    .dt-keys .dt-row > div:last-child,.dt-keys .dt-head > div:last-child{overflow:visible}
+    .dt-keys .key-cell{overflow:visible}
+    .dt-keys .key-prefix{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mute);font-family:var(--mono);font-size:12px;line-height:1.35}
+    .dt-keys .key-secret{max-width:100%}
     .filter-bar{
       display:flex;flex-wrap:wrap;gap:8px;align-items:center;
       padding:10px 14px;border-bottom:1px solid var(--hairline);background:var(--canvas-soft);
@@ -570,6 +578,7 @@ export function styles(): string {
     .meter>i{display:block;height:100%;background:var(--link)}
     .meter.warn>i{background:var(--warn)}.meter.bad>i{background:var(--error)}
     .credit-txt{font-family:var(--mono);font-size:11px;line-height:1.3;color:var(--body);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .credit-sub{margin-top:2px;font-size:10.5px;line-height:1.25;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .empty{padding:40px 16px;text-align:center;color:var(--mute)}
     .callout{border:1px solid var(--hairline);border-radius:var(--radius-md);padding:12px 14px;background:var(--canvas-soft);font-size:13px;color:var(--body);line-height:1.5}
     .callout strong{color:var(--ink);font-weight:500}
@@ -729,8 +738,9 @@ export function styles(): string {
     .msel-empty{padding:18px 12px;text-align:center;color:var(--mute);font-size:12px;flex:0 0 auto}
     .msel-more{padding:8px;text-align:center;font-size:11px;color:var(--mute);font-family:var(--mono)}
     @media(max-width:560px){.modal-grid{grid-template-columns:1fr}}
-    .key-cell{display:flex;flex-direction:column;gap:6px;min-width:0}
-    .key-secret{word-break:break-all;white-space:pre-wrap;color:var(--ink);background:var(--canvas-soft);border:1px solid var(--hairline);border-radius:var(--radius);padding:8px 10px;font-size:11.5px;line-height:1.4}
+    .key-cell{display:flex;flex-direction:column;gap:6px;min-width:0;overflow:visible}
+    .key-prefix[hidden],.key-secret[hidden]{display:none!important}
+    .key-secret{word-break:break-all;white-space:pre-wrap;color:var(--ink);background:var(--canvas-soft);border:1px solid var(--hairline);border-radius:var(--radius);padding:8px 10px;font-size:11.5px;line-height:1.4;max-width:100%}
     .secret{font-family:var(--mono);font-size:12px;word-break:break-all;background:var(--canvas-soft);border:1px solid var(--hairline);border-radius:var(--radius);padding:10px}
     .admin-box{display:none;align-items:center;gap:8px;padding:4px 8px 4px 10px;border:1px solid var(--hairline);border-radius:var(--radius);background:var(--canvas-soft);max-width:300px}
     .admin-box.show{display:flex}
@@ -826,7 +836,7 @@ export function styles(): string {
       .route-panel .seg button{flex:1}
       .filter-bar{padding:10px 12px}
       .filter-bar .input.grow{width:100%;min-width:0}
-      .dt-contrib{--dt-min:980px;--dt-cols:minmax(130px,1.2fr) 80px minmax(90px,1fr) 48px 80px minmax(100px,1fr) 100px 240px}
+      .dt-contrib{--dt-min:1120px;--dt-cols:minmax(130px,1.1fr) 80px minmax(90px,.9fr) 128px 48px 80px minmax(100px,1fr) 100px 240px}
       .dt-logs{--dt-min:1140px;--dt-cols:110px minmax(100px,1fr) minmax(90px,1fr) 64px minmax(140px,1.2fr) 76px 84px 56px minmax(110px,1fr) minmax(80px,.85fr)}
       .dt-logs.no-account{--dt-min:1040px;--dt-cols:110px minmax(100px,1fr) minmax(90px,1fr) 64px minmax(140px,1.2fr) 76px 84px 56px minmax(110px,1fr)}
       .toast{top:max(12px,calc(env(safe-area-inset-top) + 8px));left:16px;right:16px;width:auto;max-width:none;transform:translateY(-6px);min-width:0}
@@ -1036,7 +1046,7 @@ export function styles(): string {
     .rank-badge.top1{background:#fff6df;border-color:#f0d789;color:#9a6700}
     .rank-badge.top2{background:#f1f5f9;border-color:#cbd5e1;color:#475569}
     .rank-badge.top3{background:#fff1e8;border-color:#f0c2a0;color:#9a3412}
-    .dt-contrib{--dt-min:1080px;--dt-cols:minmax(130px,1.2fr) 80px minmax(90px,1fr) 48px 80px minmax(110px,1fr) 110px 280px}
+    .dt-contrib{--dt-min:1240px;--dt-cols:minmax(130px,1.1fr) 80px minmax(90px,.9fr) 128px 48px 80px minmax(110px,1fr) 110px 280px}
     .members-cell{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
     .members-preview{
       font-size:11px;line-height:1.3;color:var(--mute);max-width:100%;

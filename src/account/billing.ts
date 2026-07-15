@@ -29,24 +29,39 @@ export type SuperGrokCheck = {
   credits: CreditSnapshot;
 };
 
+function isPeriodTypeLabel(v: string): boolean {
+  return /^usage[_\s-]?period/i.test(v.trim());
+}
+
 function pickTier(cfg: BillingConfig, body: unknown): string | undefined {
-  const direct =
-    cfg.subscriptionTier ||
-    cfg.plan ||
-    cfg.planName ||
-    cfg.tier ||
-    cfg.product ||
-    cfg.currentPeriod?.type;
-  if (typeof direct === "string" && direct.trim()) return direct.trim();
-  const products = cfg.productUsage?.map((p) => p.product).filter(Boolean);
-  if (products?.length) return products.join(",");
+  const candidates: string[] = [];
+  for (const v of [cfg.subscriptionTier, cfg.plan, cfg.planName, cfg.tier, cfg.product]) {
+    if (typeof v === "string" && v.trim()) candidates.push(v.trim());
+  }
   if (body && typeof body === "object") {
     const o = body as Record<string, unknown>;
     for (const k of ["subscriptionTier", "plan", "planName", "tier", "product"]) {
       const v = o[k];
-      if (typeof v === "string" && v.trim()) return v.trim();
+      if (typeof v === "string" && v.trim()) candidates.push(v.trim());
     }
   }
+  // Prefer real plan/product names over billing period type (USAGE_PERIOD_...)
+  for (const c of candidates) {
+    if (!isPeriodTypeLabel(c)) return c;
+  }
+  const products = (cfg.productUsage || [])
+    .map((p) => String(p.product || "").trim())
+    .filter(Boolean);
+  if (products.length) {
+    // Prefer product names that look like plan labels
+    const preferred = products.find((p) => /super|grok|pro|premium|heavy|plus/i.test(p));
+    return preferred || products.join(",");
+  }
+  const periodType = cfg.currentPeriod?.type;
+  if (typeof periodType === "string" && periodType.trim() && !isPeriodTypeLabel(periodType)) {
+    return periodType.trim();
+  }
+  // USAGE_PERIOD alone is not a plan name — leave undefined so UI can show SuperGrok fallback
   return undefined;
 }
 

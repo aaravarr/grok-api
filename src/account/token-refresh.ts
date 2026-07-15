@@ -1,5 +1,7 @@
 import { config } from "../config.js";
+import type { Account } from "../types.js";
 import { now } from "../utils.js";
+import { accountPeriodEndMs } from "./router.js";
 import { listAccounts, updateAccount } from "./store.js";
 import { getValidAccessToken } from "./token.js";
 
@@ -15,7 +17,21 @@ function activityTs(acc: {
 }
 
 /**
- * Proactive refresh if idle ≥ 2d, but only while seat age ≤ 7d since createdAt.
+ * SuperGrok subscription still valid?
+ * - known periodEnd in the future => yes
+ * - known periodEnd already past => no
+ * - unknown periodEnd (never checked credits) => allow (don't block refresh)
+ */
+export function isSubscriptionUnexpired(acc: Pick<Account, "credits">, t = now()): boolean {
+  const end = accountPeriodEndMs(acc as Account);
+  if (!Number.isFinite(end) || end === Number.POSITIVE_INFINITY) return true;
+  return end > t;
+}
+
+/**
+ * Proactive refresh if:
+ * - idle ≥ 1 day
+ * - subscription not expired (periodEnd unknown counts as unexpired)
  * Request-time refresh in getValidAccessToken is unaffected.
  */
 export function needsProactiveRefresh(acc: {
@@ -25,15 +41,14 @@ export function needsProactiveRefresh(acc: {
   lastUsedAt?: number;
   lastRefreshedAt?: number;
   oauth?: unknown;
+  credits?: Account["credits"];
 }): boolean {
   if (acc.status === "pending" || acc.oauth) return false;
   if (!acc.tokens?.refresh) return false;
   if (acc.status === "expired") return false;
+  if (!isSubscriptionUnexpired(acc as Account)) return false;
 
   const t = now();
-  const age = t - (acc.createdAt || 0);
-  if (age > config.oauth.proactiveMaxAgeMs) return false;
-
   const idle = t - activityTs(acc);
   return idle >= config.oauth.proactiveIdleMs;
 }
@@ -75,7 +90,7 @@ export function startTokenRefreshScheduler(): void {
   if (timer) return;
   const ms = config.oauth.proactiveCheckMs;
   console.log(
-    `[token-refresh] scheduler every ${Math.round(ms / 60000)}m · idle≥2d · age≤7d`,
+    `[token-refresh] scheduler every ${Math.round(ms / 60000)}m · idle≥1d · sub not expired`,
   );
   // first scan after a short delay so boot is not blocked
   setTimeout(() => {

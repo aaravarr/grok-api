@@ -16,9 +16,12 @@ export const config = {
     deviceAuthorizationUrl: "https://auth.x.ai/oauth2/device/code",
     scope: "openid profile email offline_access grok-cli:access api:access",
     refreshSkewMs: 120_000,
-    /** Proactive refresh if idle for this long (lastUsedAt/createdAt). */
-    proactiveIdleMs: 2 * 24 * 60 * 60 * 1000,
-    /** Stop proactive refresh once seat is older than this since createdAt. */
+    /** Proactive refresh if idle for this long (lastUsedAt/lastRefreshedAt/createdAt). */
+    proactiveIdleMs: 1 * 24 * 60 * 60 * 1000,
+    /**
+     * Legacy max seat age for proactive refresh.
+     * Kept for env/backward compat; current policy prefers SuperGrok periodEnd instead.
+     */
     proactiveMaxAgeMs: 7 * 24 * 60 * 60 * 1000,
     /** How often to scan for idle seats needing proactive refresh. */
     proactiveCheckMs: 13 * 60 * 1000,
