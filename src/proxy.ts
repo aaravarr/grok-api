@@ -84,24 +84,64 @@ export function resolveProxyUrl(override?: string): { url: string; source: Proxy
   return { url: "", source: "none" };
 }
 
+/**
+ * undici single-Agent pools can serialize concurrent long streaming requests
+ * to the same origin (observed: CONC 8 first-byte stacks ~1s,2s,4s… while curl
+ * parallel stays ~0.5s). Shard into many Agents so concurrent LLM streams do
+ * not queue on one pool.
+ */
+const SHARD_COUNT = 32;
 const agentOpts = {
-  connections: 64,
-  keepAliveTimeout: 30_000,
-  keepAliveMaxTimeout: 600_000,
+  /** per-shard sockets; total ≈ SHARD_COUNT * connections */
+  connections: 8,
+  pipelining: 1,
+  keepAliveTimeout: 10_000,
+  keepAliveMaxTimeout: 60_000,
+  /** 0 = disable; SSE/chat streams can exceed undici defaults */
+  bodyTimeout: 0,
+  headersTimeout: 0,
 } as const;
 
+let dispatcherShards: Dispatcher[] = [];
+let shardCursor = 0;
+
+function closeShards(): void {
+  for (const d of dispatcherShards) {
+    try {
+      void (d as Agent).close?.();
+    } catch {
+      /* ignore */
+    }
+  }
+  dispatcherShards = [];
+  shardCursor = 0;
+}
+
+function nextDispatcher(): Dispatcher {
+  if (dispatcherShards.length === 0) {
+    return getGlobalDispatcher();
+  }
+  const i = shardCursor % dispatcherShards.length;
+  shardCursor = (shardCursor + 1) % dispatcherShards.length;
+  return dispatcherShards[i]!;
+}
+
 function installDispatcher(proxyUrl: string): void {
+  closeShards();
   if (proxyUrl) {
     process.env.HTTPS_PROXY = proxyUrl;
     process.env.HTTP_PROXY = proxyUrl;
     process.env.https_proxy = proxyUrl;
     process.env.http_proxy = proxyUrl;
-    setGlobalDispatcher(
+    dispatcherShards = Array.from({ length: SHARD_COUNT }, () =>
       new ProxyAgent({
         uri: proxyUrl,
         connections: agentOpts.connections,
+        pipelining: agentOpts.pipelining,
         keepAliveTimeout: agentOpts.keepAliveTimeout,
         keepAliveMaxTimeout: agentOpts.keepAliveMaxTimeout,
+        bodyTimeout: agentOpts.bodyTimeout,
+        headersTimeout: agentOpts.headersTimeout,
       }),
     );
   } else {
@@ -109,8 +149,9 @@ function installDispatcher(proxyUrl: string): void {
     delete process.env.HTTP_PROXY;
     delete process.env.https_proxy;
     delete process.env.http_proxy;
-    setGlobalDispatcher(new Agent({ ...agentOpts }));
+    dispatcherShards = Array.from({ length: SHARD_COUNT }, () => new Agent({ ...agentOpts }));
   }
+  setGlobalDispatcher(dispatcherShards[0]!);
 }
 
 /** Initial load: settings file → env → OS system proxy. */
@@ -179,16 +220,20 @@ export function currentDispatcher(): Dispatcher {
  * All outbound calls to xAI / Grok hosts MUST use this helper so they always
  * go through the installed ProxyAgent (or direct Agent when configured).
  * Prefer this over bare global fetch for external traffic.
+ *
+ * Uses a round-robin shard dispatcher so concurrent stream requests do not
+ * stall behind each other on a single undici pool.
  */
 export function outboundFetch(
   input: string | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const dispatcher = getGlobalDispatcher();
-  const next: UndiciRequestInit = {
+  const next = {
     ...(init as UndiciRequestInit | undefined),
-    dispatcher,
-  };
+    dispatcher: nextDispatcher(),
+    bodyTimeout: agentOpts.bodyTimeout,
+    headersTimeout: agentOpts.headersTimeout,
+  } as UndiciRequestInit;
   // undici fetch returns undici.Response; compatible enough for our usage
   return undiciFetch(input, next) as unknown as Promise<Response>;
 }
