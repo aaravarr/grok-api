@@ -459,41 +459,440 @@ export function normalizeToolParameters(parameters: unknown): Obj {
   return s;
 }
 
-function normalizeOneTool(tool: unknown): unknown {
+/** xAI Responses tools we pass through as-is (after light field cleanup). */
+const XAI_RESPONSE_TOOL_TYPES = new Set([
+  "function",
+  "web_search",
+  "x_search",
+  "image_generation",
+  "collections_search",
+  "file_search",
+  "code_execution",
+  "code_interpreter",
+  "mcp",
+  "shell",
+]);
+
+function pickToolName(...vals: unknown[]): string {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+function pickToolDescription(...vals: unknown[]): string | undefined {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  return undefined;
+}
+
+/** Field name used when wrapping freeform custom tool payloads (cc-switch compatible). */
+export const CUSTOM_TOOL_INPUT_FIELD = "input";
+
+const CUSTOM_TOOL_INPUT_DESCRIPTION =
+  "Raw string input for the original custom tool. Preserve formatting exactly and follow the original tool definition embedded in the description.";
+
+function freeformInputParameters(): Obj {
+  return {
+    type: "object",
+    properties: {
+      [CUSTOM_TOOL_INPUT_FIELD]: {
+        type: "string",
+        description: CUSTOM_TOOL_INPUT_DESCRIPTION,
+      },
+    },
+    required: [CUSTOM_TOOL_INPUT_FIELD],
+    additionalProperties: false,
+  };
+}
+
+function isFreeformCustomFormat(fmt: unknown): boolean {
+  if (!isObj(fmt)) return true;
+  const fmtType = String(fmt.type || "").toLowerCase();
+  if (fmtType === "json_schema" || isObj(fmt.schema) || isObj(fmt.json_schema)) return false;
+  // grammar / text / freeform / missing type => freeform
+  return true;
+}
+
+function extractJsonSchemaParameters(source: Obj): unknown | undefined {
+  if (source.parameters !== undefined) return source.parameters;
+  if (source.input_schema !== undefined) return source.input_schema;
+  if (source.inputSchema !== undefined) return source.inputSchema;
+  if (isObj(source.format)) {
+    const fmt = source.format;
+    if (isObj(fmt.schema)) return fmt.schema;
+    if (isObj(fmt.json_schema)) {
+      const js = fmt.json_schema;
+      if (isObj(js.schema)) return js.schema;
+      return js;
+    }
+  }
+  return undefined;
+}
+
+function extractToolParameters(source: Obj): unknown {
+  const jsonish = extractJsonSchemaParameters(source);
+  if (jsonish !== undefined) return jsonish;
+  // Freeform / grammar tools (e.g. Codex apply_patch)
+  return freeformInputParameters();
+}
+
+function preserveCustomToolDescription(tool: Obj, fallback?: string): string {
+  // Keep original custom tool definition in description so agents still know freeform grammar.
+  let embedded = "";
+  try {
+    embedded = JSON.stringify(tool);
+  } catch {
+    embedded = "";
+  }
+  const head =
+    fallback ||
+    (typeof tool.description === "string" ? tool.description : "") ||
+    "Original custom tool definition for compatibility.";
+  if (!embedded) return head;
+  return `${head}\n\nOriginal tool definition:\n\`\`\`json\n${embedded}\n\`\`\``;
+}
+
+/**
+ * Map OpenAI Responses `custom` tools to function tools (cc-switch style).
+ * Freeform/grammar custom tools ALWAYS become:
+ *   parameters: { type:object, properties:{ input: string }, required:["input"] }
+ * never try to reuse grammar as JSON schema.
+ */
+function customToolToFunction(tool: Obj, style: "flat" | "nested"): Obj | null {
+  const custom = isObj(tool.custom) ? tool.custom : tool;
+  const name = pickToolName(custom.name, tool.name, tool.tool_name);
+  if (!name) return null;
+
+  const freeform = isFreeformCustomFormat(custom.format ?? tool.format);
+  const description = freeform
+    ? preserveCustomToolDescription(tool, pickToolDescription(custom.description, tool.description))
+    : pickToolDescription(custom.description, tool.description);
+
+  const parameters = freeform
+    ? freeformInputParameters()
+    : normalizeToolParameters(extractToolParameters(custom) ?? extractToolParameters(tool));
+
+  if (style === "nested") {
+    return {
+      type: "function",
+      function: {
+        name,
+        ...(description ? { description } : {}),
+        parameters,
+      },
+    };
+  }
+
+  return {
+    type: "function",
+    name,
+    ...(description ? { description } : {}),
+    parameters,
+  };
+}
+
+function toolSearchToFunction(style: "flat" | "nested"): Obj {
+  const parameters = {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Search query for tools or connectors to load." },
+      limit: { type: "integer", description: "Maximum number of tool groups to return." },
+    },
+    required: ["query"],
+  };
+  const description =
+    "Search and load Codex tools, plugins, connectors, and MCP namespaces for the current task.";
+  if (style === "nested") {
+    return {
+      type: "function",
+      function: { name: "tool_search", description, parameters },
+    };
+  }
+  return { type: "function", name: "tool_search", description, parameters };
+}
+
+function flattenNamespaceTools(tool: Obj, style: "flat" | "nested"): Obj[] {
+  const ns = pickToolName(tool.name, tool.namespace);
+  const children = Array.isArray(tool.tools)
+    ? tool.tools
+    : Array.isArray(tool.children)
+      ? tool.children
+      : [];
+  const out: Obj[] = [];
+  for (const child of children) {
+    if (!isObj(child)) continue;
+    const childType = String(child.type || "").toLowerCase();
+    if (childType && childType !== "function" && !isObj(child.function)) continue;
+    const childName = pickToolName(
+      isObj(child.function) ? child.function.name : undefined,
+      child.name,
+    );
+    if (!childName) continue;
+    const flatName = ns ? `${ns}__${childName}` : childName;
+    const description = pickToolDescription(
+      isObj(child.function) ? child.function.description : undefined,
+      child.description,
+    );
+    const paramsRaw =
+      (isObj(child.function) ? child.function.parameters ?? child.function.input_schema : undefined) ??
+      child.parameters ??
+      child.input_schema ??
+      { type: "object", properties: {} };
+    const parameters = normalizeToolParameters(paramsRaw);
+    if (style === "nested") {
+      out.push({
+        type: "function",
+        function: {
+          name: flatName,
+          ...(description ? { description } : {}),
+          parameters,
+        },
+      });
+    } else {
+      out.push({
+        type: "function",
+        name: flatName,
+        ...(description ? { description } : {}),
+        parameters,
+      });
+    }
+  }
+  return out;
+}
+
+function nestedFunctionToFlat(tool: Obj): Obj {
+  const fn = isObj(tool.function) ? tool.function : {};
+  const name = pickToolName(fn.name, tool.name);
+  const description = pickToolDescription(fn.description, tool.description);
+  const parameters = normalizeToolParameters(
+    fn.parameters ?? fn.input_schema ?? tool.parameters ?? { type: "object", properties: {} },
+  );
+  return {
+    type: "function",
+    name: name || "tool",
+    ...(description ? { description } : {}),
+    parameters,
+  };
+}
+
+function unknownToolToFunction(tool: Obj, style: "flat" | "nested"): Obj {
+  // Last-resort conversion: never drop a tool; always map to function
+  const name =
+    pickToolName(tool.name, tool.tool_name, isObj(tool.custom) ? tool.custom.name : undefined) ||
+    (typeof tool.type === "string" && tool.type.trim() ? String(tool.type).trim() : "tool");
+  const description = pickToolDescription(
+    tool.description,
+    isObj(tool.custom) ? tool.custom.description : undefined,
+    typeof tool.type === "string" ? `Converted from unsupported tool type: ${tool.type}` : undefined,
+  );
+  const parameters = normalizeToolParameters(extractToolParameters(isObj(tool.custom) ? tool.custom : tool));
+  if (style === "nested") {
+    return {
+      type: "function",
+      function: {
+        name,
+        ...(description ? { description } : {}),
+        parameters,
+      },
+    };
+  }
+  return {
+    type: "function",
+    name,
+    ...(description ? { description } : {}),
+    parameters,
+  };
+}
+
+function normalizeOneTool(
+  tool: unknown,
+  opts?: { mode?: "responses" | "chat" },
+): unknown | unknown[] {
   if (!isObj(tool)) return tool;
   const t = clone(tool);
+  const mode = opts?.mode ?? "chat";
+  const style = mode === "responses" ? "flat" : "nested";
+  const type = String(t.type || "").toLowerCase();
 
-  // OpenAI chat.completions:
-  // { type:"function", function:{ name, description, parameters } }
-  if (isObj(t.function)) {
-    const fn = { ...t.function };
-    if (fn.parameters !== undefined) fn.parameters = normalizeToolParameters(fn.parameters);
-    if (fn.input_schema !== undefined) fn.input_schema = normalizeToolParameters(fn.input_schema);
-    t.function = fn;
-    if (t.type == null) t.type = "function";
+  // Codex namespace tools → flattened function tools (cc-switch)
+  if (type === "namespace") {
+    const expanded = flattenNamespaceTools(t, style);
+    return expanded.length ? expanded : unknownToolToFunction(t, style);
+  }
+
+  // Codex tool_search → function tool
+  if (type === "tool_search") {
+    return toolSearchToFunction(style);
+  }
+
+  // OpenAI Responses `custom` tools → function tools with freeform {input}
+  if (type === "custom" || isObj(t.custom)) {
+    return (
+      customToolToFunction(t, style) ||
+      unknownToolToFunction(t, style)
+    );
+  }
+
+  // OpenAI chat.completions nested function tools
+  if (isObj(t.function) || type === "function") {
+    if (mode === "responses") {
+      // xAI responses expects flat function tools, not {function:{...}}
+      if (isObj(t.function) || t.name != null || t.parameters != null) {
+        return nestedFunctionToFlat(t);
+      }
+    }
+    if (isObj(t.function)) {
+      const fn = { ...t.function };
+      if (fn.parameters !== undefined) fn.parameters = normalizeToolParameters(fn.parameters);
+      if (fn.input_schema !== undefined) fn.input_schema = normalizeToolParameters(fn.input_schema);
+      t.function = fn;
+      if (t.type == null) t.type = "function";
+      return t;
+    }
+    // already flat function (responses style) used on chat path — wrap for safety
+    if (mode === "chat" && (t.name != null || t.parameters != null) && !isObj(t.function)) {
+      return {
+        type: "function",
+        function: {
+          name: pickToolName(t.name) || "tool",
+          ...(typeof t.description === "string" ? { description: t.description } : {}),
+          parameters: normalizeToolParameters(t.parameters ?? { type: "object", properties: {} }),
+        },
+      };
+    }
+  }
+
+  // Known xAI server-side tools: pass through with light schema cleanup
+  if (mode === "responses" && type && XAI_RESPONSE_TOOL_TYPES.has(type) && type !== "function") {
+    // strip OpenAI-only flags that xAI rejects on tools
+    delete t.external_web_access;
+    delete t.strict;
+    if (t.parameters !== undefined) t.parameters = normalizeToolParameters(t.parameters);
+    if (t.input_schema !== undefined) t.input_schema = normalizeToolParameters(t.input_schema);
+    if (t.inputSchema !== undefined) t.inputSchema = normalizeToolParameters(t.inputSchema);
     return t;
   }
 
+  // Unknown / unsupported type: convert to function (never drop)
+  if (mode === "responses" && type && !XAI_RESPONSE_TOOL_TYPES.has(type)) {
+    return unknownToolToFunction(t, "flat");
+  }
+
   // Flat / Responses-ish shapes
+  delete t.external_web_access;
   if (t.parameters !== undefined) t.parameters = normalizeToolParameters(t.parameters);
   if (t.input_schema !== undefined) t.input_schema = normalizeToolParameters(t.input_schema);
   if (t.inputSchema !== undefined) t.inputSchema = normalizeToolParameters(t.inputSchema);
-  if (isObj(t.custom) && (t.custom as Obj).input_schema !== undefined) {
-    t.custom = {
-      ...t.custom,
-      input_schema: normalizeToolParameters((t.custom as Obj).input_schema),
-    };
-  }
   return t;
 }
 
-/** Normalize tools on a chat.completions request body. */
-export function normalizeToolsInBody(body: unknown): unknown {
-  if (!isObj(body)) return body;
+function normalizeToolChoice(choice: unknown, mode: "responses" | "chat"): unknown {
+  if (!isObj(choice)) return choice;
+  const type = String(choice.type || "").toLowerCase();
+  if (type === "custom") {
+    const name = pickToolName(choice.name, isObj(choice.custom) ? choice.custom.name : undefined);
+    if (!name) return "auto";
+    if (mode === "responses") return { type: "function", name };
+    return { type: "function", function: { name } };
+  }
+  // responses: {type:"function", name} ; chat: {type:"function", function:{name}}
+  if (type === "function") {
+    if (mode === "responses") {
+      const name = pickToolName(choice.name, isObj(choice.function) ? choice.function.name : undefined);
+      return name ? { type: "function", name } : choice;
+    }
+    if (!isObj(choice.function)) {
+      const name = pickToolName(choice.name);
+      return name ? { type: "function", function: { name } } : choice;
+    }
+  }
+  return choice;
+}
+
+/**
+ * OpenAI Responses / Codex fields that xAI currently rejects.
+ * Strip only known-unsupported keys; keep tools (converted above).
+ */
+const UNSUPPORTED_RESPONSE_BODY_KEYS = [
+  "external_web_access",
+  // OpenAI extras sometimes injected by clients; strip if present
+  "include_obfuscation",
+  "prompt_cache_retention",
+] as const;
+
+/** Server-side tools that require external web access. */
+const EXTERNAL_WEB_TOOL_TYPES = new Set([
+  "web_search",
+  "x_search",
+  // image/video understanding often follows search results
+  "view_image",
+  "view_x_video",
+]);
+
+function stripUnsupportedResponseFields(body: Obj): Obj {
   const b = { ...body };
+  for (const k of UNSUPPORTED_RESPONSE_BODY_KEYS) {
+    if (k in b) delete b[k];
+  }
+  return b;
+}
+
+function isExternalWebTool(tool: unknown): boolean {
+  if (!isObj(tool)) return false;
+  const type = String(tool.type || "").toLowerCase();
+  if (EXTERNAL_WEB_TOOL_TYPES.has(type)) return true;
+  // after conversion, custom web tools are functions; only drop explicit server web tools
+  return false;
+}
+
+/**
+ * Map OpenAI external_web_access onto xAI tools:
+ * - false => remove web/x search server tools
+ * - true / omitted => keep them
+ * Custom/function tools are never removed by this flag.
+ */
+function applyExternalWebAccessPolicy(body: Obj, externalWebAccess: unknown): Obj {
+  if (externalWebAccess !== false) return body;
+  const b = { ...body };
+  if (Array.isArray(b.tools)) {
+    b.tools = b.tools.filter((tool) => !isExternalWebTool(tool));
+  }
+  // If tool_choice forced a web tool, relax to auto
+  if (isObj(b.tool_choice)) {
+    const tc = b.tool_choice;
+    const t = String(tc.type || "").toLowerCase();
+    if (EXTERNAL_WEB_TOOL_TYPES.has(t)) b.tool_choice = "auto";
+  }
+  return b;
+}
+
+/** Normalize tools on a chat.completions / responses request body. */
+export function normalizeToolsInBody(
+  body: unknown,
+  opts?: { mode?: "responses" | "chat" },
+): unknown {
+  if (!isObj(body)) return body;
+  let b = { ...body };
+  const mode = opts?.mode ?? "chat";
+
+  // Read before stripping OpenAI-only fields
+  const externalWebAccess = b.external_web_access;
+
+  if (mode === "responses") {
+    b = applyExternalWebAccessPolicy(b, externalWebAccess);
+    b = stripUnsupportedResponseFields(b);
+  }
 
   if (Array.isArray(b.tools)) {
-    b.tools = b.tools.map((tool) => normalizeOneTool(tool));
+    const next: unknown[] = [];
+    for (const tool of b.tools) {
+      const n = normalizeOneTool(tool, { mode });
+      if (Array.isArray(n)) next.push(...n);
+      else if (n != null) next.push(n);
+    }
+    b.tools = next;
   }
 
   // Legacy OpenAI functions field
@@ -505,6 +904,23 @@ export function normalizeToolsInBody(body: unknown): unknown {
       return f;
     });
   }
+
+  if (b.tool_choice !== undefined) {
+    b.tool_choice = normalizeToolChoice(b.tool_choice, mode);
+  }
+
+  // xAI rejects: tool_choice set but tools missing/empty (common on /compact)
+  const toolsEmpty = !Array.isArray(b.tools) || b.tools.length === 0;
+  const functionsEmpty = !Array.isArray(b.functions) || b.functions.length === 0;
+  if (toolsEmpty && functionsEmpty) {
+    if (b.tool_choice !== undefined) delete b.tool_choice;
+    // Codex compact often also leaves this orphan flag
+    if (b.parallel_tool_calls !== undefined) delete b.parallel_tool_calls;
+    if (b.max_tool_calls !== undefined) delete b.max_tool_calls;
+  }
+  // Normalize empty arrays away so upstream sees "no tools"
+  if (Array.isArray(b.tools) && b.tools.length === 0) delete b.tools;
+  if (Array.isArray(b.functions) && b.functions.length === 0) delete b.functions;
 
   return b;
 }

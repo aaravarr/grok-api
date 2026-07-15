@@ -567,6 +567,7 @@ export function styles(): string {
     .badge.pending{background:var(--link-bg);color:var(--link-deep);border-color:#b6d4ff}
     .badge.exhausted{background:var(--violet-bg);color:var(--violet);border-color:#d8ccf1}
     .badge.expired,.badge.error{background:var(--error-bg);color:var(--error);border-color:#f0b8bb}
+    .badge.warn{background:#fff7e8;color:#9a6700;border-color:#f0d7a0}
     .oauth-phase{font-size:11px;color:var(--mute);margin-top:2px;line-height:1.3}
     .badge.current{background:var(--link-bg);color:var(--link-deep);border-color:#b6d4ff}
     .mono{font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

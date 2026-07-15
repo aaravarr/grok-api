@@ -1,8 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile } from "node:fs/promises";
 import { getUser } from "../auth/users.js";
-import { config } from "../config.js";
-import { atomicWriteJson } from "../fs-atomic.js";
+import { kvGetJson, kvSetJson } from "../db/sqlite.js";
 import type {
   Account,
   AccountOAuthMeta,
@@ -15,6 +13,9 @@ import type {
 } from "../types.js";
 import { now, randomId } from "../utils.js";
 
+const NS = "accounts";
+const KEY = "store";
+
 const emptyStore = (): AccountsStore => ({
   version: 2,
   accounts: [],
@@ -22,13 +23,10 @@ const emptyStore = (): AccountsStore => ({
   routing: { mode: "auto", currentAccountId: null, cursor: 0 },
 });
 
+let mem: AccountsStore | null = null;
 let writeChain: Promise<void> = Promise.resolve();
 
-async function ensureDataDir(): Promise<void> {
-  await mkdir(config.dataDir, { recursive: true });
-}
-
-function migrate(raw: unknown): AccountsStore {
+function normalizeStore(raw: unknown): AccountsStore {
   if (!raw || typeof raw !== "object") return emptyStore();
   const o = raw as Record<string, unknown>;
   const accounts = Array.isArray(o.accounts) ? (o.accounts as Account[]) : [];
@@ -47,19 +45,20 @@ function migrate(raw: unknown): AccountsStore {
   };
 }
 
+function persist(store: AccountsStore): void {
+  kvSetJson(NS, KEY, { ...store, version: 2 });
+}
+
 export async function loadStore(): Promise<AccountsStore> {
-  await ensureDataDir();
-  try {
-    const raw = await readFile(config.authFile, "utf8");
-    return migrate(JSON.parse(raw));
-  } catch {
-    return emptyStore();
-  }
+  if (mem) return mem;
+  const fromDb = kvGetJson<unknown>(NS, KEY);
+  mem = fromDb != null ? normalizeStore(fromDb) : emptyStore();
+  return mem;
 }
 
 export async function saveStore(store: AccountsStore): Promise<void> {
-  await ensureDataDir();
-  await atomicWriteJson(config.authFile, { ...store, version: 2 });
+  mem = { ...store, version: 2 };
+  persist(mem);
 }
 
 /** Serialize mutations to avoid races */
@@ -68,7 +67,7 @@ async function mutate<T>(fn: (store: AccountsStore) => Promise<T> | T): Promise<
   const run = writeChain.then(async () => {
     const store = await loadStore();
     result = await fn(store);
-    await saveStore(store);
+    persist(store);
   });
   // Keep chain alive even if one write fails
   writeChain = run.then(
@@ -637,12 +636,14 @@ export async function markStatus(
 }
 
 export async function markUsed(id: string): Promise<void> {
-  const acc = await getAccount(id);
-  if (!acc) return;
-  await updateAccount(id, {
-    lastUsedAt: now(),
-    useCount: acc.useCount + 1,
-    lastError: undefined,
+  // fire-and-forget: do not block first-byte path on persist
+  void mutate((store) => {
+    const acc = store.accounts.find((a) => a.id === id);
+    if (!acc) return;
+    acc.lastUsedAt = now();
+    acc.useCount = (acc.useCount || 0) + 1;
+    acc.lastError = undefined;
+    acc.updatedAt = now();
   });
 }
 
@@ -848,8 +849,8 @@ export async function verifyApiKey(
   if (!rec.enabled) return { ok: false, reason: "api_key_disabled" };
   if (rec.expiresAt && rec.expiresAt <= now()) return { ok: false, reason: "api_key_expired" };
 
-  // bump usage async-safe
-  await mutate((s) => {
+  // bump usage fire-and-forget — do not block auth path
+  void mutate((s) => {
     const k = s.apiKeys.find((x) => x.id === rec.id);
     if (k) {
       k.lastUsedAt = now();

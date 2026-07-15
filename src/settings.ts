@@ -1,7 +1,5 @@
-import { mkdir, readFile } from "node:fs/promises";
-import path from "node:path";
 import { config } from "./config.js";
-import { atomicWriteJson } from "./fs-atomic.js";
+import { kvGetJson, kvSetJson } from "./db/sqlite.js";
 
 export interface AppSettings {
   /** Outbound HTTP(S) proxy, e.g. http://127.0.0.1:7890. Empty = auto-detect. "direct" = force none. */
@@ -181,9 +179,10 @@ export async function getBillingUrl(): Promise<string> {
   return `${base}/billing?format=credits`;
 }
 
-function settingsPath(): string {
-  return path.join(config.dataDir, "settings.json");
-}
+const NS = "settings";
+const KEY = "app";
+
+let mem: AppSettings | null = null;
 
 function normalizeRetention(v: unknown, fallback: number): number {
   const n = typeof v === "number" ? v : Number(v);
@@ -203,34 +202,38 @@ function readOptionalOrigin(
   }
 }
 
-export async function loadSettings(): Promise<AppSettings> {
-  await mkdir(config.dataDir, { recursive: true });
-  try {
-    const raw = await readFile(settingsPath(), "utf8");
-    const data = JSON.parse(raw) as Partial<AppSettings>;
-    let upstreamBaseUrl = "";
-    if (typeof data.upstreamBaseUrl === "string" && data.upstreamBaseUrl.trim()) {
-      try {
-        upstreamBaseUrl = normalizeUpstreamBaseUrl(data.upstreamBaseUrl);
-      } catch {
-        upstreamBaseUrl = data.upstreamBaseUrl.trim().replace(/\/+$/, "");
-      }
+function normalizeSettings(data: Partial<AppSettings> | null | undefined): AppSettings {
+  let upstreamBaseUrl = "";
+  if (typeof data?.upstreamBaseUrl === "string" && data.upstreamBaseUrl.trim()) {
+    try {
+      upstreamBaseUrl = normalizeUpstreamBaseUrl(data.upstreamBaseUrl);
+    } catch {
+      upstreamBaseUrl = data.upstreamBaseUrl.trim().replace(/\/+$/, "");
     }
-    return {
-      proxyUrl: typeof data.proxyUrl === "string" ? data.proxyUrl.trim() : "",
-      upstreamBaseUrl,
-      oauthBaseUrl: readOptionalOrigin(data.oauthBaseUrl, "OAuth 地址"),
-      billingBaseUrl: readOptionalOrigin(data.billingBaseUrl, "额度地址"),
-      logRetentionDays: normalizeRetention(data.logRetentionDays, 7),
-      logEnabled: data.logEnabled !== false,
-      logBodies: data.logBodies === true,
-      // default true when missing (legacy installs)
-      logBodiesOnError: data.logBodiesOnError !== false,
-      allowRegister: data.allowRegister !== false,
-    };
-  } catch {
-    return defaultSettings();
   }
+  return {
+    proxyUrl: typeof data?.proxyUrl === "string" ? data.proxyUrl.trim() : "",
+    upstreamBaseUrl,
+    oauthBaseUrl: readOptionalOrigin(data?.oauthBaseUrl, "OAuth 地址"),
+    billingBaseUrl: readOptionalOrigin(data?.billingBaseUrl, "额度地址"),
+    logRetentionDays: normalizeRetention(data?.logRetentionDays, 7),
+    logEnabled: data?.logEnabled !== false,
+    logBodies: data?.logBodies === true,
+    // default true when missing (legacy installs)
+    logBodiesOnError: data?.logBodiesOnError !== false,
+    allowRegister: data?.allowRegister !== false,
+  };
+}
+
+function persist(settings: AppSettings): void {
+  kvSetJson(NS, KEY, settings);
+}
+
+export async function loadSettings(): Promise<AppSettings> {
+  if (mem) return mem;
+  const fromDb = kvGetJson<Partial<AppSettings>>(NS, KEY);
+  mem = fromDb != null ? normalizeSettings(fromDb) : defaultSettings();
+  return mem;
 }
 
 export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
@@ -265,6 +268,7 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
     allowRegister:
       patch.allowRegister !== undefined ? Boolean(patch.allowRegister) : cur.allowRegister,
   };
-  await atomicWriteJson(settingsPath(), next);
+  mem = next;
+  persist(next);
   return next;
 }

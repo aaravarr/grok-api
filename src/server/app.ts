@@ -40,8 +40,29 @@ import {
   lookupVideoJobAccount,
   rememberVideoJob,
 } from "../account/video-jobs.js";
+import {
+  extractAssistantTextFromResponsePayload,
+  extractAssistantTextFromSse,
+  extractContinuityKeysFromChatBody,
+  extractContinuityKeysFromRequest,
+  extractOpaqueItemsFromResponsePayload,
+  extractPlainMessagesFromChatBody,
+  extractPlainMessagesFromInput,
+  extractResponseIdFromPayload,
+  getConversationLineage,
+  loadConversationMessages,
+  rememberConversationTurn,
+  rewriteResponsesBodyForContinuity,
+  sanitizeResponsesInputItems,
+} from "../account/conversation-store.js";
 import { fetchUpstreamModels, proxyLLM, proxyUpstream } from "../client/xai.js";
 import { normalizeToolsInBody } from "../client/tool-schema.js";
+import {
+  buildChatFallbackFromResponsesWithContext,
+  chatJsonToResponsesJson,
+  shouldEagerFallbackResponses,
+  transformChatSseToResponsesSse,
+} from "../client/responses-fallback.js";
 import { parseCpaGrokJson } from "../account/cpa-import.js";
 import { getProxyInfo, setProxyOverride } from "../proxy.js";
 import {
@@ -1819,6 +1840,7 @@ export function createApp() {
 
   // ---------- Proxy ----------
   app.post("/v1/responses", (c) => handleProxy(c, "responses"));
+  app.post("/v1/responses/compact", (c) => handleProxy(c, "responses", { path: "/responses/compact" }));
   app.post("/v1/chat/completions", (c) => handleProxy(c, "chat"));
   app.get("/v1/models", async (c) => {
     try {
@@ -2453,9 +2475,68 @@ function chargeUserTokens(userId: string | null | undefined, usage: { totalToken
   if (n > 0) void incrementUserTokenUsed(userId, n);
 }
 
-async function handleProxy(c: Context<{ Variables: Variables }>, mode: "responses" | "chat") {
+function extractAssistantTextFromChatPayload(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const p = payload as Record<string, unknown>;
+  const choices = Array.isArray(p.choices) ? p.choices : [];
+  const c0 = choices[0] && typeof choices[0] === "object" ? (choices[0] as Record<string, unknown>) : null;
+  const msg = c0 && typeof c0.message === "object" && c0.message ? (c0.message as Record<string, unknown>) : null;
+  if (msg && typeof msg.content === "string") return msg.content;
+  if (c0 && typeof c0.text === "string") return c0.text;
+  return "";
+}
+
+function extractAssistantTextFromChatSse(text: string): string {
+  let out = "";
+  for (const line of String(text || "").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    const payload = trimmed.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+    try {
+      const obj = JSON.parse(payload) as any;
+      const delta = obj?.choices?.[0]?.delta;
+      if (typeof delta?.content === "string") out += delta.content;
+      const msg = obj?.choices?.[0]?.message;
+      if (typeof msg?.content === "string" && !out) out = msg.content;
+    } catch {
+      /* ignore */
+    }
+  }
+  return out;
+}
+
+function extractChatCompletionId(payload: unknown): string | undefined {
+  if (!payload) return undefined;
+  if (typeof payload === "string") {
+    for (const line of payload.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        const obj = JSON.parse(data) as any;
+        if (typeof obj?.id === "string" && obj.id.trim()) return obj.id.trim();
+      } catch {
+        /* ignore */
+      }
+    }
+    return undefined;
+  }
+  if (typeof payload === "object" && payload && typeof (payload as any).id === "string") {
+    return String((payload as any).id).trim() || undefined;
+  }
+  return undefined;
+}
+
+async function handleProxy(c: Context<{ Variables: Variables }>, mode: "responses" | "chat", opts?: { path?: string }) {
   const t0 = Date.now();
-  const path = mode === "responses" ? "/v1/responses" : "/v1/chat/completions";
+  const path = opts?.path
+    ? (opts.path.startsWith("/v1/") ? opts.path : "/v1" + (opts.path.startsWith("/") ? opts.path : "/" + opts.path))
+    : mode === "responses"
+      ? "/v1/responses"
+      : "/v1/chat/completions";
+  const upstreamPath = opts?.path || (mode === "responses" ? "/responses" : "/chat/completions");
   const apiKeyId = c.get("apiKeyId");
   const apiKeyAlias = c.get("apiKeyAlias");
   const apiKeyUserId = c.get("apiKeyUserId");
@@ -2508,24 +2589,230 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
 
   try {
     const preferred = c.req.header("x-account-id") ?? undefined;
-    const upstreamBody = ensureStreamUsage(mode, normalizeToolsInBody(body));
-    const result = await proxyLLM({
-      mode,
-      body: upstreamBody,
-      accountId: preferred,
-      callerUserId: apiKeyUserId,
-    });
+    let workBody: unknown = body;
+    let continuityKeys: string[] = [];
+    let userMessagesForStore: Array<{ role: any; content: string; ts: number }> = [];
+    let fallbackUsed = false;
+    const fallbackMeta: {
+      fromPath?: string;
+      toPath?: string;
+      reason?: string;
+      originalStatus?: number;
+      originalError?: string;
+    } = {};
+    const sanitizeMeta: {
+      fixedReasoning?: number;
+      convertedCustomCalls?: number;
+      droppedItems?: number;
+      modified?: boolean;
+    } = {};
+    let result: Awaited<ReturnType<typeof proxyLLM>>;
+
+    const runChatFallback = async (reason: string, originalStatus?: number, originalError?: string) => {
+      const stored = await loadConversationMessages(continuityKeys);
+      // Full cc-switch-style conversion (tools/namespace/tool_search/custom freeform + history)
+      const converted = buildChatFallbackFromResponsesWithContext(body, stored);
+      // tools already normalized by codex-chat-compat; still run schema normalizer for Grok params safety
+      const chatBody = ensureStreamUsage("chat", normalizeToolsInBody(converted.body, { mode: "chat" }));
+      const chatResult = await proxyLLM({
+        mode: "chat",
+        body: chatBody,
+        accountId: preferred,
+        callerUserId: apiKeyUserId,
+        path: "/chat/completions",
+      });
+      if (!(chatResult.status >= 200 && chatResult.status < 300 && chatResult.body)) {
+        return { ok: false as const, chatResult, errText: originalError };
+      }
+      fallbackUsed = true;
+      fallbackMeta.fromPath = path;
+      fallbackMeta.toPath = "/v1/chat/completions";
+      fallbackMeta.reason = reason;
+      fallbackMeta.originalStatus = originalStatus;
+      fallbackMeta.originalError = originalError ? String(originalError).slice(0, 500) : undefined;
+      const wantStream = meta.stream === true;
+      if (wantStream) {
+        const sse = transformChatSseToResponsesSse(chatResult.body, meta.model, converted.toolContext);
+        return {
+          ok: true as const,
+          result: {
+            status: 200,
+            headers: new Headers({
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "x-account-id": chatResult.accountId,
+              "x-account-name": chatResult.accountName,
+              "x-grok-fallback": "chat_completions",
+              "x-grok-fallback-from": path,
+              "x-grok-fallback-to": "/v1/chat/completions",
+              "x-grok-fallback-reason": reason,
+            }),
+            body: sse,
+            accountId: chatResult.accountId,
+            accountName: chatResult.accountName,
+          },
+        };
+      }
+      const { bytes } = await captureJsonResponse(chatResult.body);
+      let chatJson: unknown = {};
+      try { chatJson = JSON.parse(new TextDecoder().decode(bytes)); } catch { chatJson = {}; }
+      const respJson = chatJsonToResponsesJson(chatJson, meta.model, converted.toolContext);
+      const outBytes = new TextEncoder().encode(JSON.stringify(respJson));
+      return {
+        ok: true as const,
+        result: {
+          status: 200,
+          headers: new Headers({
+            "Content-Type": "application/json",
+            "x-account-id": chatResult.accountId,
+            "x-account-name": chatResult.accountName,
+            "x-grok-fallback": "chat_completions",
+            "x-grok-fallback-from": path,
+            "x-grok-fallback-to": "/v1/chat/completions",
+            "x-grok-fallback-reason": reason,
+          }),
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(outBytes);
+              controller.close();
+            },
+          }),
+          accountId: chatResult.accountId,
+          accountName: chatResult.accountName,
+        },
+      };
+    };
+
+    if (mode === "responses") {
+      continuityKeys = extractContinuityKeysFromRequest(body);
+      userMessagesForStore = extractPlainMessagesFromInput((body as any)?.input);
+      const lineage = await getConversationLineage(continuityKeys);
+
+      if (String(upstreamPath || "").includes("compact")) {
+        // Pure responses compact path; never auto-fallback here.
+        const b = { ...(workBody as any) };
+        delete b.tools;
+        delete b.functions;
+        delete b.tool_choice;
+        delete b.parallel_tool_calls;
+        delete b.max_tool_calls;
+        delete b.previous_response_id;
+        workBody = b;
+        const upstreamBody = ensureStreamUsage(mode, normalizeToolsInBody(workBody, { mode }));
+        result = await proxyLLM({
+          mode,
+          body: upstreamBody,
+          accountId: preferred,
+          callerUserId: apiKeyUserId,
+          path: upstreamPath,
+        });
+      } else {
+        // Lineage-first policy:
+        // - chat lineage => always completions
+        // - responses lineage => always responses
+        // - unknown => only foreign/history residue goes completions; else responses
+        const eager = shouldEagerFallbackResponses(body, {
+          preferredMode: lineage.preferredMode ?? null,
+          storeHit: lineage.hit,
+        });
+
+        if (eager.eager) {
+          const fb = await runChatFallback(eager.reason || "session_lineage_chat");
+          if (fb.ok) {
+            result = fb.result;
+          } else {
+            // Do not silently lock lineage on failure; surface chat error as responses-shaped failure later.
+            // Fall back to attempting responses only if chat path hard-fails construction/upstream.
+            const rewritten = await rewriteResponsesBodyForContinuity(body);
+            const sanitized = await sanitizeResponsesInputItems(rewritten.body);
+            workBody = sanitized.body;
+            sanitizeMeta.modified = sanitized.modified;
+            sanitizeMeta.fixedReasoning = sanitized.fixedReasoning;
+            sanitizeMeta.convertedCustomCalls = sanitized.convertedCustomCalls;
+            sanitizeMeta.droppedItems = sanitized.droppedItems;
+            const upstreamBody = ensureStreamUsage(mode, normalizeToolsInBody(workBody, { mode }));
+            result = await proxyLLM({
+              mode,
+              body: upstreamBody,
+              accountId: preferred,
+              callerUserId: apiKeyUserId,
+              path: upstreamPath,
+            });
+          }
+        } else {
+          const rewritten = await rewriteResponsesBodyForContinuity(body);
+          const sanitized = await sanitizeResponsesInputItems(rewritten.body);
+          workBody = sanitized.body;
+          sanitizeMeta.modified = sanitized.modified;
+          sanitizeMeta.fixedReasoning = sanitized.fixedReasoning;
+          sanitizeMeta.convertedCustomCalls = sanitized.convertedCustomCalls;
+          sanitizeMeta.droppedItems = sanitized.droppedItems;
+          const upstreamBody = ensureStreamUsage(mode, normalizeToolsInBody(workBody, { mode }));
+          result = await proxyLLM({
+            mode,
+            body: upstreamBody,
+            accountId: preferred,
+            callerUserId: apiKeyUserId,
+            path: upstreamPath,
+          });
+          // IMPORTANT: no on-error auto fallback. Keep responses errors visible for investigation.
+        }
+      }
+    } else {
+      continuityKeys = extractContinuityKeysFromChatBody(body);
+      userMessagesForStore = extractPlainMessagesFromChatBody(body);
+      const upstreamBody = ensureStreamUsage(mode, normalizeToolsInBody(workBody, { mode }));
+      result = await proxyLLM({
+        mode,
+        body: upstreamBody,
+        accountId: preferred,
+        callerUserId: apiKeyUserId,
+        path: upstreamPath,
+      });
+    }
+
     const contentType = result.headers.get("content-type") ?? "application/json";
     const headers: Record<string, string> = {
       "Content-Type": contentType,
       "x-account-id": result.accountId,
       "x-account-name": result.accountName,
     };
+    if (fallbackUsed) {
+      headers["x-grok-fallback"] = "chat_completions";
+      headers["x-grok-fallback-from"] = path;
+      headers["x-grok-fallback-to"] = "/v1/chat/completions";
+      if (fallbackMeta.reason) headers["x-grok-fallback-reason"] = fallbackMeta.reason;
+    }
+    const logBase = {
+      ...baseLog,
+      ...(fallbackUsed
+        ? {
+            fallback: true,
+            fallbackFromPath: path,
+            fallbackToPath: "/v1/chat/completions",
+            fallbackReason: fallbackMeta.reason || "responses_to_chat",
+            fallbackOriginalStatus: fallbackMeta.originalStatus,
+            fallbackOriginalError: fallbackMeta.originalError,
+            effectiveMode: "chat" as const,
+            effectivePath: "/v1/chat/completions",
+          }
+        : {
+            effectiveMode: mode,
+            effectivePath: path,
+          }),
+      ...(sanitizeMeta.modified
+        ? {
+            inputSanitized: true,
+            inputFixedReasoning: sanitizeMeta.fixedReasoning || 0,
+            inputConvertedCustomCalls: sanitizeMeta.convertedCustomCalls || 0,
+            inputDroppedItems: sanitizeMeta.droppedItems || 0,
+          }
+        : {}),
+    };
 
     if (!result.body) {
       if (logging) {
         void appendRequestLog({
-          ...baseLog,
+          ...logBase,
           accountId: result.accountId,
           accountName: result.accountName,
           status: result.status,
@@ -2543,7 +2830,9 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
 
     // Charge only on HTTP 2xx; body-level errors still may have used tokens upstream
     const shouldCharge = Boolean(apiKeyUserId) && result.status >= 200 && result.status < 300;
-    if (!logging && !shouldCharge) {
+    // Capture for logging/billing, and for conversation lineage on both modes
+    const needsCapture = logging || shouldCharge || mode === "responses" || mode === "chat";
+    if (!needsCapture) {
       return new Response(result.body, { status: result.status, headers });
     }
 
@@ -2556,13 +2845,48 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
     if (isSse) {
       const clientBody = teeAndCapture(result.body, (captured) => {
         if (shouldCharge) chargeUserTokens(apiKeyUserId, captured.usage);
+        if (result.status >= 200 && result.status < 300 && (mode === "responses" || mode === "chat")) {
+          try {
+            let assistantText = "";
+            let responseId: string | undefined;
+            let opaqueItems: unknown[] = [];
+            if (mode === "responses") {
+              assistantText =
+                typeof captured.response === "string"
+                  ? extractAssistantTextFromSse(captured.response)
+                  : extractAssistantTextFromResponsePayload(captured.response);
+              responseId =
+                extractResponseIdFromPayload(captured.response) ||
+                (typeof captured.response === "string" ? extractResponseIdFromPayload(captured.response) : undefined);
+              opaqueItems = extractOpaqueItemsFromResponsePayload(captured.response);
+            } else {
+              // native chat/completions path
+              assistantText =
+                typeof captured.response === "string"
+                  ? extractAssistantTextFromChatSse(captured.response)
+                  : extractAssistantTextFromChatPayload(captured.response);
+              responseId = extractChatCompletionId(captured.response);
+            }
+            void rememberConversationTurn({
+              responseId,
+              previousKeys: continuityKeys,
+              userMessages: userMessagesForStore,
+              assistantText,
+              accountId: result.accountId,
+              opaqueItems,
+              preferredMode: mode === "chat" || fallbackUsed ? "chat" : "responses",
+            });
+          } catch {
+            /* ignore store errors */
+          }
+        }
         if (logging) {
           const bodyError = extractBodyError(captured.response) || captured.error;
           const picked = pickResponse(result.status, captured, bodyError);
           const latencyMs = Date.now() - t0;
           const firstTokenMs = ttftMs(captured.firstByteAt);
           void appendRequestLog({
-            ...baseLog,
+            ...logBase,
             stream: true,
             accountId: result.accountId,
             accountName: result.accountName,
@@ -2583,13 +2907,39 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
 
     const { bytes, result: captured } = await captureJsonResponse(result.body);
     if (shouldCharge) chargeUserTokens(apiKeyUserId, captured.usage);
+    if (result.status >= 200 && result.status < 300 && (mode === "responses" || mode === "chat")) {
+      try {
+        let assistantText = "";
+        let responseId: string | undefined;
+        let opaqueItems: unknown[] = [];
+        if (mode === "responses") {
+          assistantText = extractAssistantTextFromResponsePayload(captured.response);
+          responseId = extractResponseIdFromPayload(captured.response);
+          opaqueItems = extractOpaqueItemsFromResponsePayload(captured.response);
+        } else {
+          assistantText = extractAssistantTextFromChatPayload(captured.response);
+          responseId = extractChatCompletionId(captured.response);
+        }
+        void rememberConversationTurn({
+          responseId,
+          previousKeys: continuityKeys,
+          userMessages: userMessagesForStore,
+          assistantText,
+          accountId: result.accountId,
+          opaqueItems,
+          preferredMode: mode === "chat" || fallbackUsed ? "chat" : "responses",
+        });
+      } catch {
+        /* ignore store errors */
+      }
+    }
     if (logging) {
       const bodyError = extractBodyError(captured.response) || captured.error;
       const picked = pickResponse(result.status, captured, bodyError);
       const latencyMs = Date.now() - t0;
       const firstTokenMs = ttftMs(captured.firstByteAt);
       void appendRequestLog({
-        ...baseLog,
+        ...logBase,
         stream: false,
         accountId: result.accountId,
         accountName: result.accountName,

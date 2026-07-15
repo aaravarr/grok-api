@@ -63,6 +63,18 @@ export interface AppendLogInput {
   headers?: Record<string, string>;
   userAgent?: string;
   client?: string;
+  fallback?: boolean;
+  fallbackFromPath?: string;
+  fallbackToPath?: string;
+  fallbackReason?: string;
+  fallbackOriginalStatus?: number;
+  fallbackOriginalError?: string;
+  effectiveMode?: ProxyMode | "chat" | "responses";
+  effectivePath?: string;
+  inputSanitized?: boolean;
+  inputFixedReasoning?: number;
+  inputConvertedCustomCalls?: number;
+  inputDroppedItems?: number;
 }
 
 export function appendRequestLog(input: AppendLogInput): Promise<RequestLog> {

@@ -84,19 +84,32 @@ export function resolveProxyUrl(override?: string): { url: string; source: Proxy
   return { url: "", source: "none" };
 }
 
+const agentOpts = {
+  connections: 64,
+  keepAliveTimeout: 30_000,
+  keepAliveMaxTimeout: 600_000,
+} as const;
+
 function installDispatcher(proxyUrl: string): void {
   if (proxyUrl) {
     process.env.HTTPS_PROXY = proxyUrl;
     process.env.HTTP_PROXY = proxyUrl;
     process.env.https_proxy = proxyUrl;
     process.env.http_proxy = proxyUrl;
-    setGlobalDispatcher(new ProxyAgent(proxyUrl));
+    setGlobalDispatcher(
+      new ProxyAgent({
+        uri: proxyUrl,
+        connections: agentOpts.connections,
+        keepAliveTimeout: agentOpts.keepAliveTimeout,
+        keepAliveMaxTimeout: agentOpts.keepAliveMaxTimeout,
+      }),
+    );
   } else {
     delete process.env.HTTPS_PROXY;
     delete process.env.HTTP_PROXY;
     delete process.env.https_proxy;
     delete process.env.http_proxy;
-    setGlobalDispatcher(new Agent());
+    setGlobalDispatcher(new Agent({ ...agentOpts }));
   }
 }
 

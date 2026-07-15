@@ -9,6 +9,8 @@ export const config = {
   host: process.env.HOST ?? "127.0.0.1",
   dataDir: process.env.DATA_DIR ?? path.join(root, "data"),
   authFile: process.env.AUTH_FILE ?? path.join(root, "data", "accounts.json"),
+  /** SQLite path (accounts / users / …). Default: data/grok-api.db */
+  dbFile: process.env.DB_FILE ?? path.join(root, "data", "grok-api.db"),
   oauth: {
     clientId: process.env.XAI_CLIENT_ID ?? "b1a00492-073a-47ea-816f-4c329264a828",
     authorizeUrl: "https://auth.x.ai/oauth2/authorize",

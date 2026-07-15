@@ -4,7 +4,11 @@ import type { CreditSnapshot } from "../types.js";
 import { now } from "../utils.js";
 import { getAccount, setCredits } from "./store.js";
 import { getValidAccessToken } from "./token.js";
+
+/** Hard cache: return without refresh */
 const CACHE_TTL_MS = 60_000;
+/** Soft stale: return immediately, refresh in background */
+const STALE_TTL_MS = 10 * 60_000;
 
 export interface BillingConfig {
   creditUsagePercent?: number;
@@ -157,6 +161,14 @@ async function fetchBillingJson(accessToken: string): Promise<{ config?: Billing
   }
 }
 
+async function refreshAccountCredits(accountId: string): Promise<CreditSnapshot> {
+  const access = await getValidAccessToken(accountId);
+  const json = await fetchBillingJson(access);
+  const snap = parseCredits(json, now());
+  await setCredits(accountId, snap);
+  return snap;
+}
+
 /** Fetch credits for a single account. Never batch-check all accounts. */
 export async function fetchAccountCredits(
   accountId: string,
@@ -165,19 +177,19 @@ export async function fetchAccountCredits(
   const acc = await getAccount(accountId);
   if (!acc) throw new Error(`account not found: ${accountId}`);
 
-  if (
-    !opts?.force &&
-    acc.credits &&
-    now() - acc.credits.checkedAt < CACHE_TTL_MS
-  ) {
-    return acc.credits;
+  if (!opts?.force && acc.credits) {
+    const age = now() - acc.credits.checkedAt;
+    if (age < CACHE_TTL_MS) {
+      return acc.credits;
+    }
+    // stale but recent: return immediately, refresh in background
+    if (age < STALE_TTL_MS) {
+      void refreshAccountCredits(accountId).catch(() => {});
+      return acc.credits;
+    }
   }
 
-  const access = await getValidAccessToken(accountId);
-  const json = await fetchBillingJson(access);
-  const snap = parseCredits(json, now());
-  await setCredits(accountId, snap);
-  return snap;
+  return refreshAccountCredits(accountId);
 }
 
 /**

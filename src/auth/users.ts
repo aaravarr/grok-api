@@ -1,7 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
-import path from "node:path";
-import { config } from "../config.js";
-import { atomicWriteJson } from "../fs-atomic.js";
+import { kvGetJson, kvSetJson } from "../db/sqlite.js";
 import { randomId, now } from "../utils.js";
 import {
   generateSessionToken,
@@ -62,12 +59,11 @@ interface UsersStore {
 }
 
 const SESSION_TTL_MS = 30 * 86400_000; // 30 days
+const NS = "users";
+const KEY = "store";
 
-function usersPath(): string {
-  return path.join(config.dataDir, "users.json");
-}
-
-let writeChain: Promise<unknown> = Promise.resolve();
+let mem: UsersStore | null = null;
+let writeChain: Promise<void> = Promise.resolve();
 
 function emptyStore(): UsersStore {
   return { version: 1, users: [], sessions: [] };
@@ -185,40 +181,43 @@ function normalizeUser(raw: Partial<User> & Pick<User, "id" | "username" | "pass
   };
 }
 
-async function loadStore(): Promise<UsersStore> {
-  await mkdir(config.dataDir, { recursive: true });
-  try {
-    const raw = await readFile(usersPath(), "utf8");
-    const data = JSON.parse(raw) as Partial<UsersStore>;
-    return {
-      version: 1,
-      users: Array.isArray(data.users) ? data.users.map((u) => normalizeUser(u as User)) : [],
-      sessions: Array.isArray(data.sessions) ? data.sessions : [],
-    };
-  } catch {
-    return emptyStore();
-  }
+function normalizeStore(data: Partial<UsersStore> | null | undefined): UsersStore {
+  return {
+    version: 1,
+    users: Array.isArray(data?.users)
+      ? data!.users.map((u) => normalizeUser(u as User))
+      : [],
+    sessions: Array.isArray(data?.sessions) ? data!.sessions : [],
+  };
 }
 
-async function saveStore(store: UsersStore): Promise<void> {
-  await atomicWriteJson(usersPath(), store);
+function persist(store: UsersStore): void {
+  kvSetJson(NS, KEY, store);
+}
+
+async function loadStore(): Promise<UsersStore> {
+  if (mem) return mem;
+  const fromDb = kvGetJson<Partial<UsersStore>>(NS, KEY);
+  mem = fromDb != null ? normalizeStore(fromDb) : emptyStore();
+  return mem;
 }
 
 async function mutate<T>(fn: (store: UsersStore) => T | Promise<T>): Promise<T> {
+  let result!: T;
   const run = writeChain.then(async () => {
     const store = await loadStore();
     // prune expired sessions
     const t = now();
     store.sessions = store.sessions.filter((s) => s.expiresAt > t);
-    const result = await fn(store);
-    await saveStore(store);
-    return result;
+    result = await fn(store);
+    persist(store);
   });
   writeChain = run.then(
     () => undefined,
     () => undefined,
   );
-  return run;
+  await run;
+  return result;
 }
 
 export function publicUser(u: User) {

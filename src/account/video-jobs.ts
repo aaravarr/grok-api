@@ -1,7 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
-import path from "node:path";
-import { config } from "../config.js";
-import { atomicWriteJson } from "../fs-atomic.js";
+import { kvGetJson, kvSetJson } from "../db/sqlite.js";
 import { now } from "../utils.js";
 
 type VideoJobRecord = {
@@ -19,13 +16,11 @@ type VideoJobStore = {
 
 const TTL_MS = 48 * 60 * 60 * 1000;
 const MAX_JOBS = 5000;
+const NS = "video-jobs";
+const KEY = "store";
 
 let cache: VideoJobStore | null = null;
-let writeQueue: Promise<void> = Promise.resolve();
-
-function jobsPath(): string {
-  return path.join(config.dataDir, "video-jobs.json");
-}
+let writeChain: Promise<void> = Promise.resolve();
 
 function emptyStore(): VideoJobStore {
   return { jobs: {} };
@@ -42,29 +37,32 @@ function prune(store: VideoJobStore): VideoJobStore {
   };
 }
 
+function persist(store: VideoJobStore): void {
+  kvSetJson(NS, KEY, store);
+}
+
 async function loadStore(): Promise<VideoJobStore> {
   if (cache) return cache;
-  await mkdir(config.dataDir, { recursive: true });
-  try {
-    const raw = await readFile(jobsPath(), "utf8");
-    const parsed = JSON.parse(raw) as VideoJobStore;
-    cache = prune({
-      jobs: parsed && typeof parsed === "object" && parsed.jobs ? parsed.jobs : {},
-    });
-  } catch {
-    cache = emptyStore();
-  }
+  const fromDb = kvGetJson<VideoJobStore>(NS, KEY);
+  cache =
+    fromDb != null
+      ? prune({
+          jobs: fromDb && typeof fromDb === "object" && fromDb.jobs ? fromDb.jobs : {},
+        })
+      : emptyStore();
   return cache;
 }
 
 async function saveStore(store: VideoJobStore): Promise<void> {
   cache = prune(store);
-  writeQueue = writeQueue
-    .then(async () => {
-      await atomicWriteJson(jobsPath(), cache);
-    })
-    .catch(() => {});
-  await writeQueue;
+  const run = writeChain.then(() => {
+    persist(cache!);
+  });
+  writeChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  await run;
 }
 
 export async function rememberVideoJob(opts: {

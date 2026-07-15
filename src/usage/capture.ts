@@ -5,9 +5,25 @@ const MAX_CAPTURE_BYTES = 1_048_576; // 1 MiB
 export function extractUsage(obj: unknown): TokenUsage | undefined {
   if (!obj || typeof obj !== "object") return undefined;
   const root = obj as Record<string, unknown>;
-  const u = root.usage;
-  if (!u || typeof u !== "object") return undefined;
-  const usage = u as Record<string, unknown>;
+
+  // Responses SSE often nests usage under response.usage / response.completed.response.usage
+  const candidates: unknown[] = [root.usage];
+  const response = asObj(root.response);
+  if (response) candidates.push(response.usage);
+  const nestedResponse = response ? asObj(response.response) : undefined;
+  if (nestedResponse) candidates.push(nestedResponse.usage);
+
+  let usageObj: Record<string, unknown> | undefined;
+  for (const c of candidates) {
+    const o = asObj(c);
+    if (o) {
+      usageObj = o;
+      break;
+    }
+  }
+  if (!usageObj) return undefined;
+
+  const usage = usageObj;
   const prompt = num(usage.prompt_tokens ?? usage.input_tokens);
   const completion = num(usage.completion_tokens ?? usage.output_tokens);
   let total = num(usage.total_tokens);
@@ -95,12 +111,22 @@ export function parseBodyMeta(body: unknown): {
 export function ensureStreamUsage(mode: "chat" | "responses", body: unknown): unknown {
   if (!body || typeof body !== "object") return body;
   const b = { ...(body as Record<string, unknown>) };
-  if (mode === "chat" && b.stream === true) {
-    const prev =
-      b.stream_options && typeof b.stream_options === "object"
-        ? { ...(b.stream_options as Record<string, unknown>) }
-        : {};
-    b.stream_options = { ...prev, include_usage: true };
+  if (b.stream === true) {
+    if (mode === "chat") {
+      const prev =
+        b.stream_options && typeof b.stream_options === "object"
+          ? { ...(b.stream_options as Record<string, unknown>) }
+          : {};
+      b.stream_options = { ...prev, include_usage: true };
+    } else if (mode === "responses") {
+      // Prefer final usage event for Responses streaming when supported.
+      if (b.include_usage == null) b.include_usage = true;
+      if (b.stream_options && typeof b.stream_options === "object") {
+        const prev = { ...(b.stream_options as Record<string, unknown>) };
+        if (prev.include_usage == null) prev.include_usage = true;
+        b.stream_options = prev;
+      }
+    }
   }
   return b;
 }

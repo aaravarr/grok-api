@@ -43,6 +43,8 @@ export interface ProxyRequest {
   accountId?: string;
   callerUserId?: string | null;
   maxRetries?: number;
+  /** Optional override path under upstream base, e.g. /responses/compact */
+  path?: string;
 }
 
 export interface ProxyResponse {
@@ -58,9 +60,12 @@ function endpoint(base: string, mode: ProxyMode): string {
 }
 
 export async function proxyLLM(req: ProxyRequest): Promise<ProxyResponse> {
+  const path =
+    req.path ||
+    (req.mode === "responses" ? "/responses" : "/chat/completions");
   return proxyUpstream({
     method: "POST",
-    path: req.mode === "responses" ? "/responses" : "/chat/completions",
+    path,
     body: req.body,
     accountId: req.accountId,
     callerUserId: req.callerUserId,
@@ -135,7 +140,8 @@ export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyRes
     });
 
     if (res.ok || res.status === 202) {
-      await onSuccess(routed.account.id);
+      // do not block first-byte on markUsed persist
+      void onSuccess(routed.account.id);
       return {
         status: res.status,
         headers: res.headers,

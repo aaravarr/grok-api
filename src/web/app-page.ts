@@ -1310,7 +1310,7 @@ ${mediaViewHtml(page)}
         clearLogs:"清理日志", clearLogsConfirm:"确定清理全部请求日志？", logsCleared:"日志已清理",
         stripLogs:"精简正文", stripLogsConfirm:"将从历史日志中删除请求/响应正文（保留元数据与 Token），是否继续？",
         logsStripped:(n,b)=>"已精简 "+n+" 条 · 释放约 "+b,
-        logDetail:"请求详情", allDays:"全部日期", noLogs:"暂无请求日志",
+        logDetail:"请求详情", logConvert:"协议转换", logConvertFrom:"原始路径", logConvertTo:"实际路径", logConvertReason:"转换原因", logNoConvert:"未转换", logFallbackBadge:"已转换", allDays:"全部日期", noLogs:"暂无请求日志",
         colTime:"时间", colClient:"客户端", colModel:"模型", colTokens:"Token", colLatency:"延迟", colTtft:"首字", colTps:"TPS",
         routing:"路由", modeAuto:"自动", modeManual:"手动",
         accNamePh:"账号备注（可选）", addAccount:"添加账号",
@@ -1543,7 +1543,7 @@ ${mediaViewHtml(page)}
         clearLogs:"Clear logs", clearLogsConfirm:"Clear ALL request logs?", logsCleared:"Logs cleared",
         stripLogs:"Strip bodies", stripLogsConfirm:"Remove request/response bodies from historical logs (keep metadata + tokens). Continue?",
         logsStripped:(n,b)=>"Stripped "+n+" rows · saved ~"+b,
-        logDetail:"Request detail", allDays:"All days", noLogs:"No request logs yet",
+        logDetail:"Request detail", logConvert:"Protocol conversion", logConvertFrom:"Original path", logConvertTo:"Effective path", logConvertReason:"Reason", logNoConvert:"No conversion", logFallbackBadge:"converted", allDays:"All days", noLogs:"No request logs yet",
         colTime:"Time", colClient:"Client", colModel:"Model", colTokens:"Tokens", colLatency:"Latency", colTtft:"TTFT", colTps:"TPS",
         routing:"Routing", modeAuto:"Auto", modeManual:"Manual",
         accNamePh:"Account note (optional)", addAccount:"Add account",
@@ -3123,6 +3123,48 @@ ${mediaViewHtml(page)}
         rows.filter(([, v]) => v != null).map(([k, v]) => k + "=" + v).join(" · ") || "–";
     }
 
+    function logPathLabel(r) {
+      const path = r && (r.path || r.effectivePath) ? String(r.path || r.effectivePath) : "";
+      return path || "–";
+    }
+
+    function logConvertSummary(r) {
+      if (!r) return "";
+      if (r.fallback) {
+        const from = r.fallbackFromPath || r.path || "/v1/responses";
+        const to = r.fallbackToPath || r.effectivePath || "/v1/chat/completions";
+        const reason = r.fallbackReason || "responses_to_chat";
+        return { from, to, reason, converted: true };
+      }
+      // Still show effective path when present for clarity
+      if (r.effectivePath && r.path && r.effectivePath !== r.path) {
+        return { from: r.path, to: r.effectivePath, reason: r.fallbackReason || "rewrite", converted: true };
+      }
+      return { from: r.path || "", to: r.effectivePath || r.path || "", reason: "", converted: false };
+    }
+
+    function renderLogConvertBadge(r) {
+      const c = logConvertSummary(r);
+      if (!c.converted) return "";
+      return '<span class="badge warn" title="' + esc(c.from + " -> " + c.to + (c.reason ? (" · " + c.reason) : "")) + '">' +
+        esc(t("logFallbackBadge")) + "</span>";
+    }
+
+    function renderLogModeCell(r) {
+      const c = logConvertSummary(r);
+      const mode = r.effectiveMode || r.mode || "–";
+      const tip = c.converted
+        ? ((c.from || "") + " -> " + (c.to || "") + (c.reason ? (" · " + c.reason) : ""))
+        : (logPathLabel(r) || "");
+      // List stays original height: model + mode only. Convert details are in the detail modal.
+      return '<div title="' + esc(tip) + '">' +
+        '<div class="name">' + esc(r.model || "–") +
+          (c.converted ? (' <span class="badge warn" style="margin-left:4px;vertical-align:middle">' + esc(t("logFallbackBadge")) + "</span>") : "") +
+        "</div>" +
+        '<div class="mono">' + esc(mode) + "</div>" +
+      "</div>";
+    }
+
     function renderLogs(items) {
       const tbody = $("tbodyLogs");
       if (!tbody) return;
@@ -3149,7 +3191,7 @@ ${mediaViewHtml(page)}
           '<div' + uaTip + '><div class="name">' + esc(client) + '</div>' +
           (r.userAgent && r.client && r.userAgent !== r.client ? '<div class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.userAgent) + "</div>" : "") +
           "</div>" +
-          '<div><div class="name">' + esc(r.model || "–") + '</div><div class="mono">' + esc(r.mode) + "</div></div>" +
+          renderLogModeCell(r) +
           '<div><span class="badge ' + stCls + '">' + esc(r.status) + "</span></div>" +
           '<div class="mono" style="white-space:nowrap" title="' + esc(tok) + '">' + tok + "</div>" +
           '<div class="mono dt-num" title="' + esc(latTxt) + '">' + esc(latTxt) + "</div>" +
@@ -3193,7 +3235,7 @@ ${mediaViewHtml(page)}
         return '<div class="quick-row clickable" data-id="' + esc(r.id) + '">' +
           '<div class="ov-recent-main">' +
           '<div class="name">' + esc(r.model || "–") + '</div>' +
-          '<div class="mono">' + esc(client) + " · " + esc(fmtTime(r.ts)) + "</div>" +
+          '<div class="mono">' + esc(client) + " · " + esc(fmtTime(r.ts)) + (r.fallback ? (" · " + t("logFallbackBadge")) : "") + "</div>" +
           "</div>" +
           '<div class="ov-recent-side">' +
           '<span class="badge ' + st + '">' + esc(r.status) + "</span>" +
@@ -4159,6 +4201,36 @@ ${mediaViewHtml(page)}
           '<div><div class="k">user-agent</div><div class="v">' + esc(log.userAgent || "–") + "</div></div>" +
           '<div><div class="k">model</div><div class="v">' + esc(log.model || "–") + (log.reasoningEffort ? " · effort=" + esc(log.reasoningEffort) : "") + "</div></div>" +
           '<div><div class="k">status</div><div class="v">' + esc(log.status) + " · " + (log.ok ? "ok" : "fail") + " · " + esc(log.latencyMs) + "ms" + (log.stream ? " · stream" : "") + "</div></div>" +
+          '<div style="grid-column:1/-1"><div class="k">' + esc(t("logConvert")) + '</div><div class="v">' +
+          (function () {
+            const c = logConvertSummary(log);
+            if (!c.converted) {
+              return '<span class="mono">' + esc((log.path || "–") + (log.mode ? (" · " + log.mode) : "") + " · " + t("logNoConvert")) + "</span>";
+            }
+            // Compact single block: badge + path, reason on same/next dense line.
+            const bits = [];
+            bits.push('<div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center">');
+            bits.push('<span class="badge warn">' + esc(t("logFallbackBadge")) + "</span>");
+            bits.push('<span class="mono">' + esc(c.from) + " -> " + esc(c.to) + "</span>");
+            if (log.effectiveMode) bits.push('<span class="mono" style="color:var(--mute)">effective=' + esc(log.effectiveMode) + "</span>");
+            if (c.reason) bits.push('<span class="mono" style="color:var(--mute)">' + esc(t("logConvertReason")) + "=" + esc(c.reason) + "</span>");
+            if (log.fallbackOriginalStatus != null) bits.push('<span class="mono" style="color:var(--mute)">orig_status=' + esc(log.fallbackOriginalStatus) + "</span>");
+            bits.push("</div>");
+            if (log.fallbackOriginalError) {
+              bits.push('<div class="mono" style="color:var(--error);margin-top:4px;white-space:normal;line-height:1.35">' + esc(log.fallbackOriginalError) + "</div>");
+            }
+            if (log.inputSanitized) {
+              bits.push(
+                '<div class="mono" style="color:var(--mute);margin-top:4px">' +
+                "sanitize: drop=" + esc(log.inputDroppedItems || 0) +
+                ", reasoning=" + esc(log.inputFixedReasoning || 0) +
+                ", custom=" + esc(log.inputConvertedCustomCalls || 0) +
+                "</div>"
+              );
+            }
+            return bits.join("");
+          })() +
+          "</div></div>" +
           '<div><div class="k">ttft</div><div class="v">' +
           (hasLogTtft(log)
             ? esc(fmtTtft(log))

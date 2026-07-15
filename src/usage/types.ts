@@ -67,4 +67,18 @@ export interface RequestLog {
   userAgent?: string;
   /** Friendly client label e.g. Claude Code / Cursor */
   client?: string;
+  /** True when request was served via protocol fallback */
+  fallback?: boolean;
+  fallbackFromPath?: string;
+  fallbackToPath?: string;
+  fallbackReason?: string;
+  fallbackOriginalStatus?: number;
+  fallbackOriginalError?: string;
+  /** Actual upstream mode after fallback decisions */
+  effectiveMode?: ProxyMode | "chat" | "responses";
+  effectivePath?: string;
+  inputSanitized?: boolean;
+  inputFixedReasoning?: number;
+  inputConvertedCustomCalls?: number;
+  inputDroppedItems?: number;
 }
