@@ -4,6 +4,8 @@ import {
   chatCompletionToResponse,
   responsesToChatCompletions,
   transformChatSseToResponsesSse as transformChatSseToResponsesSseCore,
+  transformXaiResponsesSseForCodex,
+  remapXaiResponsesJsonForCodex,
   toResponsesUsage,
   type CodexToolContext,
 } from './codex-chat-compat.js';
@@ -130,6 +132,20 @@ export function transformChatSseToResponsesSse(
   toolContext?: CodexToolContext,
 ): ReadableStream<Uint8Array> {
   return transformChatSseToResponsesSseCore(stream, { modelHint, toolContext });
+}
+
+export function transformNativeResponsesSseForCodex(
+  stream: ReadableStream<Uint8Array>,
+  toolContext?: CodexToolContext,
+): ReadableStream<Uint8Array> {
+  return transformXaiResponsesSseForCodex(stream, toolContext);
+}
+
+export function remapNativeResponsesJsonForCodex(
+  payload: unknown,
+  toolContext?: CodexToolContext,
+): unknown {
+  return remapXaiResponsesJsonForCodex(payload, toolContext);
 }
 
 export async function readErrorText(body: ReadableStream<Uint8Array> | null): Promise<string> {

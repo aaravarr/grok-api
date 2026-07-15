@@ -324,6 +324,96 @@ export function isCustomToolChatName(ctx: CodexToolContext | undefined, chatName
   return ctx.customNames.has(chatName) || chatName === 'apply_patch';
 }
 
+function parseToolSearchArgsObject(argumentsStr: string): Obj {
+  const raw = (argumentsStr || '').trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (isObj(parsed)) return parsed;
+    return { query: String(parsed) };
+  } catch {
+    return { query: raw };
+  }
+}
+
+function responseToolCallItemIdFromChatName(
+  callId: string,
+  chatName: string,
+  ctx?: CodexToolContext,
+): string {
+  if (isCustomToolChatName(ctx, chatName)) return 'ctc_' + callId;
+  return 'fc_' + callId;
+}
+
+/**
+ * CC Switch: restore Codex tool metadata from chat tool name.
+ * - tool_search -> tool_search_call
+ * - custom -> custom_tool_call
+ * - namespace_function -> function_call { name: original, namespace }
+ * - function -> function_call { name }
+ */
+export function responseToolCallItemFromChatName(
+  opts: {
+    callId: string;
+    chatName: string;
+    argumentsStr: string;
+    status?: 'in_progress' | 'completed';
+    itemId?: string;
+    ctx?: CodexToolContext;
+  },
+): Obj {
+  const callId = opts.callId || 'call_0';
+  const chatName = opts.chatName || 'tool';
+  const status = opts.status || 'completed';
+  const args = opts.argumentsStr || '';
+  const ctx = opts.ctx;
+  const itemId = opts.itemId || responseToolCallItemIdFromChatName(callId, chatName, ctx);
+  const spec = ctx?.byChatName.get(chatName);
+
+  if (chatName === TOOL_SEARCH_NAME || spec?.kind === 'tool_search') {
+    return {
+      type: 'tool_search_call',
+      call_id: callId,
+      status,
+      execution: 'client',
+      arguments: parseToolSearchArgsObject(args),
+    };
+  }
+
+  if (isCustomToolChatName(ctx, chatName) || spec?.kind === 'custom') {
+    return {
+      id: itemId.startsWith('ctc_') ? itemId : 'ctc_' + callId,
+      type: 'custom_tool_call',
+      status,
+      call_id: callId,
+      name: spec?.name || chatName,
+      input: customToolInputFromChatArguments(args),
+    };
+  }
+
+  if (spec?.kind === 'namespace_function') {
+    const out: Obj = {
+      id: itemId.startsWith('fc_') ? itemId : 'fc_' + callId,
+      type: 'function_call',
+      status,
+      call_id: callId,
+      name: spec.name,
+      arguments: canonicalizeToolArguments(args),
+    };
+    if (spec.namespace) out.namespace = spec.namespace;
+    return out;
+  }
+
+  return {
+    id: itemId.startsWith('fc_') ? itemId : 'fc_' + callId,
+    type: 'function_call',
+    status,
+    call_id: callId,
+    name: spec?.name || chatName,
+    arguments: canonicalizeToolArguments(args),
+  };
+}
+
 function responsesRoleToChat(role: string): string {
   const r = role.toLowerCase();
   if (r === 'developer') return 'system';
@@ -634,41 +724,24 @@ export function chatCompletionToResponse(
   const output: Obj[] = [];
 
   if (Array.isArray(msg.tool_calls)) {
-    for (const tc of msg.tool_calls) {
+    for (let index = 0; index < msg.tool_calls.length; index++) {
+      const tc = msg.tool_calls[index];
       if (!isObj(tc)) continue;
       const fn = isObj(tc.function) ? tc.function : {};
-      const chatName = String(fn.name || 'tool');
+      const chatName = String(fn.name || '').trim();
+      // CC Switch: skip tool calls with missing names
+      if (!chatName) continue;
       const args = typeof fn.arguments === 'string' ? fn.arguments : JSON.stringify(fn.arguments ?? {});
-      const callId = String(tc.id || 'call_' + id);
-      if (isCustomToolChatName(ctx, chatName)) {
-        output.push({
-          id: 'ctc_' + callId,
-          type: 'custom_tool_call',
+      const callId = String(tc.id || 'call_' + index);
+      output.push(
+        responseToolCallItemFromChatName({
+          callId,
+          chatName,
+          argumentsStr: args,
           status: 'completed',
-          call_id: callId,
-          name: chatName,
-          input: customToolInputFromChatArguments(args),
-        });
-      } else if (chatName === TOOL_SEARCH_NAME) {
-        let parsed: unknown = {};
-        try { parsed = JSON.parse(args); } catch { parsed = { query: args }; }
-        output.push({
-          type: 'tool_search_call',
-          call_id: callId,
-          status: 'completed',
-          execution: 'client',
-          arguments: isObj(parsed) ? parsed : { query: String(parsed) },
-        });
-      } else {
-        output.push({
-          id: 'fc_' + callId,
-          type: 'function_call',
-          status: 'completed',
-          call_id: callId,
-          name: chatName,
-          arguments: canonicalizeToolArguments(args),
-        });
-      }
+          ctx,
+        }),
+      );
     }
   }
 
@@ -769,35 +842,14 @@ export function transformChatSseToResponsesSse(
   };
 
   const toolItem = (state: ToolAccum, status: 'in_progress' | 'completed', args: string): Obj => {
-    if (isCustomToolChatName(ctx, state.name)) {
-      return {
-        id: state.itemId,
-        type: 'custom_tool_call',
-        status,
-        call_id: state.callId,
-        name: state.name,
-        input: customToolInputFromChatArguments(args),
-      };
-    }
-    if (state.name === TOOL_SEARCH_NAME) {
-      let parsed: unknown = {};
-      try { parsed = JSON.parse(args || '{}'); } catch { parsed = { query: args }; }
-      return {
-        type: 'tool_search_call',
-        call_id: state.callId,
-        status,
-        execution: 'client',
-        arguments: isObj(parsed) ? parsed : { query: String(parsed) },
-      };
-    }
-    return {
-      id: state.itemId,
-      type: 'function_call',
+    return responseToolCallItemFromChatName({
+      callId: state.callId,
+      chatName: state.name,
+      argumentsStr: args,
       status,
-      call_id: state.callId,
-      name: state.name,
-      arguments: canonicalizeToolArguments(args),
-    };
+      itemId: state.itemId,
+      ctx,
+    });
   };
 
   const flushReadyTools = (controller: ReadableStreamDefaultController<Uint8Array>) => {
@@ -813,17 +865,13 @@ export function transformChatSseToResponsesSse(
       const idx = alloc();
       state.added = true;
       state.outputIndex = idx;
-      state.itemId = isCustomToolChatName(ctx, state.name)
-        ? 'ctc_' + state.callId
-        : state.name === TOOL_SEARCH_NAME
-          ? 'ts_' + state.callId
-          : 'fc_' + state.callId;
+      state.itemId = responseToolCallItemIdFromChatName(state.callId, state.name, ctx);
       emit(controller, {
         type: 'response.output_item.added',
         output_index: idx,
         item: toolItem(state, 'in_progress', ''),
       });
-      if (state.arguments && !isCustomToolChatName(ctx, state.name) && state.name !== TOOL_SEARCH_NAME) {
+      if (state.arguments && !isCustomToolChatName(ctx, state.name) && state.name !== TOOL_SEARCH_NAME /* tool_search uses object args on item */) {
         emit(controller, {
           type: 'response.function_call_arguments.delta',
           item_id: state.itemId,
@@ -873,17 +921,17 @@ export function transformChatSseToResponsesSse(
   const finalizeTools = (controller: ReadableStreamDefaultController<Uint8Array>) => {
     for (const [key, state] of [...tools.entries()].sort((a, b) => a[0] - b[0])) {
       if (state.done) continue;
+      // CC Switch: skip streaming tool calls with missing names
+      if (!state.name) {
+        state.done = true;
+        continue;
+      }
       if (!state.added) {
-        if (!state.callId) state.callId = 'call_' + key + '_' + Date.now().toString(16);
-        if (!state.name) state.name = 'tool';
+        if (!state.callId) state.callId = 'call_' + key;
         const idx = alloc();
         state.added = true;
         state.outputIndex = idx;
-        state.itemId = isCustomToolChatName(ctx, state.name)
-          ? 'ctc_' + state.callId
-          : state.name === TOOL_SEARCH_NAME
-            ? 'ts_' + state.callId
-            : 'fc_' + state.callId;
+        state.itemId = responseToolCallItemIdFromChatName(state.callId, state.name, ctx);
         emit(controller, {
           type: 'response.output_item.added',
           output_index: idx,
@@ -1033,6 +1081,193 @@ export function transformChatSseToResponsesSse(
           }
         }
         finish(controller);
+        controller.close();
+      } catch (e) {
+        controller.error(e);
+      }
+    },
+  });
+}
+
+
+/**
+ * xAI does not speak Codex tool_search / custom / namespace natively.
+ * We flatten those to function tools on the way in; this remaps xAI function_call
+ * outputs back to the Codex item types so MCP discovery and freeform tools work.
+ */
+function parseToolSearchArguments(args: unknown): Obj {
+  if (isObj(args)) return args;
+  if (typeof args === 'string') {
+    try {
+      const parsed = JSON.parse(args);
+      if (isObj(parsed)) return parsed;
+      return { query: String(parsed) };
+    } catch {
+      return { query: args };
+    }
+  }
+  return { query: args == null ? '' : String(args) };
+}
+
+function resolveChatToolName(item: Obj, ctx?: CodexToolContext): string {
+  const raw = pickName(item.name, isObj(item.function) ? item.function.name : undefined);
+  if (!raw) return '';
+  if (!ctx) return raw;
+  if (ctx.byChatName.has(raw)) return raw;
+  // Sometimes models emit original short names; recover flattened chat name.
+  for (const spec of ctx.byChatName.values()) {
+    if (spec.name === raw) return spec.chatName;
+  }
+  return raw;
+}
+
+/** Remap one Responses output item from xAI shape -> Codex shape. */
+export function remapXaiOutputItemForCodex(item: unknown, ctx?: CodexToolContext): unknown {
+  if (!isObj(item)) return item;
+  const type = String(item.type || '').toLowerCase();
+  if (type !== 'function_call' && type !== 'function') return item;
+
+  const chatName = resolveChatToolName(item, ctx);
+  if (!chatName) return item;
+  const callId = String(item.call_id || item.id || 'call_' + Math.random().toString(16).slice(2));
+  const statusRaw = typeof item.status === 'string' && item.status.trim() ? item.status : 'completed';
+  const status = statusRaw === 'in_progress' ? 'in_progress' : 'completed';
+  const argsRaw = item.arguments ?? item.input ?? {};
+  const argsStr = typeof argsRaw === 'string' ? argsRaw : JSON.stringify(argsRaw ?? {});
+  const itemId =
+    typeof item.id === 'string' && item.id.trim()
+      ? item.id
+      : responseToolCallItemIdFromChatName(callId, chatName, ctx);
+
+  return responseToolCallItemFromChatName({
+    callId,
+    chatName,
+    argumentsStr: argsStr,
+    status,
+    itemId,
+    ctx,
+  });
+}
+
+/** Remap a full xAI Responses JSON payload for Codex. */
+export function remapXaiResponsesJsonForCodex(payload: unknown, ctx?: CodexToolContext): unknown {
+  if (!isObj(payload)) return payload;
+  const out = { ...payload };
+  if (Array.isArray(out.output)) {
+    out.output = out.output.map((it) => remapXaiOutputItemForCodex(it, ctx));
+  }
+  return out;
+}
+
+function remapSseDataObject(obj: Obj, ctx?: CodexToolContext): Obj {
+  const type = String(obj.type || '');
+  const next = { ...obj };
+
+  if (isObj(next.item)) {
+    next.item = remapXaiOutputItemForCodex(next.item, ctx) as Obj;
+  }
+  if (isObj(next.response)) {
+    next.response = remapXaiResponsesJsonForCodex(next.response, ctx) as Obj;
+  }
+
+  // tool_search_call does not use function_call_arguments.* events
+  if (
+    type === 'response.function_call_arguments.delta' ||
+    type === 'response.function_call_arguments.done'
+  ) {
+    const itemId = String(next.item_id || '');
+    if (itemId.startsWith('ts_') || itemId.includes('tool_search')) {
+      return { type: 'response.codex_compat.noop' };
+    }
+  }
+
+  return next;
+}
+
+/**
+ * Transform native xAI Responses SSE into Codex-compatible SSE.
+ * Pass-through for non-tool events; remaps function_call->tool_search_call/custom_tool_call.
+ */
+export function transformXaiResponsesSseForCodex(
+  stream: ReadableStream<Uint8Array>,
+  ctx?: CodexToolContext,
+): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let pending = '';
+  // Track item_ids / call_ids rewritten away from function_call so we can drop arg deltas.
+  const suppressArgIds = new Set<string>();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const reader = stream.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          pending += decoder.decode(value, { stream: true });
+          const parts = pending.split('\n\n');
+          pending = parts.pop() || '';
+          for (const block of parts) {
+            if (!block.trim()) continue;
+            const lines = block.split('\n');
+            let eventName = '';
+            const dataLines: string[] = [];
+            for (const line of lines) {
+              if (line.startsWith('event:')) eventName = line.slice(6).trim();
+              else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
+            }
+            const dataStr = dataLines.join('\n');
+            if (!dataStr || dataStr === '[DONE]') {
+              controller.enqueue(encoder.encode(block + '\n\n'));
+              continue;
+            }
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (!isObj(parsed)) {
+                controller.enqueue(encoder.encode(block + '\n\n'));
+                continue;
+              }
+
+              const evType = String(parsed.type || '');
+              if (
+                (evType === 'response.function_call_arguments.delta' ||
+                  evType === 'response.function_call_arguments.done') &&
+                suppressArgIds.has(String(parsed.item_id || ''))
+              ) {
+                continue;
+              }
+
+              const beforeItem = isObj(parsed.item) ? { ...parsed.item } : null;
+              const remapped = remapSseDataObject(parsed, ctx);
+              if (String(remapped.type || '') === 'response.codex_compat.noop') continue;
+
+              if (beforeItem && isObj(remapped.item)) {
+                const beforeType = String(beforeItem.type || '').toLowerCase();
+                const afterType = String(remapped.item.type || '').toLowerCase();
+                if (beforeType === 'function_call' && afterType !== 'function_call') {
+                  const ids = [
+                    beforeItem.id,
+                    beforeItem.call_id,
+                    remapped.item.id,
+                    remapped.item.call_id,
+                  ];
+                  for (const id of ids) {
+                    if (typeof id === 'string' && id.trim()) suppressArgIds.add(id);
+                  }
+                }
+              }
+
+              const outEvent = eventName || (typeof remapped.type === 'string' ? remapped.type : 'message');
+              controller.enqueue(
+                encoder.encode('event: ' + outEvent + '\ndata: ' + JSON.stringify(remapped) + '\n\n'),
+              );
+            } catch {
+              controller.enqueue(encoder.encode(block + '\n\n'));
+            }
+          }
+        }
+        if (pending.trim()) controller.enqueue(encoder.encode(pending));
         controller.close();
       } catch (e) {
         controller.error(e);

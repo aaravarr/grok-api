@@ -59,9 +59,12 @@ import { fetchUpstreamModels, proxyLLM, proxyUpstream } from "../client/xai.js";
 import { normalizeToolsInBody } from "../client/tool-schema.js";
 import {
   buildChatFallbackFromResponsesWithContext,
+  buildCodexToolContextFromRequest,
   chatJsonToResponsesJson,
+  remapNativeResponsesJsonForCodex,
   shouldEagerFallbackResponses,
   transformChatSseToResponsesSse,
+  transformNativeResponsesSseForCodex,
 } from "../client/responses-fallback.js";
 import { parseCpaGrokJson } from "../account/cpa-import.js";
 import { getProxyInfo, setProxyOverride } from "../proxy.js";
@@ -2785,7 +2788,65 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
       });
     }
 
-    const contentType = result.headers.get("content-type") ?? "application/json";
+    
+    // Native responses path: xAI returns function_call for tool_search/custom.
+    // Remap to Codex tool_search_call / custom_tool_call so MCP discovery works.
+    if (
+      mode === "responses" &&
+      !fallbackUsed &&
+      result.status >= 200 &&
+      result.status < 300 &&
+      result.body
+    ) {
+      const toolCtx = buildCodexToolContextFromRequest(body);
+      const ct0 = result.headers.get("content-type") ?? "";
+      const streamish =
+        meta.stream === true ||
+        ct0.includes("text/event-stream") ||
+        ct0.includes("event-stream");
+      if (streamish) {
+        result = {
+          ...result,
+          body: transformNativeResponsesSseForCodex(result.body, toolCtx),
+        };
+      } else {
+        const reader = result.body.getReader();
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+        let total = 0;
+        for (const c of chunks) total += c.byteLength;
+        const buf = new Uint8Array(total);
+        let off = 0;
+        for (const c of chunks) {
+          buf.set(c, off);
+          off += c.byteLength;
+        }
+        let remappedBytes = buf;
+        try {
+          const json = JSON.parse(new TextDecoder().decode(buf));
+          const remapped = remapNativeResponsesJsonForCodex(json, toolCtx);
+          remappedBytes = new TextEncoder().encode(JSON.stringify(remapped));
+        } catch {
+          /* keep original if not JSON */
+        }
+        const outBytes = remappedBytes;
+        result = {
+          ...result,
+          body: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(outBytes);
+              controller.close();
+            },
+          }),
+        };
+      }
+    }
+
+const contentType = result.headers.get("content-type") ?? "application/json";
     const headers: Record<string, string> = {
       "Content-Type": contentType,
       "x-account-id": result.accountId,
