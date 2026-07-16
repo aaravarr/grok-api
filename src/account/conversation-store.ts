@@ -1,4 +1,4 @@
-import { kvGetJson, kvSetJson } from "../db/sqlite.js";
+import { kvGet, kvSet } from "../db/sqlite.js";
 import { now } from "../utils.js";
 
 /**
@@ -41,10 +41,18 @@ type ConversationStore = {
 };
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const MAX_CONVERSATIONS = 2000;
-const MAX_MESSAGES = 120;
-const MAX_CONTENT_CHARS = 20_000;
-const MAX_OPAQUE_ITEMS = 20;
+const MAX_CONVERSATIONS = 300;
+const MAX_MESSAGES = 40;
+const MAX_CONTENT_CHARS = 8_000;
+const MAX_OPAQUE_ITEMS = 4;
+/** Per opaque item serialized size cap (chars ≈ bytes for ASCII/base64 blobs). */
+const MAX_OPAQUE_ITEM_CHARS = 8_000;
+/** Per-conversation opaque payload total cap. */
+const MAX_OPAQUE_TOTAL_CHARS = 32_000;
+/** Refuse to persist a store larger than this; hard-prune first. */
+const MAX_STORE_PERSIST_CHARS = 8_000_000;
+/** Never JSON.parse a raw kv blob bigger than this into the hot path. */
+const MAX_STORE_LOAD_RAW_CHARS = 20_000_000;
 const NS = "conversations";
 const KEY = "store";
 
@@ -59,13 +67,84 @@ function isObj(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
-function deepClone<T>(v: T): T {
-  return v == null ? v : (JSON.parse(JSON.stringify(v)) as T);
+/**
+ * Bounded JSON clone for opaque continuity items.
+ * Oversized compaction / encrypted_content blobs are reduced to type/id placeholders
+ * instead of deep-cloning multi-MB payloads into the single store key.
+ */
+function boundedCloneOpaqueItem(item: unknown): unknown | null {
+  if (item == null) return null;
+  let raw: string;
+  try {
+    raw = JSON.stringify(item);
+  } catch {
+    return null;
+  }
+  if (raw.length <= MAX_OPAQUE_ITEM_CHARS) {
+    try {
+      return JSON.parse(raw) as unknown;
+    } catch {
+      return null;
+    }
+  }
+  // Prefer dropping dangerous blobs over stuffing the store.
+  if (!isObj(item)) return null;
+  const type = typeof item.type === "string" ? item.type : "unknown";
+  const id = typeof item.id === "string" ? item.id : undefined;
+  const placeholder: Record<string, unknown> = {
+    type,
+    _truncated: true,
+    _origChars: raw.length,
+  };
+  if (id) placeholder.id = id;
+  // Keep a short fingerprint only (never the full encrypted_content / compaction blob).
+  const enc = item.encrypted_content;
+  if (typeof enc === "string" && enc.length > 0) {
+    placeholder.encrypted_content_fp = enc.slice(0, 24);
+  }
+  return placeholder;
+}
+
+/** Cap opaque list: item count, per-item size, and total serialized budget. */
+function capOpaqueItems(items: unknown[] | undefined | null): unknown[] {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const recent = items.slice(-MAX_OPAQUE_ITEMS);
+  const out: unknown[] = [];
+  let total = 0;
+  for (const item of recent) {
+    const cloned = boundedCloneOpaqueItem(item);
+    if (cloned == null) continue;
+    let len: number;
+    try {
+      len = JSON.stringify(cloned).length;
+    } catch {
+      continue;
+    }
+    if (len > MAX_OPAQUE_ITEM_CHARS) continue;
+    if (total + len > MAX_OPAQUE_TOTAL_CHARS) continue;
+    out.push(cloned);
+    total += len;
+  }
+  return out;
 }
 
 function clipContent(s: string): string {
   if (s.length <= MAX_CONTENT_CHARS) return s;
   return s.slice(0, MAX_CONTENT_CHARS) + "\n…[truncated]";
+}
+
+function filterAliases(
+  aliases: Record<string, string> | undefined,
+  valid: Set<string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(aliases || {})) {
+    if (!valid.has(v)) continue;
+    // Drop historical poison: bare content fingerprints mixed threads.
+    if (k.startsWith("fp_") || k.includes("::fp_")) continue;
+    out[k] = v;
+  }
+  return out;
 }
 
 function prune(store: ConversationStore): ConversationStore {
@@ -79,49 +158,158 @@ function prune(store: ConversationStore): ConversationStore {
       id,
       {
         ...c,
-        messages: (c.messages || []).slice(-MAX_MESSAGES),
-        opaqueItems: Array.isArray(c.opaqueItems) ? c.opaqueItems.slice(-MAX_OPAQUE_ITEMS) : [],
+        messages: (c.messages || [])
+          .slice(-MAX_MESSAGES)
+          .map((m) => ({
+            ...m,
+            content: clipContent(String(m?.content || "")),
+          })),
+        opaqueItems: capOpaqueItems(c.opaqueItems),
       },
     ]),
   );
   const valid = new Set(Object.keys(conversations));
-  const aliases: Record<string, string> = {};
-  for (const [k, v] of Object.entries(store.aliases || {})) {
-    if (!valid.has(v)) continue;
-    // Drop historical poison: bare content fingerprints mixed threads.
-    if (k.startsWith("fp_") || k.includes("::fp_")) continue;
-    aliases[k] = v;
+  return { conversations, aliases: filterAliases(store.aliases, valid) };
+}
+
+/**
+ * If the serialized store still exceeds the persist budget after normal prune,
+ * progressively destroy data rather than freeze the event loop / blow up sqlite.
+ */
+function ensurePersistBudget(store: ConversationStore): ConversationStore {
+  let s = prune(store);
+  let json: string;
+  try {
+    json = JSON.stringify(s);
+  } catch {
+    return emptyStore();
   }
-  return { conversations, aliases };
+  if (json.length <= MAX_STORE_PERSIST_CHARS) return s;
+
+  console.warn(
+    `[conversations] store oversized before persist (${json.length} chars); hard-pruning`,
+  );
+
+  // 1) Keep newest half of conversations and clear all opaque payloads.
+  const ranked = Object.entries(s.conversations || {}).sort(
+    (a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0),
+  );
+  const halfN = Math.max(1, Math.floor(ranked.length / 2));
+  let kept = ranked.slice(0, halfN);
+  let conversations = Object.fromEntries(
+    kept.map(([id, c]) => [id, { ...c, opaqueItems: [] as unknown[] }]),
+  );
+  s = {
+    conversations,
+    aliases: filterAliases(s.aliases, new Set(Object.keys(conversations))),
+  };
+  try {
+    json = JSON.stringify(s);
+  } catch {
+    return emptyStore();
+  }
+  if (json.length <= MAX_STORE_PERSIST_CHARS) return s;
+
+  // 2) Still too large: keep only 50 newest sessions, no opaque.
+  kept = ranked.slice(0, 50);
+  conversations = Object.fromEntries(
+    kept.map(([id, c]) => [
+      id,
+      {
+        ...c,
+        messages: (c.messages || []).slice(-MAX_MESSAGES),
+        opaqueItems: [] as unknown[],
+      },
+    ]),
+  );
+  s = {
+    conversations,
+    aliases: filterAliases(s.aliases, new Set(Object.keys(conversations))),
+  };
+  try {
+    json = JSON.stringify(s);
+  } catch {
+    return emptyStore();
+  }
+  if (json.length > MAX_STORE_PERSIST_CHARS) {
+    console.warn(
+      `[conversations] store still oversized after hard-prune (${json.length}); using empty store`,
+    );
+    return emptyStore();
+  }
+  return s;
 }
 
 function persist(store: ConversationStore): void {
-  kvSetJson(NS, KEY, store);
+  const bounded = ensurePersistBudget(store);
+  // Align in-memory cache with what we actually write when this is the live store.
+  if (cache === store || cache == null) {
+    cache = bounded;
+  }
+  try {
+    kvSet(NS, KEY, JSON.stringify(bounded));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[conversations] persist failed: ${msg}`);
+  }
 }
 
 async function loadStore(): Promise<ConversationStore> {
   if (cache) return cache;
-  const fromDb = kvGetJson<ConversationStore>(NS, KEY);
-  cache =
-    fromDb != null
-      ? prune({
-          conversations: fromDb.conversations || {},
-          aliases: fromDb.aliases || {},
-        })
-      : emptyStore();
+  const raw = kvGet(NS, KEY);
+  if (raw == null) {
+    cache = emptyStore();
+    return cache;
+  }
+  if (raw.length > MAX_STORE_LOAD_RAW_CHARS) {
+    console.warn(
+      `[conversations] store raw too large (${raw.length} chars > ${MAX_STORE_LOAD_RAW_CHARS}); resetting to empty`,
+    );
+    cache = emptyStore();
+    // Fire-and-forget empty write; do not block the request on large I/O.
+    schedulePersist(cache);
+    return cache;
+  }
+  let fromDb: ConversationStore | null = null;
+  try {
+    fromDb = JSON.parse(raw) as ConversationStore;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[conversations] store JSON parse failed: ${msg}; using empty`);
+    cache = emptyStore();
+    schedulePersist(cache);
+    return cache;
+  }
+  cache = ensurePersistBudget({
+    conversations: fromDb?.conversations || {},
+    aliases: fromDb?.aliases || {},
+  });
+  // If load-time prune shrunk a previously huge blob, write back asynchronously.
+  if (raw.length > MAX_STORE_PERSIST_CHARS) {
+    schedulePersist(cache);
+  }
   return cache;
 }
 
-async function saveStore(store: ConversationStore): Promise<void> {
-  cache = prune(store);
+/** Enqueue disk write without awaiting it on the request path. */
+function schedulePersist(store: ConversationStore): void {
+  const snapshot = store;
   const run = writeChain.then(() => {
-    persist(cache!);
+    // Prefer latest cache if present (coalesces rapid updates).
+    persist(cache ?? snapshot);
   });
   writeChain = run.then(
     () => undefined,
     () => undefined,
   );
-  await run;
+}
+
+async function saveStore(store: ConversationStore): Promise<void> {
+  // Memory is the source of truth for the hot path; disk is best-effort.
+  cache = ensurePersistBudget(store);
+  schedulePersist(cache);
+  // Intentionally do not await writeChain — large JSON.stringify + DatabaseSync
+  // must not block health checks / request handlers.
 }
 
 function textFromContent(content: unknown): string {
@@ -597,7 +785,8 @@ export async function sanitizeResponsesInputItems(body: unknown): Promise<{
         let restored = byEnc.get(enc as string) || null;
         if (!restored) restored = await findStoredOpaqueByEncryptedContent(enc as string);
         if (restored) {
-          nextItems.push(deepClone(restored));
+          const c = boundedCloneOpaqueItem(restored);
+          if (c != null) nextItems.push(c);
           fixedReasoning += 1;
           modified = true;
           continue;
@@ -722,7 +911,7 @@ export async function applyStoredOpaqueContinuity(body: unknown): Promise<{
   const clientItems = Array.isArray(input) ? input : input != null ? [input] : [];
   // Keep only non-opaque client items (usually the new user turn). Opaque already none here.
   const kept = clientItems.filter((it) => !isOpaqueInputItem(it));
-  const injected = deepClone(opaque);
+  const injected = capOpaqueItems(opaque);
   const nextInput = [...injected, ...kept];
   const next: Record<string, unknown> = { ...body, input: nextInput };
   // Prefer opaque items over previous_response_id mixed mode
@@ -866,8 +1055,9 @@ export function extractOpaqueItemsFromResponsePayload(payload: unknown): unknown
   const out: unknown[] = [];
   const push = (item: unknown) => {
     if (!item) return;
-    // store deep clone to freeze snapshot
-    out.push(deepClone(item));
+    // Bounded clone: drop/truncate oversized encrypted_content / compaction blobs.
+    const cloned = boundedCloneOpaqueItem(item);
+    if (cloned != null) out.push(cloned);
   };
 
   // Full response object: keep output items that are useful for continuity
@@ -913,7 +1103,7 @@ export function extractOpaqueItemsFromResponsePayload(payload: unknown): unknown
     seen.add(key);
     deduped.push(item);
   }
-  return deduped.slice(-MAX_OPAQUE_ITEMS);
+  return capOpaqueItems(deduped);
 }
 
 export async function rememberConversationTurn(opts: {
@@ -982,8 +1172,8 @@ export async function rememberConversationTurn(opts: {
 
   const nextOpaque =
     Array.isArray(opts.opaqueItems) && opts.opaqueItems.length
-      ? deepClone(opts.opaqueItems).slice(-MAX_OPAQUE_ITEMS)
-      : prev?.opaqueItems || [];
+      ? capOpaqueItems(opts.opaqueItems)
+      : capOpaqueItems(prev?.opaqueItems);
 
   // Lineage: once chat, stay chat; otherwise take provided mode or keep previous/default responses.
   let preferredMode: ConversationPreferredMode | null | undefined = prev?.preferredMode ?? null;

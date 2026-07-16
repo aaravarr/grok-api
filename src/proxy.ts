@@ -94,7 +94,7 @@ export function resolveProxyUrl(override?: string): { url: string; source: Proxy
  * - Each shard uses connections=1 so a long SSE never shares a Pool queue
  * - least-inflight pick so idle shards are preferred over busy streams
  *
- * Env: GROK_OUTBOUND_SHARDS (default 256, clamp 8..1024)
+ * Env: GROK_OUTBOUND_SHARDS (default 64, clamp 8..512)
  *
  * Replacing undici (got/axios/node-fetch) does not help on Node 18+: global
  * fetch is undici. Native http.Agent is the only real alternative transport.
@@ -105,7 +105,7 @@ function envInt(name: string, fallback: number, min: number, max: number): numbe
   return Math.min(max, Math.max(min, Math.floor(n)));
 }
 
-const SHARD_COUNT = envInt("GROK_OUTBOUND_SHARDS", 256, 8, 1024);
+const SHARD_COUNT = envInt("GROK_OUTBOUND_SHARDS", 64, 8, 512);
 const agentOpts = {
   /** one Client per shard — no multi-socket Pool scheduling across streams */
   connections: 1,
@@ -117,13 +117,15 @@ const agentOpts = {
   headersTimeout: 0,
 } as const;
 
-let dispatcherShards: Dispatcher[] = [];
+let dispatcherShards: Array<Dispatcher | null> = [];
+let shardProxyUrl = "";
 /** in-flight streams per shard (request start → body fully consumed/cancelled) */
 let shardInflight: number[] = [];
 let shardCursor = 0;
 
 function closeShards(): void {
   for (const d of dispatcherShards) {
+    if (!d) continue;
     try {
       void (d as Agent).close?.();
     } catch {
@@ -133,6 +135,31 @@ function closeShards(): void {
   dispatcherShards = [];
   shardInflight = [];
   shardCursor = 0;
+  shardProxyUrl = "";
+}
+
+function makeShard(proxyUrl: string): Dispatcher {
+  if (proxyUrl) {
+    return new ProxyAgent({
+      uri: proxyUrl,
+      connections: agentOpts.connections,
+      pipelining: agentOpts.pipelining,
+      keepAliveTimeout: agentOpts.keepAliveTimeout,
+      keepAliveMaxTimeout: agentOpts.keepAliveMaxTimeout,
+      bodyTimeout: agentOpts.bodyTimeout,
+      headersTimeout: agentOpts.headersTimeout,
+    });
+  }
+  return new Agent({ ...agentOpts });
+}
+
+function ensureShard(i: number): Dispatcher {
+  const existing = dispatcherShards[i];
+  if (existing) return existing;
+  const d = makeShard(shardProxyUrl);
+  dispatcherShards[i] = d;
+  if (i === 0) setGlobalDispatcher(d);
+  return d;
 }
 
 function nextDispatcher(): { dispatcher: Dispatcher; release: () => void } {
@@ -156,7 +183,7 @@ function nextDispatcher(): { dispatcher: Dispatcher; release: () => void } {
   shardInflight[best] = (shardInflight[best] ?? 0) + 1;
   let released = false;
   return {
-    dispatcher: dispatcherShards[best]!,
+    dispatcher: ensureShard(best),
     release: () => {
       if (released) return;
       released = true;
@@ -208,33 +235,24 @@ function attachReleaseToResponse(res: Response, release: () => void): Response {
 
 function installDispatcher(proxyUrl: string): void {
   closeShards();
+  shardProxyUrl = proxyUrl || "";
   if (proxyUrl) {
     process.env.HTTPS_PROXY = proxyUrl;
     process.env.HTTP_PROXY = proxyUrl;
     process.env.https_proxy = proxyUrl;
     process.env.http_proxy = proxyUrl;
-    dispatcherShards = Array.from({ length: SHARD_COUNT }, () =>
-      new ProxyAgent({
-        uri: proxyUrl,
-        connections: agentOpts.connections,
-        pipelining: agentOpts.pipelining,
-        keepAliveTimeout: agentOpts.keepAliveTimeout,
-        keepAliveMaxTimeout: agentOpts.keepAliveMaxTimeout,
-        bodyTimeout: agentOpts.bodyTimeout,
-        headersTimeout: agentOpts.headersTimeout,
-      }),
-    );
   } else {
     delete process.env.HTTPS_PROXY;
     delete process.env.HTTP_PROXY;
     delete process.env.https_proxy;
     delete process.env.http_proxy;
-    dispatcherShards = Array.from({ length: SHARD_COUNT }, () => new Agent({ ...agentOpts }));
   }
-  shardInflight = Array.from({ length: dispatcherShards.length }, () => 0);
-  setGlobalDispatcher(dispatcherShards[0]!);
+  // Lazy slots: create Agent only when first used (saves RAM on small VMs).
+  dispatcherShards = Array.from({ length: SHARD_COUNT }, () => null);
+  shardInflight = Array.from({ length: SHARD_COUNT }, () => 0);
+  setGlobalDispatcher(ensureShard(0));
   console.log(
-    `[grok-api] outbound → ${dispatcherShards.length} shards × connections=${agentOpts.connections} (least-inflight)`,
+    `[grok-api] outbound → ${SHARD_COUNT} lazy shards × connections=${agentOpts.connections} (least-inflight)`,
   );
 }
 
