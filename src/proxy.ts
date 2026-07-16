@@ -85,17 +85,32 @@ export function resolveProxyUrl(override?: string): { url: string; source: Proxy
 }
 
 /**
- * undici single-Agent pools can serialize concurrent long streaming requests
- * to the same origin (observed: CONC 8 first-byte stacks ~1s,2s,4s… while curl
- * parallel stays ~0.5s). Shard into many Agents so concurrent LLM streams do
- * not queue on one pool.
+ * undici single-Agent / multi-connection Pools can serialize concurrent long
+ * streaming requests to the same origin (observed: CONC 8 first-byte stacks
+ * ~1s,2s,4s… while curl parallel stays ~0.5s).
+ *
+ * Fix model:
+ * - Many independent dispatchers (shards)
+ * - Each shard uses connections=1 so a long SSE never shares a Pool queue
+ * - least-inflight pick so idle shards are preferred over busy streams
+ *
+ * Env: GROK_OUTBOUND_SHARDS (default 256, clamp 8..1024)
+ *
+ * Replacing undici (got/axios/node-fetch) does not help on Node 18+: global
+ * fetch is undici. Native http.Agent is the only real alternative transport.
  */
-const SHARD_COUNT = 32;
+function envInt(name: string, fallback: number, min: number, max: number): number {
+  const n = Number(process.env[name]);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(n)));
+}
+
+const SHARD_COUNT = envInt("GROK_OUTBOUND_SHARDS", 256, 8, 1024);
 const agentOpts = {
-  /** per-shard sockets; total ≈ SHARD_COUNT * connections */
-  connections: 8,
+  /** one Client per shard — no multi-socket Pool scheduling across streams */
+  connections: 1,
   pipelining: 1,
-  keepAliveTimeout: 10_000,
+  keepAliveTimeout: 30_000,
   keepAliveMaxTimeout: 60_000,
   /** 0 = disable; SSE/chat streams can exceed undici defaults */
   bodyTimeout: 0,
@@ -103,6 +118,8 @@ const agentOpts = {
 } as const;
 
 let dispatcherShards: Dispatcher[] = [];
+/** in-flight streams per shard (request start → body fully consumed/cancelled) */
+let shardInflight: number[] = [];
 let shardCursor = 0;
 
 function closeShards(): void {
@@ -114,16 +131,79 @@ function closeShards(): void {
     }
   }
   dispatcherShards = [];
+  shardInflight = [];
   shardCursor = 0;
 }
 
-function nextDispatcher(): Dispatcher {
+function nextDispatcher(): { dispatcher: Dispatcher; release: () => void } {
   if (dispatcherShards.length === 0) {
-    return getGlobalDispatcher();
+    return { dispatcher: getGlobalDispatcher(), release: () => undefined };
   }
-  const i = shardCursor % dispatcherShards.length;
-  shardCursor = (shardCursor + 1) % dispatcherShards.length;
-  return dispatcherShards[i]!;
+  const n = dispatcherShards.length;
+  let best = 0;
+  let bestLoad = Number.POSITIVE_INFINITY;
+  // Scan from rotating cursor so ties spread instead of always picking shard 0.
+  for (let k = 0; k < n; k++) {
+    const i = (shardCursor + k) % n;
+    const load = shardInflight[i] ?? 0;
+    if (load < bestLoad) {
+      bestLoad = load;
+      best = i;
+      if (load === 0) break;
+    }
+  }
+  shardCursor = (best + 1) % n;
+  shardInflight[best] = (shardInflight[best] ?? 0) + 1;
+  let released = false;
+  return {
+    dispatcher: dispatcherShards[best]!,
+    release: () => {
+      if (released) return;
+      released = true;
+      shardInflight[best] = Math.max(0, (shardInflight[best] ?? 1) - 1);
+    },
+  };
+}
+
+/** Keep least-inflight accurate for long SSE: release only when body ends/cancels. */
+function attachReleaseToResponse(res: Response, release: () => void): Response {
+  const body = res.body;
+  if (!body) {
+    release();
+    return res;
+  }
+  const reader = body.getReader();
+  let settled = false;
+  const settle = () => {
+    if (settled) return;
+    settled = true;
+    release();
+  };
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          settle();
+          controller.close();
+          return;
+        }
+        controller.enqueue(value);
+      } catch (err) {
+        settle();
+        controller.error(err);
+      }
+    },
+    cancel(reason) {
+      settle();
+      return reader.cancel(reason);
+    },
+  });
+  return new Response(stream, {
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers,
+  });
 }
 
 function installDispatcher(proxyUrl: string): void {
@@ -151,7 +231,11 @@ function installDispatcher(proxyUrl: string): void {
     delete process.env.http_proxy;
     dispatcherShards = Array.from({ length: SHARD_COUNT }, () => new Agent({ ...agentOpts }));
   }
+  shardInflight = Array.from({ length: dispatcherShards.length }, () => 0);
   setGlobalDispatcher(dispatcherShards[0]!);
+  console.log(
+    `[grok-api] outbound → ${dispatcherShards.length} shards × connections=${agentOpts.connections} (least-inflight)`,
+  );
 }
 
 /** Initial load: settings file → env → OS system proxy. */
@@ -216,26 +300,49 @@ export function currentDispatcher(): Dispatcher {
   return getGlobalDispatcher();
 }
 
+/** Snapshot for diagnostics / health. */
+export function getOutboundPoolStats(): {
+  shards: number;
+  connectionsPerShard: number;
+  inflight: number;
+  busiestShard: number;
+} {
+  const inflight = shardInflight.reduce((a, b) => a + b, 0);
+  const busiestShard = shardInflight.reduce((m, v) => Math.max(m, v), 0);
+  return {
+    shards: dispatcherShards.length,
+    connectionsPerShard: agentOpts.connections,
+    inflight,
+    busiestShard,
+  };
+}
+
 /**
  * All outbound calls to xAI / Grok hosts MUST use this helper so they always
  * go through the installed ProxyAgent (or direct Agent when configured).
  * Prefer this over bare global fetch for external traffic.
  *
- * Uses a round-robin shard dispatcher so concurrent stream requests do not
+ * Uses least-inflight shard dispatchers so concurrent stream requests do not
  * stall behind each other on a single undici pool.
  */
 export function outboundFetch(
   input: string | URL,
   init?: RequestInit,
 ): Promise<Response> {
+  const { dispatcher, release } = nextDispatcher();
   const next = {
     ...(init as UndiciRequestInit | undefined),
-    dispatcher: nextDispatcher(),
+    dispatcher,
     bodyTimeout: agentOpts.bodyTimeout,
     headersTimeout: agentOpts.headersTimeout,
   } as UndiciRequestInit;
-  // undici fetch returns undici.Response; compatible enough for our usage
-  return undiciFetch(input, next) as unknown as Promise<Response>;
+  return (undiciFetch(input, next) as unknown as Promise<Response>).then(
+    (res) => attachReleaseToResponse(res, release),
+    (err) => {
+      release();
+      throw err;
+    },
+  );
 }
 
 /** Hosts that typically need the outbound proxy in restricted networks. */
