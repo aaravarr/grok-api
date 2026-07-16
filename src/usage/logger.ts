@@ -38,13 +38,43 @@ function dayFile(day: string): string {
 let writeChain: Promise<void> = Promise.resolve();
 let lastCleanupAt = 0;
 
-/** Per-day in-memory cache keyed by file size + mtime. */
+/** Per-day in-memory cache keyed by file size + mtime (meta only, no bodies). */
 interface DayLogCache {
   size: number;
   mtimeMs: number;
   rows: RequestLog[];
 }
 const dayLogCache = new Map<string, DayLogCache>();
+/** Merge concurrent cold reads of the same day. */
+const dayLogInflight = new Map<string, Promise<RequestLog[]>>();
+
+/**
+ * Cache-friendly row: drop request/response bodies, keep presence flags for list UI.
+ * Does not change on-disk jsonl.
+ */
+function toCachedLog(row: RequestLog): RequestLog {
+  const hasRequest = row.request !== undefined;
+  const hasResponse = row.response !== undefined;
+  if (
+    !hasRequest &&
+    !hasResponse &&
+    row.requestTruncated === undefined &&
+    row.responseTruncated === undefined
+  ) {
+    return row;
+  }
+  const {
+    request: _req,
+    response: _res,
+    requestTruncated: _rt,
+    responseTruncated: _rst,
+    ...rest
+  } = row;
+  const out = rest as RequestLog & { hasRequest?: boolean; hasResponse?: boolean };
+  if (hasRequest) out.hasRequest = true;
+  if (hasResponse) out.hasResponse = true;
+  return out;
+}
 
 function invalidateDayCache(day?: string): void {
   if (day) dayLogCache.delete(day);
@@ -126,7 +156,7 @@ export function appendRequestLog(input: AppendLogInput): Promise<RequestLog> {
         const s = await stat(file);
         const cached = dayLogCache.get(entry.day);
         if (cached && cached.size <= s.size) {
-          cached.rows.push(entry);
+          cached.rows.push(toCachedLog(entry));
           cached.size = s.size;
           cached.mtimeMs = s.mtimeMs;
         } else {
@@ -136,7 +166,7 @@ export function appendRequestLog(input: AppendLogInput): Promise<RequestLog> {
         invalidateDayCache(entry.day);
       }
 
-      invalidateStatsCacheSoft();
+      // Stats rely on TTL (~15s); avoid thrashing cache on every append.
       invalidateDiskInfoCache();
 
       // Opportunistic cleanup every 10 minutes
@@ -249,14 +279,18 @@ export type RequestLogListItem = Omit<
 };
 
 /** Drop heavy fields for table/list responses; capture body presence first. */
-function slimLogForList(r: RequestLog): RequestLogListItem {
-  const hasRequest = r.request !== undefined;
-  const hasResponse = r.response !== undefined;
+function slimLogForList(
+  r: RequestLog & { hasRequest?: boolean; hasResponse?: boolean },
+): RequestLogListItem {
+  const hasRequest = r.hasRequest === true || r.request !== undefined;
+  const hasResponse = r.hasResponse === true || r.response !== undefined;
   const {
     request: _req,
     response: _res,
     requestTruncated: _rt,
     responseTruncated: _rst,
+    hasRequest: _hr,
+    hasResponse: _hs,
     ...rest
   } = r;
   return {
@@ -417,12 +451,32 @@ export function stripLogBodies(): Promise<StripBodiesResult> {
 
 export async function getRequestLog(id: string): Promise<RequestLog | undefined> {
   const days = await listLogDays();
-  const dayRows = await Promise.all(
-    days.map(async (day) => ({ day, rows: await readDayLogs(day) })),
-  );
-  for (const { rows } of dayRows) {
-    const hit = rows.find((r) => r.id === id);
-    if (hit) return hit;
+  // Day cache holds slim meta only — locate day first, then re-read full line for bodies.
+  for (const day of days) {
+    const rows = await readDayLogs(day);
+    if (!rows.some((r) => r.id === id)) continue;
+    const full = await readFullLogFromDay(day, id);
+    if (full) return full;
+  }
+  return undefined;
+}
+
+/** Parse one day file without using the slim cache; return full row by id. */
+async function readFullLogFromDay(day: string, id: string): Promise<RequestLog | undefined> {
+  try {
+    const raw = await readFile(dayFile(day), "utf8");
+    for (const line of raw.split("\n")) {
+      const tline = line.trim();
+      if (!tline) continue;
+      try {
+        const row = JSON.parse(tline) as RequestLog;
+        if (row.id === id) return row;
+      } catch {
+        // skip bad line
+      }
+    }
+  } catch {
+    // missing day file
   }
   return undefined;
 }
@@ -449,23 +503,46 @@ async function readDayLogs(day: string): Promise<RequestLog[]> {
     if (cached && cached.size === s.size && cached.mtimeMs === s.mtimeMs) {
       return cached.rows;
     }
-
-    const raw = await readFile(file, "utf8");
-    const out: RequestLog[] = [];
-    for (const line of raw.split("\n")) {
-      const t = line.trim();
-      if (!t) continue;
-      try {
-        out.push(JSON.parse(t) as RequestLog);
-      } catch {
-        // skip bad line
-      }
-    }
-
-    dayLogCache.set(day, { size: s.size, mtimeMs: s.mtimeMs, rows: out });
-    return out;
   } catch {
     return [];
+  }
+
+  const inflight = dayLogInflight.get(day);
+  if (inflight) return inflight;
+
+  const load = (async () => {
+    const filePath = dayFile(day);
+    try {
+      const s = await stat(filePath);
+      const cached = dayLogCache.get(day);
+      if (cached && cached.size === s.size && cached.mtimeMs === s.mtimeMs) {
+        return cached.rows;
+      }
+
+      const raw = await readFile(filePath, "utf8");
+      const out: RequestLog[] = [];
+      for (const line of raw.split("\n")) {
+        const tline = line.trim();
+        if (!tline) continue;
+        try {
+          out.push(toCachedLog(JSON.parse(tline) as RequestLog));
+        } catch {
+          // skip bad line
+        }
+      }
+
+      dayLogCache.set(day, { size: s.size, mtimeMs: s.mtimeMs, rows: out });
+      return out;
+    } catch {
+      return [];
+    }
+  })();
+
+  dayLogInflight.set(day, load);
+  try {
+    return await load;
+  } finally {
+    if (dayLogInflight.get(day) === load) dayLogInflight.delete(day);
   }
 }
 

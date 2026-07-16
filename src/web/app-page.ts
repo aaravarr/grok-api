@@ -1710,6 +1710,8 @@ ${mediaViewHtml(page)}
     let logPage = 1;
     let logTotal = 0;
     let logDays = [];
+    /** After first default to latest day, allow user to choose "全部". */
+    let logDayDefaulted = false;
     let lastLogItems = [];
     let usageRange = "24h"; // 1h | 6h | 24h | 7d | 30d
     let usageGran = "auto"; // auto | minute | 5m | hour | day
@@ -3019,6 +3021,10 @@ ${mediaViewHtml(page)}
       sel.innerHTML = '<option value="">' + esc(t("allDays")) + "</option>" +
         logDays.map((d) => '<option value="' + esc(d) + '">' + esc(d) + "</option>").join("");
       if (cur && logDays.includes(cur)) sel.value = cur;
+      else if (!logDayDefaulted && !cur && logDays.length) {
+        sel.value = logDays[0];
+        logDayDefaulted = true;
+      }
       enhanceSelect(sel);
       if (sel.parentElement && sel.parentElement._cselectRefresh) sel.parentElement._cselectRefresh();
     }
@@ -4187,6 +4193,13 @@ ${mediaViewHtml(page)}
         logDays = data.days || [];
         lastLogItems = data.items || [];
         paintLogDaySelect();
+        // First visit: default select to latest day (not "all") and re-fetch once.
+        const dayAfter = ($("logDay") && $("logDay").value) || "";
+        if (!day && dayAfter) {
+          logPage = 1;
+          await loadLogs();
+          return;
+        }
         if (data.disk && $("logDisk")) $("logDisk").textContent = t("diskInfo", data.disk.days, fmtBytes(data.disk.bytes));
         renderLogs(lastLogItems);
         if (view === "overview" || !day) renderOverviewRecent(lastLogItems);

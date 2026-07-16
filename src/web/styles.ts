@@ -167,7 +167,7 @@ export function styles(): string {
     /* Loading states - skeleton first */
     .page-loading{
       position:absolute;inset:0;z-index:40;display:none;
-      background:rgba(250,250,250,.88);
+      background:var(--canvas, #fafafa);
     }
     .page-loading.show{display:block}
     .main-wrap{position:relative}
@@ -215,7 +215,7 @@ export function styles(): string {
     .is-loading{position:relative}
     .loading-overlay{
       position:absolute;inset:0;z-index:5;display:flex;align-items:stretch;justify-content:stretch;
-      background:rgba(255,255,255,.78);backdrop-filter:blur(1.5px);-webkit-backdrop-filter:blur(1.5px);
+      background:var(--canvas, #fafafa);
       border-radius:inherit;padding:14px;box-sizing:border-box;
     }
     .loading-overlay .sk-fill{width:100%;height:100%;min-height:120px;display:flex;flex-direction:column;gap:12px}
