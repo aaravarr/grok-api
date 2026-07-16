@@ -563,8 +563,8 @@ export function createApp() {
       ...item,
       request: undefined,
       response: undefined,
-      hasRequest: item.request !== undefined,
-      hasResponse: item.response !== undefined,
+      hasRequest: item.hasRequest === true,
+      hasResponse: item.hasResponse === true,
     }));
     const disk = await logsDiskInfo();
     return c.json({ ...result, items, disk });
@@ -1754,8 +1754,8 @@ export function createApp() {
       ...item,
       request: undefined,
       response: undefined,
-      hasRequest: item.request !== undefined,
-      hasResponse: item.response !== undefined,
+      hasRequest: item.hasRequest === true,
+      hasResponse: item.hasResponse === true,
     }));
     const disk = await logsDiskInfo();
     return c.json({ ...result, items, disk });

@@ -38,6 +38,33 @@ function dayFile(day: string): string {
 let writeChain: Promise<void> = Promise.resolve();
 let lastCleanupAt = 0;
 
+/** Per-day in-memory cache keyed by file size + mtime. */
+interface DayLogCache {
+  size: number;
+  mtimeMs: number;
+  rows: RequestLog[];
+}
+const dayLogCache = new Map<string, DayLogCache>();
+
+function invalidateDayCache(day?: string): void {
+  if (day) dayLogCache.delete(day);
+  else dayLogCache.clear();
+}
+
+function invalidateStatsCacheSoft(): void {
+  void import("./stats.js")
+    .then((m) => {
+      m.invalidateUsageStatsCache?.();
+    })
+    .catch(() => {
+      // ignore circular/load races
+    });
+}
+
+function invalidateDiskInfoCache(): void {
+  diskInfoCache = null;
+}
+
 export interface AppendLogInput {
   mode: ProxyMode;
   path: string;
@@ -92,6 +119,26 @@ export function appendRequestLog(input: AppendLogInput): Promise<RequestLog> {
     .then(async () => {
       await mkdir(logsDir(), { recursive: true });
       await appendFile(dayFile(entry.day), JSON.stringify(entry) + "\n", "utf8");
+
+      // Keep day cache warm when possible
+      try {
+        const file = dayFile(entry.day);
+        const s = await stat(file);
+        const cached = dayLogCache.get(entry.day);
+        if (cached && cached.size <= s.size) {
+          cached.rows.push(entry);
+          cached.size = s.size;
+          cached.mtimeMs = s.mtimeMs;
+        } else {
+          invalidateDayCache(entry.day);
+        }
+      } catch {
+        invalidateDayCache(entry.day);
+      }
+
+      invalidateStatsCacheSoft();
+      invalidateDiskInfoCache();
+
       // Opportunistic cleanup every 10 minutes
       if (Date.now() - lastCleanupAt > 600_000) {
         lastCleanupAt = Date.now();
@@ -122,7 +169,7 @@ export interface ListLogsQuery {
 }
 
 export interface ListLogsResult {
-  items: RequestLog[];
+  items: RequestLogListItem[];
   total: number;
   page: number;
   limit: number;
@@ -135,12 +182,10 @@ export async function listRequestLogs(query: ListLogsQuery = {}): Promise<ListLo
   const days = await listLogDays();
   const targetDays = query.day ? days.filter((d) => d === query.day) : days;
 
-  // Load newest first across selected days
+  // Parallel per-day reads (hit memory cache when warm)
+  const dayRows = await Promise.all(targetDays.map((day) => readDayLogs(day)));
   const all: RequestLog[] = [];
-  for (const day of targetDays) {
-    const rows = await readDayLogs(day);
-    all.push(...rows);
-  }
+  for (const rows of dayRows) all.push(...rows);
   all.sort((a, b) => b.ts - a.ts);
 
   let filtered = all;
@@ -159,15 +204,16 @@ export async function listRequestLogs(query: ListLogsQuery = {}): Promise<ListLo
 
   const q = (query.q || "").trim().toLowerCase();
   if (q) {
-    // Resolve live display names so renamed accounts/keys remain searchable.
-    const named = await withLiveDisplayNames(filtered);
-    filtered = named.filter((r) => logMatchesQuery(r, q));
+    // Search snapshot meta only — avoid live-name resolution on the full set
+    filtered = filtered.filter((r) => logMatchesQuery(r, q));
   }
 
   const total = filtered.length;
   const start = (page - 1) * limit;
-  // List view never needs bodies — drop them to cut JSON size / UI lag
-  const items = filtered.slice(start, start + limit).map(slimLogForList);
+  // List view never needs bodies — drop them; set has* before strip (response only)
+  const pageSlice = filtered.slice(start, start + limit).map(slimLogForList);
+  // Live display names only for the final page
+  const items = await withLiveDisplayNames(pageSlice);
   return { items, total, page, limit, days };
 }
 
@@ -193,21 +239,40 @@ function logMatchesQuery(r: RequestLog, q: string): boolean {
   return hay.some((v) => v.includes(q));
 }
 
-/** Drop heavy fields for table/list responses. */
-function slimLogForList(r: RequestLog): RequestLog {
-  if (r.request === undefined && r.response === undefined) return r;
-  const { request: _req, response: _res, requestTruncated: _rt, responseTruncated: _rst, ...rest } =
-    r;
-  return rest;
+/** List item: meta only + body presence flags (not persisted to jsonl). */
+export type RequestLogListItem = Omit<
+  RequestLog,
+  "request" | "response" | "requestTruncated" | "responseTruncated"
+> & {
+  hasRequest?: boolean;
+  hasResponse?: boolean;
+};
+
+/** Drop heavy fields for table/list responses; capture body presence first. */
+function slimLogForList(r: RequestLog): RequestLogListItem {
+  const hasRequest = r.request !== undefined;
+  const hasResponse = r.response !== undefined;
+  const {
+    request: _req,
+    response: _res,
+    requestTruncated: _rt,
+    responseTruncated: _rst,
+    ...rest
+  } = r;
+  return {
+    ...rest,
+    ...(hasRequest ? { hasRequest: true } : {}),
+    ...(hasResponse ? { hasResponse: true } : {}),
+  };
 }
 
 /**
  * Resolve live account names + API key aliases for display
  * (historical logs store snapshot names that can go stale after rename).
  */
-export async function withLiveDisplayNames(
-  logs: RequestLog[],
-): Promise<RequestLog[]> {
+export async function withLiveDisplayNames<T extends RequestLog>(
+  logs: T[],
+): Promise<T[]> {
   if (!logs.length) return logs;
   const [accounts, keys] = await Promise.all([listAccounts(), listApiKeys()]);
   const nameById = new Map(accounts.map((a) => [a.id, a.name]));
@@ -334,8 +399,12 @@ export function stripLogBodies(): Promise<StripBodiesResult> {
       } else {
         bytesAfter += Buffer.byteLength(raw, "utf8");
       }
+
+      invalidateDayCache(day);
     }
 
+    invalidateStatsCacheSoft();
+    invalidateDiskInfoCache();
     return { days: days.length, rows, stripped, bytesBefore, bytesAfter };
   });
 
@@ -348,8 +417,10 @@ export function stripLogBodies(): Promise<StripBodiesResult> {
 
 export async function getRequestLog(id: string): Promise<RequestLog | undefined> {
   const days = await listLogDays();
-  for (const day of days) {
-    const rows = await readDayLogs(day);
+  const dayRows = await Promise.all(
+    days.map(async (day) => ({ day, rows: await readDayLogs(day) })),
+  );
+  for (const { rows } of dayRows) {
     const hit = rows.find((r) => r.id === id);
     if (hit) return hit;
   }
@@ -371,8 +442,15 @@ export async function listLogDays(): Promise<string[]> {
 }
 
 async function readDayLogs(day: string): Promise<RequestLog[]> {
+  const file = dayFile(day);
   try {
-    const raw = await readFile(dayFile(day), "utf8");
+    const s = await stat(file);
+    const cached = dayLogCache.get(day);
+    if (cached && cached.size === s.size && cached.mtimeMs === s.mtimeMs) {
+      return cached.rows;
+    }
+
+    const raw = await readFile(file, "utf8");
     const out: RequestLog[] = [];
     for (const line of raw.split("\n")) {
       const t = line.trim();
@@ -383,6 +461,8 @@ async function readDayLogs(day: string): Promise<RequestLog[]> {
         // skip bad line
       }
     }
+
+    dayLogCache.set(day, { size: s.size, mtimeMs: s.mtimeMs, rows: out });
     return out;
   } catch {
     return [];
@@ -391,15 +471,16 @@ async function readDayLogs(day: string): Promise<RequestLog[]> {
 
 export async function readLogsSince(daysBack: number): Promise<RequestLog[]> {
   const days = await listLogDays();
+  let selected: string[];
   if (daysBack <= 0) {
-    const all: RequestLog[] = [];
-    for (const d of days) all.push(...(await readDayLogs(d)));
-    return all;
+    selected = days;
+  } else {
+    const cutoff = dayKey(Date.now() - (daysBack - 1) * 86400_000);
+    selected = days.filter((d) => d >= cutoff);
   }
-  const cutoff = dayKey(Date.now() - (daysBack - 1) * 86400_000);
-  const selected = days.filter((d) => d >= cutoff);
+  const dayRows = await Promise.all(selected.map((d) => readDayLogs(d)));
   const all: RequestLog[] = [];
-  for (const d of selected) all.push(...(await readDayLogs(d)));
+  for (const rows of dayRows) all.push(...rows);
   return all;
 }
 
@@ -434,24 +515,49 @@ export async function cleanupLogs(opts: {
       } catch {
         // ignore
       }
+      invalidateDayCache(day);
     } else {
       keptDays.push(day);
     }
   }
 
+  if (deletedDays.length) {
+    invalidateStatsCacheSoft();
+    invalidateDiskInfoCache();
+  }
+
   return { deletedDays, keptDays };
 }
 
+interface DiskInfoCache {
+  at: number;
+  value: { days: number; bytes: number };
+}
+let diskInfoCache: DiskInfoCache | null = null;
+const DISK_INFO_TTL_MS = 30_000;
+
 export async function logsDiskInfo(): Promise<{ days: number; bytes: number }> {
+  const now = Date.now();
+  if (diskInfoCache && now - diskInfoCache.at < DISK_INFO_TTL_MS) {
+    return diskInfoCache.value;
+  }
+
   const days = await listLogDays();
   let bytes = 0;
-  for (const day of days) {
-    try {
-      const s = await stat(dayFile(day));
-      bytes += s.size;
-    } catch {
-      // ignore
-    }
-  }
-  return { days: days.length, bytes };
+  // Parallel stat for day files
+  const sizes = await Promise.all(
+    days.map(async (day) => {
+      try {
+        const s = await stat(dayFile(day));
+        return s.size;
+      } catch {
+        return 0;
+      }
+    }),
+  );
+  for (const n of sizes) bytes += n;
+
+  const value = { days: days.length, bytes };
+  diskInfoCache = { at: now, value };
+  return value;
 }

@@ -357,6 +357,31 @@ function resolveWindow(query: UsageStatsQuery): {
   return { rangeMs, rangeHours, rangeDays, gran };
 }
 
+interface StatsCacheEntry {
+  expires: number;
+  value: UsageStats;
+}
+
+const statsCache = new Map<string, StatsCacheEntry>();
+
+/** Clear usage stats cache (call after new request logs). */
+export function invalidateUsageStatsCache(): void {
+  statsCache.clear();
+}
+
+function statsCacheKey(query: UsageStatsQuery): string {
+  const hours = query.hours != null && Number.isFinite(query.hours) ? String(query.hours) : "";
+  const days = query.days != null ? String(query.days) : "";
+  const gran = query.granularity || "";
+  const userId = query.userId || "";
+  const keys = (query.apiKeyIds ? [...query.apiKeyIds].sort() : []).join(",");
+  return `${hours}|${days}|${gran}|${userId}|${keys}`;
+}
+
+function statsCacheTtlMs(_query: UsageStatsQuery, _rangeMs: number): number {
+  return 15_000;
+}
+
 /**
  * Compute usage stats.
  * @param daysOrQuery - legacy number of days, or full query object
@@ -370,6 +395,12 @@ export async function computeUsageStats(
     typeof daysOrQuery === "number"
       ? { days: daysOrQuery, userId: filter?.userId, apiKeyIds: filter?.apiKeyIds }
       : { ...daysOrQuery, ...filter };
+
+  const cacheKey = statsCacheKey(query);
+  const hit = statsCache.get(cacheKey);
+  if (hit && hit.expires > Date.now()) {
+    return hit.value;
+  }
 
   const { rangeMs, rangeHours, rangeDays, gran } = resolveWindow(query);
   const now = Date.now();
@@ -479,7 +510,7 @@ export async function computeUsageStats(
   const fromDay = byDay[0]?.key ?? "";
   const toDay = byDay[byDay.length - 1]?.key ?? "";
 
-  return {
+  const result: UsageStats = {
     rangeDays,
     rangeHours: Math.round(rangeHours * 1000) / 1000,
     granularity: gran,
@@ -493,4 +524,11 @@ export async function computeUsageStats(
     byAccount: sortBuckets([...byAccountMap.values()]),
     byKey: sortBuckets([...byKeyMap.values()]),
   };
+
+  statsCache.set(cacheKey, {
+    expires: Date.now() + statsCacheTtlMs(query, rangeMs),
+    value: result,
+  });
+
+  return result;
 }
