@@ -691,14 +691,14 @@ ${styles()}
                         <span class="sso-win-url">github.com/aaravarr/grok-api/releases</span>
                       </div>
                       <div class="sso-win-body">
-                        <div class="sso-win-h">Assets</div>
+                        <div class="sso-win-h">发布资源</div>
                         <div class="sso-win-file">
                           <div class="sso-win-zip">ZIP</div>
                           <div class="sso-win-file-meta">
                             <b>grok-api-sso-extension-v2.2.0.zip</b>
-                            <span>17.8 KB · source code not included</span>
+                            <span>17.8 KB · 不含源码</span>
                           </div>
-                          <span class="sso-win-btn">Download</span>
+                          <span class="sso-win-btn">下载</span>
                         </div>
                       </div>
                     </div>
@@ -715,20 +715,20 @@ ${styles()}
                       </div>
                       <div class="sso-win-body">
                         <div class="sso-win-row">
-                          <b>Developer mode</b>
+                          <b>开发者模式</b>
                           <span class="sso-win-toggle"><i></i></span>
                         </div>
                         <div class="sso-win-ext">
                           <div class="sso-win-ext-hd">
                             <span class="sso-win-ext-icon">G</span>
                             <div>
-                              <b>Grok-API SSO Contribute</b>
-                              <span>2.2.0 · Unpacked</span>
+                              <b>Grok-API SSO 贡献</b>
+                              <span>2.2.0 · 已解压</span>
                             </div>
                           </div>
                           <div class="sso-win-ext-actions">
-                            <span class="sso-win-btn ghost">Details</span>
-                            <span class="sso-win-btn">Load unpacked</span>
+                            <span class="sso-win-btn ghost">详情</span>
+                            <span class="sso-win-btn">加载已解压的扩展程序</span>
                           </div>
                         </div>
                       </div>
@@ -806,10 +806,10 @@ ${styles()}
                         <span class="sso-win-url">accounts.x.ai/activate</span>
                       </div>
                       <div class="sso-win-body sso-win-auth">
-                        <div class="sso-win-muted">Device authorization</div>
+                        <div class="sso-win-muted">设备授权</div>
                         <div class="sso-win-code">ABCD-EFGH</div>
-                        <div class="sso-win-muted">Authorize SuperGrok access</div>
-                        <span class="sso-win-btn">Authorize</span>
+                        <div class="sso-win-muted">授权 SuperGrok 访问</div>
+                        <span class="sso-win-btn">授权</span>
                         <div class="sso-win-status">正在轮询席位状态…</div>
                       </div>
                     </div>
