@@ -667,7 +667,7 @@ ${styles()}
             </div>
 
             <div class="sso-ext-body" id="ssoExtBody" hidden>
-              <div class="sso-ext-body-top">
+              <div class="sso-ext-body-top" id="ssoExtBodyTop" role="button" tabindex="0" aria-expanded="true" title="点击收起">
                 <div class="sso-ext-copy">
                   <div class="contrib-action-kicker" data-i18n="ssoExtKicker">浏览器工具</div>
                   <strong data-i18n="ssoExtTitle">SSO 登录 / 贡献插件</strong>
@@ -6224,17 +6224,36 @@ ${mediaViewHtml(page)}
       const root = $("contribExtCard");
       const body = $("ssoExtBody");
       const collapsed = $("ssoExtCollapsed");
+      const top = $("ssoExtBodyTop");
       if (root) root.classList.toggle("open", ssoExtOpen);
       if (body) body.hidden = !ssoExtOpen;
       if (collapsed) collapsed.hidden = ssoExtOpen;
+      if (top) top.setAttribute("aria-expanded", ssoExtOpen ? "true" : "false");
     }
     if ($("btnSsoExtOpen")) $("btnSsoExtOpen").onclick = () => setSsoExtOpen(true);
-    if ($("btnSsoExtClose")) $("btnSsoExtClose").onclick = () => setSsoExtOpen(false);
+    if ($("btnSsoExtClose")) $("btnSsoExtClose").onclick = (e) => {
+      e.stopPropagation();
+      setSsoExtOpen(false);
+    };
     if ($("ssoExtCollapsed")) {
       $("ssoExtCollapsed").addEventListener("click", (e) => {
         const t = e.target;
         if (t && (t.closest("a") || t.closest("button"))) return;
         setSsoExtOpen(true);
+      });
+    }
+    // Expanded header: click again to collapse (ignore links/buttons inside)
+    if ($("ssoExtBodyTop")) {
+      $("ssoExtBodyTop").addEventListener("click", (e) => {
+        const t = e.target;
+        if (t && (t.closest("a") || t.closest("button"))) return;
+        setSsoExtOpen(false);
+      });
+      $("ssoExtBodyTop").addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setSsoExtOpen(false);
+        }
       });
     }
     if ($("btnContribStart")) $("btnContribStart").onclick = () => { setContribOpen(true); };

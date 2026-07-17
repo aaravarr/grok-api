@@ -1005,7 +1005,7 @@ export function styles(): string {
     .sso-ext-collapsed-actions .btn{text-decoration:none}
     .sso-ext-body{padding:0 18px 18px;border-top:1px solid var(--line);animation:fadeIn .18s var(--ease)}
     .sso-ext-body[hidden]{display:none!important}
-    .sso-ext-body-top{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start;padding-top:16px;margin-bottom:8px}
+    .sso-ext-body-top{cursor:pointer;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start;padding-top:16px;margin-bottom:8px;cursor:pointer;border-radius:10px}
     .sso-ext-copy{flex:1 1 280px;min-width:0;max-width:64ch}
     .sso-ext-copy strong{display:block;margin:2px 0 6px;font-size:16px;font-weight:600;letter-spacing:-.3px}
     .sso-ext-copy p{margin:0;font-size:13px;color:var(--body);line-height:1.5}
