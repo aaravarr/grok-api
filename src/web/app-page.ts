@@ -653,27 +653,93 @@ ${styles()}
             </div>
           </div>
 
-          <div class="panel mb sso-ext-card" id="contribExtCard">
-            <div class="sso-ext-row">
-              <div class="sso-ext-copy">
+                    <div class="panel mb sso-ext-card" id="contribExtCard">
+            <div class="sso-ext-collapsed" id="ssoExtCollapsed">
+              <div class="sso-ext-collapsed-copy">
                 <div class="contrib-action-kicker" data-i18n="ssoExtKicker">浏览器工具</div>
                 <strong data-i18n="ssoExtTitle">SSO 登录 / 贡献插件</strong>
-                <p data-i18n="ssoExtSub">粘贴 SSO JWT，写入 grok/x.ai Cookie；可选一键向本站发起 OAuth 席位贡献。辅助工具，不替代上方 OAuth / JSON 贡献。</p>
-                <ol class="sso-ext-steps">
-                  <li data-i18n="ssoExtStep1">从 GitHub Release 下载 zip 安装包</li>
-                  <li data-i18n="ssoExtStep2">解压 → chrome://extensions → 开发者模式 → 加载已解压的扩展程序</li>
-                  <li data-i18n="ssoExtStep3">打开扩展弹窗，填写 Base URL + 绑定用户的 API 密钥</li>
-                </ol>
+                <p data-i18n="ssoExtCollapsedSub">可选浏览器扩展：写 Cookie + 一键 OAuth 贡献。点击查看安装与使用说明。</p>
               </div>
-              <div class="sso-ext-actions">
-                <a class="btn" id="btnSsoExtDownload" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.0/grok-api-sso-extension-v2.2.0.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">下载扩展包</a>
-                <a class="btn btn-secondary" href="https://github.com/aaravarr/grok-api/releases/tag/sso-extension-v2.2.0" target="_blank" rel="noreferrer" data-i18n="ssoExtRelease">Release 说明</a>
-                <div class="mono sso-ext-ver">v2.2.0 · Chrome / Edge</div>
+              <div class="sso-ext-collapsed-actions">
+                <a class="btn btn-secondary btn-sm" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.0/grok-api-sso-extension-v2.2.0.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">下载扩展包</a>
+                <button class="btn btn-sm" type="button" id="btnSsoExtOpen" data-i18n="ssoExtGuide">安装与使用说明</button>
+              </div>
+            </div>
+
+            <div class="sso-ext-body" id="ssoExtBody" hidden>
+              <div class="sso-ext-body-top">
+                <div class="sso-ext-copy">
+                  <div class="contrib-action-kicker" data-i18n="ssoExtKicker">浏览器工具</div>
+                  <strong data-i18n="ssoExtTitle">SSO 登录 / 贡献插件</strong>
+                  <p data-i18n="ssoExtSub">粘贴 SSO JWT，写入 grok/x.ai Cookie；可选一键向本站发起 OAuth 席位贡献。辅助工具，不替代上方 OAuth / JSON 贡献。</p>
+                </div>
+                <div class="sso-ext-actions">
+                  <a class="btn" id="btnSsoExtDownload" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.0/grok-api-sso-extension-v2.2.0.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">下载扩展包</a>
+                  <a class="btn btn-secondary" href="https://github.com/aaravarr/grok-api/releases/tag/sso-extension-v2.2.0" target="_blank" rel="noreferrer" data-i18n="ssoExtRelease">Release 说明</a>
+                  <button class="btn btn-ghost btn-sm" type="button" id="btnSsoExtClose" data-i18n="ssoExtCollapse">收起</button>
+                  <div class="mono sso-ext-ver">v2.2.0 · Chrome / Edge</div>
+                </div>
+              </div>
+
+              <div class="sso-ext-section-title" data-i18n="ssoExtInstallTitle">安装</div>
+              <div class="sso-guide-grid">
+                <div class="sso-guide-card">
+                  <div class="sso-guide-art" aria-hidden="true">
+                    <div class="sso-mock sso-mock-dl"><div class="sso-mock-bar"></div><div class="sso-mock-file">ZIP</div></div>
+                  </div>
+                  <div class="sso-guide-n">01</div>
+                  <strong data-i18n="ssoExtStep1t">下载扩展包</strong>
+                  <p data-i18n="ssoExtStep1d">从 GitHub Release 下载 grok-api-sso-extension 的 zip，解压得到 sso-extension 文件夹。</p>
+                </div>
+                <div class="sso-guide-card">
+                  <div class="sso-guide-art" aria-hidden="true">
+                    <div class="sso-mock sso-mock-ext"><div class="sso-mock-toggle on"></div><div class="sso-mock-line w60"></div><div class="sso-mock-line w40"></div><div class="sso-mock-chip">Load unpacked</div></div>
+                  </div>
+                  <div class="sso-guide-n">02</div>
+                  <strong data-i18n="ssoExtStep2t">加载到浏览器</strong>
+                  <p data-i18n="ssoExtStep2d">打开 chrome://extensions 或 edge://extensions，开启开发者模式，选择「加载已解压的扩展程序」。</p>
+                </div>
+                <div class="sso-guide-card">
+                  <div class="sso-guide-art" aria-hidden="true">
+                    <div class="sso-mock sso-mock-cfg"><div class="sso-mock-line w50"></div><div class="sso-mock-input"></div><div class="sso-mock-line w30"></div><div class="sso-mock-input"></div><div class="sso-mock-btn"></div></div>
+                  </div>
+                  <div class="sso-guide-n">03</div>
+                  <strong data-i18n="ssoExtStep3t">填写连接配置</strong>
+                  <p data-i18n="ssoExtStep3d">点扩展图标，填写本站 Base URL 与绑定用户的 API 密钥，点「测试连接」确认。</p>
+                </div>
+              </div>
+
+              <div class="sso-ext-section-title" data-i18n="ssoExtUseTitle">使用</div>
+              <div class="sso-guide-grid use">
+                <div class="sso-guide-card">
+                  <div class="sso-guide-art" aria-hidden="true">
+                    <div class="sso-mock sso-mock-page"><div class="sso-mock-fab">SSO</div></div>
+                  </div>
+                  <div class="sso-guide-n">01</div>
+                  <strong data-i18n="ssoExtUse1t">打开面板</strong>
+                  <p data-i18n="ssoExtUse1d">在 grok.com / accounts.x.ai / pay.ldxp.cn 等白名单站点，点右上角 SSO，或按 Ctrl+Shift+L。</p>
+                </div>
+                <div class="sso-guide-card">
+                  <div class="sso-guide-art" aria-hidden="true">
+                    <div class="sso-mock sso-mock-panel"><div class="sso-mock-line w40"></div><div class="sso-mock-area"></div><div class="sso-mock-check"></div><div class="sso-mock-btn wide"></div></div>
+                  </div>
+                  <div class="sso-guide-n">02</div>
+                  <strong data-i18n="ssoExtUse2t">粘贴 SSO 并开始</strong>
+                  <p data-i18n="ssoExtUse2d">粘贴 JWT；勾选「写入并贡献」可同时向本站申请 OAuth 席位，否则仅写 Cookie 登录官网。</p>
+                </div>
+                <div class="sso-guide-card">
+                  <div class="sso-guide-art" aria-hidden="true">
+                    <div class="sso-mock sso-mock-auth"><div class="sso-mock-line w55"></div><div class="sso-mock-code">ABCD-EFGH</div><div class="sso-mock-btn"></div></div>
+                  </div>
+                  <div class="sso-guide-n">03</div>
+                  <strong data-i18n="ssoExtUse3t">完成授权</strong>
+                  <p data-i18n="ssoExtUse3d">扩展会打开授权页并轮询状态。确认后可在本页「我的席位」看到绑定结果。</p>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="why-grid">
+<div class="why-grid">
             <div class="why-card">
               <div class="why-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
               <h3 data-i18n="why1t">Private to you</h3>
@@ -1441,6 +1507,23 @@ ${mediaViewHtml(page)}
         ssoExtStep3:"打开扩展弹窗，填写 Base URL + 绑定用户的 API 密钥",
         ssoExtDownload:"下载扩展包",
         ssoExtRelease:"Release 说明",
+        ssoExtCollapsedSub:"可选浏览器扩展：写 Cookie + 一键 OAuth 贡献。点击查看安装与使用说明。",
+        ssoExtGuide:"安装与使用说明",
+        ssoExtCollapse:"收起",
+        ssoExtInstallTitle:"安装",
+        ssoExtUseTitle:"使用",
+        ssoExtStep1t:"下载扩展包",
+        ssoExtStep1d:"从 GitHub Release 下载 grok-api-sso-extension 的 zip，解压得到 sso-extension 文件夹。",
+        ssoExtStep2t:"加载到浏览器",
+        ssoExtStep2d:"打开 chrome://extensions 或 edge://extensions，开启开发者模式，选择「加载已解压的扩展程序」。",
+        ssoExtStep3t:"填写连接配置",
+        ssoExtStep3d:"点扩展图标，填写本站 Base URL 与绑定用户的 API 密钥，点「测试连接」确认。",
+        ssoExtUse1t:"打开面板",
+        ssoExtUse1d:"在 grok.com / accounts.x.ai / pay.ldxp.cn 等白名单站点，点右上角 SSO，或按 Ctrl+Shift+L。",
+        ssoExtUse2t:"粘贴 SSO 并开始",
+        ssoExtUse2d:"粘贴 JWT；勾选「写入并贡献」可同时向本站申请 OAuth 席位，否则仅写 Cookie 登录官网。",
+        ssoExtUse3t:"完成授权",
+        ssoExtUse3d:"扩展会打开授权页并轮询状态。确认后可在本页「我的席位」看到绑定结果。",
         contribCtaOauth:"继续 OAuth",
         contribCtaJson:"确认贡献",
         contribJsonHint:"粘贴 CPA / Sub2API 的 Grok 凭证 JSON，或直接粘贴 refresh_token。席位只会绑定到你的账号。",
@@ -1687,6 +1770,23 @@ ${mediaViewHtml(page)}
         ssoExtStep3:"Open the extension popup, set Base URL + a user-bound API key",
         ssoExtDownload:"Download extension",
         ssoExtRelease:"Release notes",
+        ssoExtCollapsedSub:"Optional browser extension: write cookies + one-click OAuth contribute. Click for install & usage guide.",
+        ssoExtGuide:"Install & usage guide",
+        ssoExtCollapse:"Collapse",
+        ssoExtInstallTitle:"Install",
+        ssoExtUseTitle:"Usage",
+        ssoExtStep1t:"Download the zip",
+        ssoExtStep1d:"Download grok-api-sso-extension from GitHub Releases and unzip the sso-extension folder.",
+        ssoExtStep2t:"Load in the browser",
+        ssoExtStep2d:"Open chrome://extensions or edge://extensions, enable Developer mode, then Load unpacked.",
+        ssoExtStep3t:"Configure connection",
+        ssoExtStep3d:"Open the extension popup, set this site's Base URL and a user-bound API key, then Test connection.",
+        ssoExtUse1t:"Open the panel",
+        ssoExtUse1d:"On whitelisted sites like grok.com / accounts.x.ai / pay.ldxp.cn, click SSO or press Ctrl+Shift+L.",
+        ssoExtUse2t:"Paste SSO and start",
+        ssoExtUse2d:"Paste the JWT. Enable contribute to start OAuth seat linking, or cookie-only to sign into grok.com.",
+        ssoExtUse3t:"Finish authorization",
+        ssoExtUse3d:"The extension opens the authorize page and polls status. When done, the seat appears under My seats.",
         contribCtaOauth:"Continue OAuth",
         contribCtaJson:"Confirm contribution",
         contribJsonHint:"Paste CPA / Sub2API Grok credentials JSON, or a raw refresh_token. The seat is bound to your account only.",
@@ -6035,6 +6135,25 @@ ${mediaViewHtml(page)}
       });
     }
     if ($("accModal")) $("accModal").addEventListener("click", (e) => { if (e.target === $("accModal")) closeAccEdit(); });
+    let ssoExtOpen = false;
+    function setSsoExtOpen(open) {
+      ssoExtOpen = !!open;
+      const root = $("contribExtCard");
+      const body = $("ssoExtBody");
+      const collapsed = $("ssoExtCollapsed");
+      if (root) root.classList.toggle("open", ssoExtOpen);
+      if (body) body.hidden = !ssoExtOpen;
+      if (collapsed) collapsed.hidden = ssoExtOpen;
+    }
+    if ($("btnSsoExtOpen")) $("btnSsoExtOpen").onclick = () => setSsoExtOpen(true);
+    if ($("btnSsoExtClose")) $("btnSsoExtClose").onclick = () => setSsoExtOpen(false);
+    if ($("ssoExtCollapsed")) {
+      $("ssoExtCollapsed").addEventListener("click", (e) => {
+        const t = e.target;
+        if (t && (t.closest("a") || t.closest("button"))) return;
+        setSsoExtOpen(true);
+      });
+    }
     if ($("btnContribStart")) $("btnContribStart").onclick = () => { setContribOpen(true); };
     if ($("btnContribOpen")) $("btnContribOpen").onclick = () => setContribOpen(true);
     if ($("btnContribClose")) $("btnContribClose").onclick = () => setContribOpen(false);

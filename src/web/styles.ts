@@ -992,18 +992,57 @@ export function styles(): string {
     }
     .contrib-action-copy strong{font-size:16px;font-weight:600;letter-spacing:-.3px;line-height:1.3}
     .contrib-action-copy p{margin:0;font-size:13px;color:var(--body);line-height:1.5}
-    .sso-ext-card{padding:16px 18px}
-    .sso-ext-row{display:flex;gap:18px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+    .sso-ext-card{padding:0;overflow:hidden}
+    .sso-ext-collapsed{
+      display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;
+      padding:16px 18px;cursor:pointer;
+    }
+    .sso-ext-collapsed[hidden]{display:none!important}
+    .sso-ext-collapsed-copy{min-width:0;flex:1 1 240px;max-width:64ch}
+    .sso-ext-collapsed-copy strong{display:block;margin:2px 0 4px;font-size:15px;font-weight:600;letter-spacing:-.3px}
+    .sso-ext-collapsed-copy p{margin:0;font-size:13px;color:var(--body);line-height:1.45}
+    .sso-ext-collapsed-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .sso-ext-collapsed-actions .btn{text-decoration:none}
+    .sso-ext-body{padding:0 18px 18px;border-top:1px solid var(--line);animation:fadeIn .18s var(--ease)}
+    .sso-ext-body[hidden]{display:none!important}
+    .sso-ext-body-top{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start;padding-top:16px;margin-bottom:8px}
     .sso-ext-copy{flex:1 1 280px;min-width:0;max-width:64ch}
     .sso-ext-copy strong{display:block;margin:2px 0 6px;font-size:16px;font-weight:600;letter-spacing:-.3px}
-    .sso-ext-copy p{margin:0 0 10px;font-size:13px;color:var(--body);line-height:1.5}
-    .sso-ext-steps{margin:0;padding-left:18px;color:var(--mute);font-size:12.5px;line-height:1.55}
-    .sso-ext-steps li{margin:0 0 4px}
-    .sso-ext-actions{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:180px}
+    .sso-ext-copy p{margin:0;font-size:13px;color:var(--body);line-height:1.5}
+    .sso-ext-actions{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:168px}
     .sso-ext-actions .btn{text-align:center;text-decoration:none}
     .sso-ext-ver{color:var(--mute);font-size:11px;text-align:center}
-    @media (max-width:720px){
-      .sso-ext-actions{width:100%}
+    .sso-ext-section-title{margin:14px 0 10px;font-size:12px;font-weight:600;color:var(--mute);letter-spacing:.04em;text-transform:uppercase}
+    .sso-guide-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .sso-guide-card{
+      border:1px solid var(--line);border-radius:var(--radius-md,12px);background:#fff;
+      padding:12px;min-width:0;
+    }
+    .sso-guide-n{font-family:var(--mono);font-size:11px;color:var(--mute);letter-spacing:.06em;margin:8px 0 4px}
+    .sso-guide-card strong{display:block;font-size:13px;font-weight:600;letter-spacing:-.2px;margin-bottom:4px}
+    .sso-guide-card p{margin:0;font-size:12px;color:var(--body);line-height:1.5}
+    .sso-guide-art{height:92px;border-radius:10px;background:linear-gradient(180deg,#fafafa,#f4f4f5);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .sso-mock{width:78%;height:68%;border-radius:8px;background:#fff;border:1px solid #e4e4e7;box-shadow:0 4px 14px rgba(0,0,0,.05);position:relative;padding:8px;box-sizing:border-box}
+    .sso-mock-bar{height:6px;width:42%;border-radius:999px;background:#e4e4e7;margin-bottom:10px}
+    .sso-mock-file{width:34px;height:40px;border-radius:6px;background:#111;color:#fff;font:700 10px/40px ui-sans-serif,system-ui,sans-serif;text-align:center;margin:0 auto}
+    .sso-mock-line{height:5px;border-radius:999px;background:#e4e4e7;margin:0 0 6px}
+    .sso-mock-line.w60{width:60%}.sso-mock-line.w55{width:55%}.sso-mock-line.w50{width:50%}.sso-mock-line.w40{width:40%}.sso-mock-line.w30{width:30%}
+    .sso-mock-toggle{width:28px;height:16px;border-radius:999px;background:#d4d4d8;position:relative;margin-bottom:8px}
+    .sso-mock-toggle.on{background:#111}
+    .sso-mock-toggle::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+    .sso-mock-toggle.on::after{left:14px}
+    .sso-mock-chip{display:inline-block;margin-top:2px;padding:3px 6px;border-radius:6px;background:#111;color:#fff;font:600 8px/1 ui-sans-serif,system-ui,sans-serif}
+    .sso-mock-input{height:10px;border-radius:5px;background:#f4f4f5;border:1px solid #e4e4e7;margin:0 0 6px}
+    .sso-mock-btn{height:12px;width:36%;border-radius:5px;background:#111;margin-top:4px}
+    .sso-mock-btn.wide{width:100%}
+    .sso-mock-page{background:linear-gradient(180deg,#fff,#fafafa)}
+    .sso-mock-fab{position:absolute;top:8px;right:8px;background:#111;color:#fff;border-radius:999px;font:700 8px/1 ui-sans-serif,system-ui,sans-serif;padding:5px 7px}
+    .sso-mock-area{height:28px;border-radius:6px;background:#f4f4f5;border:1px solid #e4e4e7;margin:0 0 6px}
+    .sso-mock-check{height:6px;width:55%;border-radius:999px;background:#e4e4e7;margin:0 0 8px}
+    .sso-mock-code{font:700 11px/1 var(--mono);letter-spacing:.08em;margin:10px 0 8px;color:#111}
+    @media (max-width:900px){
+      .sso-guide-grid{grid-template-columns:1fr}
+      .sso-ext-actions,.sso-ext-collapsed-actions{width:100%}
     }
     .contrib-action-body{
       padding:18px 20px 20px;border-top:0;
