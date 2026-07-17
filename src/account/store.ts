@@ -657,6 +657,20 @@ export async function markUsed(id: string): Promise<void> {
   });
 }
 
+
+/** 402/spending-limit style blocks must not auto-revive from billing remaining%. */
+function isHardQuotaBlock(lastError?: string | null): boolean {
+  const m = String(lastError || "").toLowerCase();
+  if (!m) return false;
+  return (
+    m.includes("spending-limit") ||
+    m.includes("personal-team-blocked") ||
+    m.includes("run out of credits") ||
+    m.includes("need a grok subscription") ||
+    m.includes("need a grok") ||
+    /http\s*402\b/.test(m)
+  );
+}
 export async function setCredits(id: string, credits: CreditSnapshot): Promise<void> {
   const patch: Partial<Account> = { credits };
   const acc = await getAccount(id);
@@ -670,7 +684,13 @@ export async function setCredits(id: string, credits: CreditSnapshot): Promise<v
     patch.status = "exhausted";
     patch.lastError = `额度已用尽 (${credits.creditUsagePercent.toFixed(1)}%)`;
   } else if (credits.remainingPercent > 0.5) {
-    if (acc?.status === "exhausted" || acc?.status === "sub_expired") {
+    // Revive soft exhausted (meter-only). Never clear hard 402/spending-limit blocks
+    // just because billing still reports remaining credits.
+    if (acc?.status === "exhausted" && !isHardQuotaBlock(acc.lastError)) {
+      patch.status = "active";
+      patch.lastError = undefined;
+    } else if (acc?.status === "sub_expired") {
+      // only revive sub_expired when period is not ended (handled above); here period ok
       patch.status = "active";
       patch.lastError = undefined;
     }
@@ -715,6 +735,16 @@ export async function setCurrentAccount(id: string | null): Promise<RoutingState
   });
 }
 
+
+/** Update UI "Current" pointer without switching auto/manual mode. Public pool only. */
+export async function reflectServingAccount(id: string): Promise<void> {
+  await mutate((store) => {
+    const acc = store.accounts.find((a) => a.id === id);
+    if (!acc || acc.status !== "active") return;
+    if (!isPublicPoolAccount(acc)) return;
+    store.routing.currentAccountId = id;
+  });
+}
 /** Advance RR cursor and set current to next active account (auto mode). */
 export async function advanceToNextActive(
   excludeId?: string,

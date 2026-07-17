@@ -1,5 +1,5 @@
 import { onProviderError, onSuccess, routeAccount } from "../account/router.js";
-import { advanceToNextActive } from "../account/store.js";
+import { advanceToNextActive, reflectServingAccount } from "../account/store.js";
 import { outboundFetch } from "../proxy.js";
 import { getUpstreamBaseUrl } from "../settings.js";
 import { grokUpstreamHeaders } from "./identity.js";
@@ -94,10 +94,12 @@ export type UpstreamProxyRequest = {
 };
 
 /**
- * Generic upstream proxy with account-pool routing + retry on exhausted/retryable.
+ * Generic upstream proxy with account-pool routing + multi-seat retry.
+ * Failed seats (402/exhausted/etc.) are excluded for the rest of the request.
  */
 export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyResponse> {
-  const maxRetries = req.maxRetries ?? 3;
+  // High enough to walk past several dead SuperGrok seats in one client request
+  const maxRetries = req.maxRetries ?? 8;
   const tried = new Set<string>();
   let lastError = "unknown";
   const base = await getUpstreamBaseUrl();
@@ -109,17 +111,23 @@ export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyRes
     let routed;
     try {
       routed = await routeAccount({
-        preferredId: attempt === 0 ? req.accountId : undefined,
+        // Honor sticky/header pin only before any seat has failed this request
+        preferredId: tried.size === 0 ? req.accountId : undefined,
         checkCredits,
-        forceAuto: attempt > 0,
+        forceAuto: tried.size > 0,
         callerUserId: req.callerUserId,
+        excludeIds: tried,
       });
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
       break;
     }
 
-    if (tried.has(routed.account.id)) break;
+    if (tried.has(routed.account.id)) {
+      tried.add(routed.account.id);
+      lastError = `route returned already-tried seat: ${routed.account.name}`;
+      continue;
+    }
     tried.add(routed.account.id);
 
     const url = `${base}${path}`;
@@ -148,8 +156,9 @@ export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyRes
     });
 
     if (res.ok || res.status === 202) {
-      // do not block first-byte on markUsed persist
       void onSuccess(routed.account.id);
+      // Keep console "Current" aligned with the seat that actually answered
+      void reflectServingAccount(routed.account.id).catch(() => undefined);
       return {
         status: res.status,
         headers: res.headers,
@@ -165,25 +174,31 @@ export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyRes
     const kind = await onProviderError(routed.account.id, res.status, text);
 
     if (kind === "exhausted" || kind === "retryable") {
-      await advanceToNextActive(routed.account.id);
+      await advanceToNextActive(routed.account.id).catch(() => undefined);
       continue;
     }
 
-    return {
-      status: res.status,
-      headers: new Headers({ "Content-Type": "application/json" }),
-      body: new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode(text));
-          controller.close();
-        },
-      }),
-      accountId: routed.account.id,
-      accountName: routed.account.name,
-      upstreamStartedAt,
-    };
+    // Client/request validation errors are not seat-bound — surface immediately
+    if (res.status === 400 || res.status === 413 || res.status === 422) {
+      return {
+        status: res.status,
+        headers: new Headers({ "Content-Type": "application/json" }),
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(text));
+            controller.close();
+          },
+        }),
+        accountId: routed.account.id,
+        accountName: routed.account.name,
+        upstreamStartedAt,
+      };
+    }
+
+    // Other account-bound failures: try next seat
+    await advanceToNextActive(routed.account.id).catch(() => undefined);
+    continue;
   }
 
   throw new Error(`代理失败（已尝试 ${tried.size} 个账号）: ${lastError}`);
 }
-

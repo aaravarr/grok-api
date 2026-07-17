@@ -92,9 +92,14 @@ export async function routeAccount(opts?: {
   forceAuto?: boolean;
   /** App user owning the API key (null = open/legacy) */
   callerUserId?: string | null;
+  /** Account ids already tried this request — never return these */
+  excludeIds?: Iterable<string> | null;
 }): Promise<RouteResult> {
   const checkCredits = opts?.checkCredits !== false;
   const callerUserId = opts?.callerUserId ?? null;
+  const excluded = new Set(
+    [...(opts?.excludeIds ?? [])].map((x) => String(x || "").trim()).filter(Boolean),
+  );
   const routing = await getRouting();
 
   let scope: RouteScope = "auto";
@@ -113,18 +118,16 @@ export async function routeAccount(opts?: {
     scope,
     accountId: opts?.preferredId ? null : pinnedId,
   });
-  // preferred header: still must pass private/ownership/allowlist checks
-  if (opts?.preferredId) {
+  // preferred header / sticky seat: only honor when still active & not excluded
+  if (opts?.preferredId && !opts?.forceAuto) {
     const pref = all.find((a) => a.id === opts.preferredId);
     if (!pref) throw new Error(`account not found: ${opts.preferredId}`);
     if (!canUserUseAccount(pref, callerUserId)) {
       throw new Error("无权使用该账号（私有、白名单限制或不可见）");
     }
-    // public pool: only shared seats, or seats where caller is allowlisted
     if (scope === "public" && !isPublicPoolAccount(pref) && !isUserAllowedOnAccount(pref, callerUserId)) {
       throw new Error("公共号池不能使用私有/限定账号，请改用「自动」或「仅自己号池」或「指定账号」");
     }
-    // mine: own donations or seats allowlisted for caller
     if (scope === "mine") {
       const mine = pref.donorUserId === callerUserId;
       const allowlisted =
@@ -133,8 +136,27 @@ export async function routeAccount(opts?: {
         throw new Error("当前路由模式为「仅自己号池」，不能指定其他账号");
       }
     }
-    // auto: any seat the caller may use (already checked via canUserUseAccount)
-    return useAccount(opts.preferredId, checkCredits);
+    const prefOk =
+      pref.status === "active" &&
+      !excluded.has(pref.id) &&
+      Boolean(pref.tokens?.refresh);
+    if (prefOk) {
+      try {
+        return await useAccount(pref.id, checkCredits);
+      } catch (e) {
+        // fall through to auto pool when sticky/preferred seat cannot serve
+        const msg = e instanceof Error ? e.message : String(e);
+        if (
+          !msg.includes("exhausted") &&
+          !msg.includes("expired") &&
+          !msg.includes("额度") &&
+          !msg.includes("subscription")
+        ) {
+          // permission / hard errors on explicit pin still surface for scope=account path only
+        }
+      }
+    }
+    // soft-skip preferred and continue auto
   }
 
   if (scope === "account") {
@@ -143,6 +165,12 @@ export async function routeAccount(opts?: {
     if (!acc) throw new Error(`指定账号不存在: ${pinnedId}`);
     if (!canUserUseAccount(acc, callerUserId)) {
       throw new Error("无权使用指定账号");
+    }
+    if (excluded.has(pinnedId)) {
+      throw new Error(`指定账号已在本请求中失败: ${acc.name || pinnedId}`);
+    }
+    if (acc.status !== "active") {
+      throw new Error(`指定账号不可用（${acc.status}）: ${acc.name || pinnedId}`);
     }
     return useAccount(pinnedId, checkCredits);
   }
@@ -153,12 +181,11 @@ export async function routeAccount(opts?: {
     throw new Error("没有可用账号（未添加或全部不可用）");
   }
 
-  // Active candidates only for auto rotation
-  let candidates = eligible.filter((a) => a.status === "active" || a.status === "exhausted");
-  // Prefer non-exhausted first, but keep exhausted at end so credit recheck can revive
-  const active = candidates.filter((a) => a.status === "active");
-  const rest = candidates.filter((a) => a.status !== "active");
-  candidates = [...active, ...rest];
+  // Only active seats are routable. Exhausted seats stay out until a manual refresh.
+  // Also skip seats already failed in this request (excludeIds).
+  const candidates = eligible.filter(
+    (a) => a.status === "active" && !excluded.has(a.id) && Boolean(a.tokens?.refresh),
+  );
 
   if (candidates.length === 0) {
     throw new Error(
@@ -181,7 +208,12 @@ export async function routeAccount(opts?: {
     eligibleIds.has(routing.currentAccountId)
   ) {
     const cur = all.find((a) => a.id === routing.currentAccountId);
-    if (cur && isPublicPoolAccount(cur) && cur.status === "active") {
+    if (
+      cur &&
+      isPublicPoolAccount(cur) &&
+      cur.status === "active" &&
+      !excluded.has(cur.id)
+    ) {
       try {
         return await useAccount(routing.currentAccountId, checkCredits);
       } catch {
@@ -222,6 +254,8 @@ async function useAccount(accountId: string, checkCredits: boolean): Promise<Rou
   if (!acc) throw new Error(`account not found: ${accountId}`);
   if (acc.status === "expired") throw new Error(`account expired: ${accountId}`);
   if (acc.status === "sub_expired") throw new Error(`account subscription expired: ${accountId}`);
+  // Never route exhausted seats (billing meter can still show 100% while chat returns 402)
+  if (acc.status === "exhausted") throw new Error(`account exhausted: ${accountId}`);
 
   if (checkCredits) {
     try {
@@ -237,10 +271,8 @@ async function useAccount(accountId: string, checkCredits: boolean): Promise<Rou
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("exhausted")) throw e;
-      if (acc.status === "exhausted") throw new Error(`account exhausted: ${accountId}`);
+      // soft: credit check failed — still try request path
     }
-  } else if (acc.status === "exhausted") {
-    throw new Error(`account exhausted: ${accountId}`);
   }
 
   const accessToken = await getValidAccessToken(accountId);
