@@ -1169,9 +1169,11 @@ export function styles(): string {
     }
     .sso-win-ext-hd{ display: flex; align-items: center; gap: 9px; min-width: 0; }
     .sso-win-ext-icon{
-      width: 30px; height: 30px; border-radius: 8px; background: #111; color: #fff;
-      font: 800 13px/30px ui-sans-serif, system-ui, sans-serif; text-align: center; flex: 0 0 auto;
+      width: 32px; height: 32px; border-radius: 9px; background: #111; color: #fff;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex: 0 0 auto;
     }
+    .sso-win-ext-icon svg{ display: block; }
     .sso-win-ext-hd b{
       display: block; font: 700 12px/1.2 ui-sans-serif, system-ui, sans-serif; color: #18181b;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1180,7 +1182,8 @@ export function styles(): string {
       display: block; margin-top: 2px;
       font: 500 11px/1.2 ui-sans-serif, system-ui, sans-serif; color: #a1a1aa;
     }
-    .sso-win-ext-actions{ display: flex; gap: 6px; flex-wrap: wrap; }
+    .sso-win-ext-actions{ display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .sso-win-ext-actions .sso-win-btn{ height: 26px; padding: 0 9px; font-size: 10.5px; }
     .sso-win-ext-actions.end{ justify-content: flex-end; margin-top: 2px; }
     .sso-win-site{ position: relative; }
     .sso-win-site-title{
@@ -1212,7 +1215,7 @@ export function styles(): string {
       content: ""; position: absolute; left: 4px; top: 1.5px; width: 4px; height: 8px;
       border: solid #fff; border-width: 0 1.7px 1.7px 0; transform: rotate(45deg);
     }
-    .sso-win-auth{ align-items: flex-start; }
+    .sso-win-auth{ align-items: flex-start; justify-content: flex-start; gap: 8px; }
     .sso-win-muted{
       font: 500 12px/1.3 ui-sans-serif, system-ui, sans-serif; color: #a1a1aa;
     }

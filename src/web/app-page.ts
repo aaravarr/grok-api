@@ -720,10 +720,10 @@ ${styles()}
                         </div>
                         <div class="sso-win-ext">
                           <div class="sso-win-ext-hd">
-                            <span class="sso-win-ext-icon">G</span>
+                            <span class="sso-win-ext-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M10 3h4v3.2a2.8 2.8 0 0 1 0 5.6V15h-1.5a2.5 2.5 0 1 0 0 5H14v1H8v-3.2a2.8 2.8 0 0 1 0-5.6V8H9.5a2.5 2.5 0 1 0 0-5H10V3z" fill="currentColor"/><path d="M15 8h6v2.2a2.3 2.3 0 1 1 0 4.6V17h-6v-2.2a2.3 2.3 0 1 1 0-4.6V8z" fill="currentColor" opacity=".9"/></svg></span>
                             <div>
                               <b>Grok-API SSO 贡献</b>
-                              <span>2.2.0 · 已解压</span>
+                              <span>v2.2.0 · 已解压加载</span>
                             </div>
                           </div>
                           <div class="sso-win-ext-actions">
@@ -810,13 +810,13 @@ ${styles()}
                         <div class="sso-win-code">ABCD-EFGH</div>
                         <div class="sso-win-muted">授权 SuperGrok 访问</div>
                         <span class="sso-win-btn">授权</span>
-                        <div class="sso-win-status">正在轮询席位状态…</div>
+                        <div class="sso-win-status">正在查询席位状态…</div>
                       </div>
                     </div>
                   </div>
                   <div class="sso-guide-n">03</div>
                   <strong data-i18n="ssoExtUse3t">完成授权</strong>
-                  <p data-i18n="ssoExtUse3d">扩展会打开授权页并轮询状态。确认后可在本页「我的席位」看到绑定结果。</p>
+                  <p data-i18n="ssoExtUse3d">扩展会打开授权页并查询状态。确认后可在本页「我的席位」看到绑定结果。</p>
                 </div>
               </div>
             </div>
@@ -1606,7 +1606,7 @@ ${mediaViewHtml(page)}
         ssoExtUse2t:"粘贴 SSO 并开始",
         ssoExtUse2d:"粘贴 JWT；勾选「写入并贡献」可同时向本站申请 OAuth 席位，否则仅写 Cookie 登录官网。",
         ssoExtUse3t:"完成授权",
-        ssoExtUse3d:"扩展会打开授权页并轮询状态。确认后可在本页「我的席位」看到绑定结果。",
+        ssoExtUse3d:"扩展会打开授权页并查询状态。确认后可在本页「我的席位」看到绑定结果。",
         contribCtaOauth:"继续 OAuth",
         contribCtaJson:"确认贡献",
         contribJsonHint:"粘贴 CPA / Sub2API 的 Grok 凭证 JSON，或直接粘贴 refresh_token。席位只会绑定到你的账号。",
