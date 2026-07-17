@@ -306,7 +306,6 @@ async function getGrokApiConfig() {
     "token",
     "username",
     "password",
-    "seatNamePrefix",
   ]);
   return {
     baseUrl: String(r.baseUrl || "http://127.0.0.1:8787").trim().replace(/\/+$/, ""),
@@ -314,7 +313,6 @@ async function getGrokApiConfig() {
     token: String(r.token || "").trim(),
     username: String(r.username || "").trim(),
     password: String(r.password || ""),
-    seatNamePrefix: String(r.seatNamePrefix || "ext").trim() || "ext",
   };
 }
 
@@ -367,15 +365,13 @@ async function contributeWithSso(msg) {
   }
 
   const auth = await ensureAuthToken(cfg);
-  const seatName =
-    String(msg.name || "").trim() ||
-    cfg.seatNamePrefix + "-" + new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", "");
+  const seatName = String(msg.name || "").trim();
 
   const started = await apiFetch(cfg.baseUrl, "/api/me/accounts/oauth", {
     method: "POST",
     headers: { Authorization: "Bearer " + auth.token },
     body: {
-      name: seatName,
+      name: seatName || undefined,
       openBrowser: false,
       accountId: msg.accountId || undefined,
     },
@@ -495,12 +491,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg.type === "get-contribute-defaults") {
     chrome.storage.local
-      .get(["defaultContribute", "seatNamePrefix", "baseUrl"])
+      .get(["defaultContribute", "baseUrl"])
       .then((r) =>
         sendResponse({
           ok: true,
           defaultContribute: r.defaultContribute !== false,
-          seatNamePrefix: r.seatNamePrefix || "ext",
           baseUrl: r.baseUrl || "http://127.0.0.1:8787",
         }),
       )

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Grok-API SSO Contribute",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "写入 xAI SSO Cookie，并一键向 grok-api 发起 OAuth 席位贡献。",
   "permissions": [
     "cookies",

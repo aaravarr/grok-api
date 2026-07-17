@@ -661,7 +661,7 @@ ${styles()}
                 <p data-i18n="ssoExtCollapsedSub">可选浏览器扩展：写 Cookie + 一键 OAuth 贡献。点击查看安装与使用说明。</p>
               </div>
               <div class="sso-ext-collapsed-actions">
-                <a class="btn btn-secondary btn-sm" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.1/grok-api-sso-extension-v2.2.1.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">下载扩展包</a>
+                <a class="btn btn-secondary btn-sm" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.2/grok-api-sso-extension-v2.2.2.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">下载扩展包</a>
                 <button class="btn btn-sm" type="button" id="btnSsoExtOpen" data-i18n="ssoExtGuide">安装与使用说明</button>
               </div>
             </div>
@@ -674,10 +674,10 @@ ${styles()}
                   <p data-i18n="ssoExtSub">粘贴 SSO JWT，写入 grok/x.ai Cookie；可选一键向本站发起 OAuth 席位贡献。辅助工具，不替代上方 OAuth / JSON 贡献。</p>
                 </div>
                 <div class="sso-ext-actions">
-                  <a class="btn" id="btnSsoExtDownload" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.1/grok-api-sso-extension-v2.2.1.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">下载扩展包</a>
-                  <a class="btn btn-secondary" href="https://github.com/aaravarr/grok-api/releases/tag/sso-extension-v2.2.1" target="_blank" rel="noreferrer" data-i18n="ssoExtRelease">Release 说明</a>
+                  <a class="btn" id="btnSsoExtDownload" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.2/grok-api-sso-extension-v2.2.2.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">下载扩展包</a>
+                  <a class="btn btn-secondary" href="https://github.com/aaravarr/grok-api/releases/tag/sso-extension-v2.2.2" target="_blank" rel="noreferrer" data-i18n="ssoExtRelease">Release 说明</a>
                   <button class="btn btn-ghost btn-sm" type="button" id="btnSsoExtClose" data-i18n="ssoExtCollapse">收起</button>
-                  <div class="mono sso-ext-ver">v2.2.1 · Chrome / Edge</div>
+                  <div class="mono sso-ext-ver">v2.2.2 · Chrome / Edge</div>
                 </div>
               </div>
 
@@ -695,7 +695,7 @@ ${styles()}
                         <div class="sso-win-file">
                           <div class="sso-win-zip">ZIP</div>
                           <div class="sso-win-file-meta">
-                            <b>grok-api-sso-extension-v2.2.1.zip</b>
+                            <b>grok-api-sso-extension-v2.2.2.zip</b>
                             <span>17.8 KB · 不含源码</span>
                           </div>
                           <span class="sso-win-btn">下载</span>
@@ -723,7 +723,7 @@ ${styles()}
                             <span class="sso-win-ext-icon">G</span>
                             <div>
                               <b>Grok-API SSO 贡献</b>
-                              <span>v2.2.1 · 已解压加载</span>
+                              <span>v2.2.2 · 已解压加载</span>
                             </div>
                           </div>
                           <div class="sso-win-ext-actions">

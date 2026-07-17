@@ -35,7 +35,6 @@ async function load() {
     "token",
     "username",
     "password",
-    "seatNamePrefix",
     "defaultContribute",
     "panelMode",
     "whitelist",
@@ -48,7 +47,6 @@ async function load() {
   $("token").value = r.token || "";
   $("username").value = r.username || "";
   $("password").value = r.password || "";
-  $("seatNamePrefix").value = r.seatNamePrefix || "ext";
   $("defaultContribute").checked = r.defaultContribute !== false;
   const pm = r.panelMode === "all" ? "all" : "whitelist";
   document.querySelectorAll('input[name="panelMode"]').forEach((el) => {
@@ -71,7 +69,6 @@ async function save() {
     token: String($("token").value || "").trim(),
     username: String($("username").value || "").trim(),
     password: String($("password").value || ""),
-    seatNamePrefix: String($("seatNamePrefix").value || "").trim() || "ext",
     defaultContribute: $("defaultContribute").checked,
     panelMode: panelMode(),
     whitelist: whitelist.length ? whitelist : DEFAULT_WHITELIST,

@@ -64,7 +64,6 @@ function setBusy(on, activeId) {
   }
   $("baseUrl").disabled = on;
   tokenInput.disabled = on;
-  $("seatNamePrefix").disabled = on;
   $("defaultContribute").disabled = on;
   $("whitelist").disabled = on;
   document.querySelectorAll('input[name="panelMode"]').forEach((el) => {
@@ -139,14 +138,12 @@ async function load() {
   const r = await chrome.storage.local.get([
     "baseUrl",
     "token",
-    "seatNamePrefix",
     "defaultContribute",
     "panelMode",
     "whitelist",
   ]);
   $("baseUrl").value = r.baseUrl || "http://127.0.0.1:8787";
   tokenInput.value = r.token || "";
-  $("seatNamePrefix").value = r.seatNamePrefix || "ext";
   $("defaultContribute").checked = r.defaultContribute !== false;
   const pm = r.panelMode === "all" ? "all" : "whitelist";
   document.querySelectorAll('input[name="panelMode"]').forEach((el) => {
@@ -174,7 +171,6 @@ async function save(opts = {}) {
     token: String(tokenInput.value || "").trim(),
     username: "",
     password: "",
-    seatNamePrefix: String($("seatNamePrefix").value || "").trim() || "ext",
     defaultContribute: $("defaultContribute").checked,
     panelMode: panelMode(),
     whitelist,

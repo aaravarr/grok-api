@@ -17,7 +17,7 @@
       '  <label class="xai-sso-lab">SSO JWT（写入 sso + sso-rw）</label>',
       '  <textarea id="xai-sso-input" rows="4" placeholder="eyJ... 或 邮箱|密码|sso|时间" spellcheck="false"></textarea>',
       '  <label class="xai-sso-lab">席位名称（可空）</label>',
-      '  <input id="xai-sso-name" type="text" placeholder="ext-..." autocomplete="off" />',
+      '  <input id="xai-sso-name" type="text" placeholder="留空自动命名" autocomplete="off" />',
       '  <label class="xai-sso-lab">Cookie 名覆盖（可空）</label>',
       '  <input id="xai-sso-cookie" type="text" placeholder="留空即可" autocomplete="off" />',
       '  <label class="xai-sso-check">',
@@ -60,7 +60,6 @@
         if (res && res.ok) {
           contributeEl.checked = res.defaultContribute !== false;
           targetEl.textContent = 'grok-api: ' + (res.baseUrl || '?');
-          if (!nameInput.value && res.seatNamePrefix) nameInput.placeholder = res.seatNamePrefix + '-…';
         }
       } catch (_) {}
     }
