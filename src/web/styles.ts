@@ -1174,13 +1174,17 @@ export function styles(): string {
       border-radius: 9px;
       background: #111;
       color: #fff;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font: 800 13px/1 ui-sans-serif, system-ui, sans-serif;
+      display: grid;
+      place-items: center;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
       letter-spacing: 0;
-      text-align: center;
       flex: 0 0 auto;
+      /* optical vertical center for capital glyph */
+      padding-top: 1px;
+      box-sizing: border-box;
     }
 
     .sso-win-ext-hd b{
