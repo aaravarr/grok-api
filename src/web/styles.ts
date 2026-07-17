@@ -1174,21 +1174,26 @@ export function styles(): string {
       border-radius: 9px;
       background: #111;
       color: #fff;
-      display: block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       box-sizing: border-box;
-      text-align: center;
-      font: 800 13px/32px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font: 800 13px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
       letter-spacing: 0;
-      flex: 0 0 auto;
+      flex: 0 0 32px;
       overflow: hidden;
       margin: 0;
       padding: 0;
+      text-align: center;
+    }
+    .sso-win-ext-hd > div{
+      min-width: 0; flex: 1 1 auto;
     }
     .sso-win-ext-hd b{
       display: block; font: 700 12px/1.2 ui-sans-serif, system-ui, sans-serif; color: #18181b;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .sso-win-ext-hd span{
+    .sso-win-ext-hd > div > span{
       display: block; margin-top: 2px;
       font: 500 11px/1.2 ui-sans-serif, system-ui, sans-serif; color: #a1a1aa;
     }
