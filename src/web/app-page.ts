@@ -681,24 +681,25 @@ ${styles()}
                 </div>
               </div>
 
-                            <div class="sso-ext-section-title" data-i18n="ssoExtInstallTitle">安装</div>
+                                          <div class="sso-ext-section-title" data-i18n="ssoExtInstallTitle">安装</div>
               <div class="sso-guide-grid">
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-illu sso-illu-dl">
-                      <div class="sso-illu-chrome">
-                        <span class="sso-illu-dot"></span><span class="sso-illu-dot"></span><span class="sso-illu-dot"></span>
-                        <span class="sso-illu-url">github.com/.../releases</span>
+                    <div class="sso-win">
+                      <div class="sso-win-bar">
+                        <span class="sso-win-dots"><i></i><i></i><i></i></span>
+                        <span class="sso-win-url">github.com/aaravarr/grok-api/releases</span>
                       </div>
-                      <div class="sso-illu-row">
-                        <div class="sso-illu-zip">
-                          <div class="sso-illu-zip-ico">ZIP</div>
-                          <div>
-                            <div class="sso-illu-strong">sso-extension</div>
-                            <div class="sso-illu-muted">v2.2.0 · ~18 KB</div>
+                      <div class="sso-win-body">
+                        <div class="sso-win-h">Assets</div>
+                        <div class="sso-win-file">
+                          <div class="sso-win-zip">ZIP</div>
+                          <div class="sso-win-file-meta">
+                            <b>grok-api-sso-extension-v2.2.0.zip</b>
+                            <span>17.8 KB · source code not included</span>
                           </div>
+                          <span class="sso-win-btn">Download</span>
                         </div>
-                        <div class="sso-illu-pill">Download</div>
                       </div>
                     </div>
                   </div>
@@ -708,20 +709,27 @@ ${styles()}
                 </div>
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-illu sso-illu-ext">
-                      <div class="sso-illu-chrome">
-                        <span class="sso-illu-url">chrome://extensions</span>
+                    <div class="sso-win">
+                      <div class="sso-win-bar">
+                        <span class="sso-win-url">chrome://extensions</span>
                       </div>
-                      <div class="sso-illu-row between">
-                        <span class="sso-illu-strong">Developer mode</span>
-                        <span class="sso-illu-toggle on"><i></i></span>
-                      </div>
-                      <div class="sso-illu-card">
-                        <div class="sso-illu-strong">Grok-API SSO</div>
-                        <div class="sso-illu-muted">ID · Unpacked</div>
-                        <div class="sso-illu-actions">
-                          <span class="sso-illu-chip">Details</span>
-                          <span class="sso-illu-chip primary">Load unpacked</span>
+                      <div class="sso-win-body">
+                        <div class="sso-win-row">
+                          <b>Developer mode</b>
+                          <span class="sso-win-toggle"><i></i></span>
+                        </div>
+                        <div class="sso-win-ext">
+                          <div class="sso-win-ext-hd">
+                            <span class="sso-win-ext-icon">G</span>
+                            <div>
+                              <b>Grok-API SSO Contribute</b>
+                              <span>2.2.0 · Unpacked</span>
+                            </div>
+                          </div>
+                          <div class="sso-win-ext-actions">
+                            <span class="sso-win-btn ghost">Details</span>
+                            <span class="sso-win-btn">Load unpacked</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -732,15 +740,17 @@ ${styles()}
                 </div>
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-illu sso-illu-cfg">
-                      <div class="sso-illu-title">Grok-API SSO</div>
-                      <div class="sso-illu-label">Base URL</div>
-                      <div class="sso-illu-field">http://127.0.0.1:8787</div>
-                      <div class="sso-illu-label">密钥</div>
-                      <div class="sso-illu-field mono">gk_••••••••</div>
-                      <div class="sso-illu-actions">
-                        <span class="sso-illu-chip">测试连接</span>
-                        <span class="sso-illu-chip primary">保存全部</span>
+                    <div class="sso-win sso-win-popup">
+                      <div class="sso-win-body">
+                        <div class="sso-win-h">连接 grok-api</div>
+                        <label>Base URL</label>
+                        <div class="sso-win-input">http://127.0.0.1:8787</div>
+                        <label>密钥</label>
+                        <div class="sso-win-input">gk_••••••••••••</div>
+                        <div class="sso-win-ext-actions">
+                          <span class="sso-win-btn ghost">测试连接</span>
+                          <span class="sso-win-btn">保存全部</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -754,17 +764,17 @@ ${styles()}
               <div class="sso-guide-grid use">
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-illu sso-illu-site">
-                      <div class="sso-illu-chrome">
-                        <span class="sso-illu-url">grok.com</span>
+                    <div class="sso-win">
+                      <div class="sso-win-bar">
+                        <span class="sso-win-url">https://grok.com/</span>
                       </div>
-                      <div class="sso-illu-site-body">
-                        <div class="sso-illu-muted">Grok</div>
-                        <div class="sso-illu-line w70"></div>
-                        <div class="sso-illu-line w45"></div>
+                      <div class="sso-win-body sso-win-site">
+                        <div class="sso-win-site-title">Grok</div>
+                        <div class="sso-win-skel"></div>
+                        <div class="sso-win-skel short"></div>
+                        <div class="sso-win-fab">SSO</div>
+                        <div class="sso-win-hotkey">Ctrl + Shift + L</div>
                       </div>
-                      <div class="sso-illu-fab">SSO</div>
-                      <div class="sso-illu-hotkey">Ctrl+Shift+L</div>
                     </div>
                   </div>
                   <div class="sso-guide-n">01</div>
@@ -773,13 +783,15 @@ ${styles()}
                 </div>
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-illu sso-illu-panel">
-                      <div class="sso-illu-title">SSO · 贡献</div>
-                      <div class="sso-illu-label">SSO JWT</div>
-                      <div class="sso-illu-area">eyJhbGciOi... · paste</div>
-                      <div class="sso-illu-check"><span class="sso-illu-box on"></span>写入并贡献到 grok-api</div>
-                      <div class="sso-illu-actions end">
-                        <span class="sso-illu-chip primary">开始</span>
+                    <div class="sso-win sso-win-popup">
+                      <div class="sso-win-body">
+                        <div class="sso-win-h">SSO · 贡献</div>
+                        <label>SSO JWT</label>
+                        <div class="sso-win-textarea">eyJhbGciOiJSUzI1NiIsInR5cCI6...</div>
+                        <div class="sso-win-check"><i></i>写入并贡献到 grok-api</div>
+                        <div class="sso-win-ext-actions end">
+                          <span class="sso-win-btn">开始</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -789,17 +801,17 @@ ${styles()}
                 </div>
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-illu sso-illu-oauth">
-                      <div class="sso-illu-chrome">
-                        <span class="sso-illu-url">accounts.x.ai/device</span>
+                    <div class="sso-win">
+                      <div class="sso-win-bar">
+                        <span class="sso-win-url">accounts.x.ai/activate</span>
                       </div>
-                      <div class="sso-illu-muted">Device authorization</div>
-                      <div class="sso-illu-code">ABCD-EFGH</div>
-                      <div class="sso-illu-muted">Authorize SuperGrok access</div>
-                      <div class="sso-illu-actions">
-                        <span class="sso-illu-chip primary">Authorize</span>
+                      <div class="sso-win-body sso-win-auth">
+                        <div class="sso-win-muted">Device authorization</div>
+                        <div class="sso-win-code">ABCD-EFGH</div>
+                        <div class="sso-win-muted">Authorize SuperGrok access</div>
+                        <span class="sso-win-btn">Authorize</span>
+                        <div class="sso-win-status">正在轮询席位状态…</div>
                       </div>
-                      <div class="sso-illu-status">轮询席位状态…</div>
                     </div>
                   </div>
                   <div class="sso-guide-n">03</div>
@@ -809,7 +821,7 @@ ${styles()}
               </div>
             </div>
           </div>
-
+
 <div class="why-grid">
             <div class="why-card">
               <div class="why-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>

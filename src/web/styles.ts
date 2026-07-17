@@ -1021,44 +1021,213 @@ export function styles(): string {
     .sso-guide-n{font-family:var(--mono);font-size:11px;color:var(--mute);letter-spacing:.06em;margin:8px 0 4px}
     .sso-guide-card strong{display:block;font-size:13px;font-weight:600;letter-spacing:-.2px;margin-bottom:4px}
     .sso-guide-card p{margin:0;font-size:12px;color:var(--body);line-height:1.5}
-    .sso-guide-art{height:118px;border-radius:10px;background:linear-gradient(180deg,#fbfbfb,#f3f3f4);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px}
-    .sso-illu{width:100%;height:100%;border-radius:8px;background:#fff;border:1px solid #e7e7ea;box-shadow:0 6px 16px rgba(0,0,0,.04);box-sizing:border-box;padding:8px 9px;position:relative;overflow:hidden}
-    .sso-illu-chrome{display:flex;align-items:center;gap:4px;margin:0 0 7px;min-width:0}
-    .sso-illu-dot{width:5px;height:5px;border-radius:50%;background:#e4e4e7;flex:0 0 auto}
-    .sso-illu-url{flex:1 1 auto;min-width:0;height:14px;border-radius:999px;background:#f4f4f5;border:1px solid #ececee;color:#71717a;font:600 8px/14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:0 7px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-    .sso-illu-title{font:700 10px/1.2 ui-sans-serif,system-ui,sans-serif;color:#111;margin:0 0 6px;letter-spacing:-.2px}
-    .sso-illu-label{font:600 8px/1 ui-sans-serif,system-ui,sans-serif;color:#a1a1aa;margin:0 0 3px}
-    .sso-illu-strong{font:700 9px/1.2 ui-sans-serif,system-ui,sans-serif;color:#18181b}
-    .sso-illu-muted{font:500 8px/1.25 ui-sans-serif,system-ui,sans-serif;color:#a1a1aa}
-    .sso-illu-field{height:16px;border-radius:5px;border:1px solid #e4e4e7;background:#fafafa;color:#3f3f46;font:600 8px/16px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:0 6px;margin:0 0 6px;overflow:hidden;white-space:nowrap}
-    .sso-illu-field.mono{letter-spacing:.04em}
-    .sso-illu-area{height:28px;border-radius:6px;border:1px solid #e4e4e7;background:#fafafa;color:#a1a1aa;font:600 8px/28px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:0 6px;margin:0 0 6px}
-    .sso-illu-row{display:flex;align-items:center;gap:8px}
-    .sso-illu-row.between{justify-content:space-between;margin-bottom:6px}
-    .sso-illu-zip{display:flex;align-items:center;gap:7px;min-width:0;flex:1 1 auto}
-    .sso-illu-zip-ico{width:28px;height:32px;border-radius:5px;background:#111;color:#fff;font:800 8px/32px ui-sans-serif,system-ui,sans-serif;text-align:center;flex:0 0 auto}
-    .sso-illu-pill,.sso-illu-chip{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:3px 7px;font:700 8px/1 ui-sans-serif,system-ui,sans-serif;background:#f4f4f5;color:#3f3f46;border:1px solid #e4e4e7;white-space:nowrap}
-    .sso-illu-chip.primary,.sso-illu-pill{background:#111;color:#fff;border-color:#111}
-    .sso-illu-actions{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
-    .sso-illu-actions.end{justify-content:flex-end}
-    .sso-illu-toggle{width:24px;height:13px;border-radius:999px;background:#d4d4d8;position:relative;flex:0 0 auto}
-    .sso-illu-toggle.on{background:#111}
-    .sso-illu-toggle i{position:absolute;top:1.5px;left:1.5px;width:10px;height:10px;border-radius:50%;background:#fff;display:block}
-    .sso-illu-toggle.on i{left:12px}
-    .sso-illu-card{border:1px solid #ececee;border-radius:7px;padding:6px 7px;background:#fafafa}
-    .sso-illu-site-body{padding:4px 2px 0}
-    .sso-illu-line{height:4px;border-radius:999px;background:#ececee;margin:0 0 5px}
-    .sso-illu-line.w70{width:70%}.sso-illu-line.w45{width:45%}
-    .sso-illu-fab{position:absolute;top:26px;right:8px;background:#111;color:#fff;border-radius:999px;font:800 8px/1 ui-sans-serif,system-ui,sans-serif;padding:5px 7px;box-shadow:0 4px 10px rgba(0,0,0,.12)}
-    .sso-illu-hotkey{position:absolute;left:8px;bottom:7px;font:600 7px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#a1a1aa;background:#f4f4f5;border:1px solid #ececee;border-radius:4px;padding:2px 4px}
-    .sso-illu-check{display:flex;align-items:center;gap:5px;font:600 8px/1.2 ui-sans-serif,system-ui,sans-serif;color:#3f3f46;margin:0 0 6px}
-    .sso-illu-box{width:9px;height:9px;border-radius:2px;border:1px solid #d4d4d8;background:#fff;display:inline-block;position:relative;flex:0 0 auto}
-    .sso-illu-box.on{background:#111;border-color:#111}
-    .sso-illu-box.on::after{content:"";position:absolute;left:2px;top:1px;width:3px;height:5px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
-    .sso-illu-code{font:800 12px/1.1 var(--mono),ui-monospace,Consolas,monospace;letter-spacing:.1em;color:#111;margin:6px 0}
-    .sso-illu-status{position:absolute;left:8px;right:8px;bottom:6px;font:600 7px/1 ui-sans-serif,system-ui,sans-serif;color:#0f6b2e;background:#eaf7ee;border-radius:4px;padding:3px 5px}
-    .sso-illu-oauth .sso-illu-muted{margin-bottom:2px}
-    @media (max-width:900px){
+    .sso-guide-art{
+      aspect-ratio: 16 / 10;
+      width: 100%;
+      height: auto;
+      min-height: 156px;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #f7f7f8 0%, #efeff1 100%);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+    .sso-win{
+      width: 100%;
+      height: 100%;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid #e4e4e7;
+      box-shadow: 0 10px 28px rgba(0,0,0,.07);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      min-height: 0;
+    }
+    .sso-win-popup{ max-width: 90%; margin: 0 auto; }
+    .sso-win-bar{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #f4f4f5;
+      border-bottom: 1px solid #ececee;
+      flex: 0 0 auto;
+    }
+    .sso-win-dots{ display: inline-flex; gap: 4px; }
+    .sso-win-dots i{
+      width: 8px; height: 8px; border-radius: 50%; background: #d4d4d8; display: block;
+    }
+    .sso-win-dots i:nth-child(1){ background: #fca5a5; }
+    .sso-win-dots i:nth-child(2){ background: #fde68a; }
+    .sso-win-dots i:nth-child(3){ background: #86efac; }
+    .sso-win-url{
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 22px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid #e4e4e7;
+      color: #52525b;
+      font: 600 11px/22px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 0 10px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .sso-win-body{
+      padding: 11px 12px 12px;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      position: relative;
+    }
+    .sso-win-h{
+      font: 700 13px/1.25 ui-sans-serif, system-ui, sans-serif;
+      color: #111;
+      letter-spacing: -.2px;
+    }
+    .sso-win-body > label{
+      font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+      color: #71717a;
+      margin-top: 1px;
+    }
+    .sso-win-input, .sso-win-textarea{
+      border: 1px solid #e4e4e7;
+      background: #fafafa;
+      border-radius: 8px;
+      color: #27272a;
+      font: 600 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      padding: 8px 10px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .sso-win-textarea{
+      min-height: 42px;
+      white-space: normal;
+      color: #71717a;
+    }
+    .sso-win-file{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid #ececee;
+      background: #fafafa;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .sso-win-zip{
+      width: 38px; height: 42px; border-radius: 8px;
+      background: #111; color: #fff;
+      font: 800 11px/42px ui-sans-serif, system-ui, sans-serif;
+      text-align: center; flex: 0 0 auto;
+    }
+    .sso-win-file-meta{ flex: 1 1 auto; min-width: 0; }
+    .sso-win-file-meta b{
+      display: block;
+      font: 700 12px/1.25 ui-sans-serif, system-ui, sans-serif;
+      color: #18181b;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sso-win-file-meta span{
+      display: block; margin-top: 3px;
+      font: 500 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+      color: #a1a1aa;
+    }
+    .sso-win-btn{
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 28px; padding: 0 11px; border-radius: 8px;
+      background: #111; color: #fff;
+      font: 700 11px/1 ui-sans-serif, system-ui, sans-serif;
+      border: 1px solid #111; white-space: nowrap; flex: 0 0 auto;
+    }
+    .sso-win-btn.ghost{
+      background: #fff; color: #27272a; border-color: #e4e4e7;
+    }
+    .sso-win-row{
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      font: 700 12px/1 ui-sans-serif, system-ui, sans-serif; color: #18181b;
+    }
+    .sso-win-toggle{
+      width: 36px; height: 20px; border-radius: 999px; background: #111; position: relative; flex: 0 0 auto;
+    }
+    .sso-win-toggle i{
+      position: absolute; top: 2px; right: 2px; width: 16px; height: 16px;
+      border-radius: 50%; background: #fff; display: block;
+    }
+    .sso-win-ext{
+      border: 1px solid #ececee; border-radius: 10px; background: #fafafa; padding: 10px;
+      display: flex; flex-direction: column; gap: 9px;
+    }
+    .sso-win-ext-hd{ display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .sso-win-ext-icon{
+      width: 30px; height: 30px; border-radius: 8px; background: #111; color: #fff;
+      font: 800 13px/30px ui-sans-serif, system-ui, sans-serif; text-align: center; flex: 0 0 auto;
+    }
+    .sso-win-ext-hd b{
+      display: block; font: 700 12px/1.2 ui-sans-serif, system-ui, sans-serif; color: #18181b;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sso-win-ext-hd span{
+      display: block; margin-top: 2px;
+      font: 500 11px/1.2 ui-sans-serif, system-ui, sans-serif; color: #a1a1aa;
+    }
+    .sso-win-ext-actions{ display: flex; gap: 6px; flex-wrap: wrap; }
+    .sso-win-ext-actions.end{ justify-content: flex-end; margin-top: 2px; }
+    .sso-win-site{ position: relative; }
+    .sso-win-site-title{
+      font: 700 14px/1.2 ui-sans-serif, system-ui, sans-serif; color: #18181b; margin-bottom: 8px;
+    }
+    .sso-win-skel{
+      height: 9px; border-radius: 999px; background: #ececee; margin-bottom: 8px; width: 72%;
+    }
+    .sso-win-skel.short{ width: 46%; }
+    .sso-win-fab{
+      position: absolute; top: 10px; right: 10px;
+      background: #111; color: #fff; border-radius: 999px;
+      font: 800 11px/1 ui-sans-serif, system-ui, sans-serif;
+      padding: 8px 10px; box-shadow: 0 6px 14px rgba(0,0,0,.14);
+    }
+    .sso-win-hotkey{
+      margin-top: auto; align-self: flex-start;
+      font: 600 11px/1 ui-sans-serif, system-ui, sans-serif; color: #71717a;
+      background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 6px 8px;
+    }
+    .sso-win-check{
+      display: flex; align-items: center; gap: 8px;
+      font: 600 12px/1.25 ui-sans-serif, system-ui, sans-serif; color: #3f3f46;
+    }
+    .sso-win-check i{
+      width: 14px; height: 14px; border-radius: 3px; background: #111; position: relative; flex: 0 0 auto;
+    }
+    .sso-win-check i::after{
+      content: ""; position: absolute; left: 4px; top: 1.5px; width: 4px; height: 8px;
+      border: solid #fff; border-width: 0 1.7px 1.7px 0; transform: rotate(45deg);
+    }
+    .sso-win-auth{ align-items: flex-start; }
+    .sso-win-muted{
+      font: 500 12px/1.3 ui-sans-serif, system-ui, sans-serif; color: #a1a1aa;
+    }
+    .sso-win-code{
+      font: 800 20px/1.1 var(--mono), ui-monospace, Consolas, monospace;
+      letter-spacing: .12em; color: #111; margin: 2px 0 4px;
+    }
+    .sso-win-status{
+      margin-top: auto;
+      font: 600 11px/1.2 ui-sans-serif, system-ui, sans-serif; color: #0f6b2e;
+      background: #eaf7ee; border-radius: 8px; padding: 7px 9px; width: 100%;
+      box-sizing: border-box;
+    }
+    
+@media (max-width:900px){
       .sso-guide-grid{grid-template-columns:1fr}
       .sso-ext-actions,.sso-ext-collapsed-actions{width:100%}
     }
