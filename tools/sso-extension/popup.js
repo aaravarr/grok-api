@@ -11,6 +11,13 @@ const DEFAULT_WHITELIST = [
 const $ = (id) => document.getElementById(id);
 const msg = $("msg");
 const connStatus = $("connStatus");
+const testBtn = $("test");
+const saveBtn = $("save");
+const tokenInput = $("token");
+const toggleTokenBtn = $("toggleToken");
+
+let busy = false;
+let tokenVisible = false;
 
 function setMsg(text, kind) {
   msg.textContent = text || "";
@@ -47,18 +54,85 @@ function ensureDefaultHosts(list) {
   return [...set];
 }
 
-function renderConnStatus(r) {
-  const base = r.baseUrl || "http://127.0.0.1:8787";
-  const hasKey = !!String(r.token || "").trim();
-  const auth = hasKey ? "已配置密钥" : "未配置密钥";
+function setBusy(on, activeId) {
+  busy = !!on;
+  for (const btn of [testBtn, saveBtn, toggleTokenBtn]) {
+    if (!btn) continue;
+    const isActive = on && btn.id === activeId;
+    btn.disabled = on;
+    btn.classList.toggle("busy", isActive);
+  }
+  $("baseUrl").disabled = on;
+  tokenInput.disabled = on;
+  $("seatNamePrefix").disabled = on;
+  $("defaultContribute").disabled = on;
+  $("whitelist").disabled = on;
+  document.querySelectorAll('input[name="panelMode"]').forEach((el) => {
+    el.disabled = on;
+  });
+}
+
+function setTokenVisible(next) {
+  tokenVisible = !!next;
+  tokenInput.type = tokenVisible ? "text" : "password";
+  toggleTokenBtn.setAttribute("aria-pressed", tokenVisible ? "true" : "false");
+  toggleTokenBtn.title = tokenVisible ? "隐藏密钥" : "显示密钥";
+  toggleTokenBtn.setAttribute("aria-label", tokenVisible ? "隐藏密钥" : "显示密钥");
+  toggleTokenBtn.textContent = tokenVisible ? "隐藏" : "显示";
+}
+
+function renderConnStatus(opts) {
+  const base = opts.baseUrl || "http://127.0.0.1:8787";
+  const hasKey = !!String(opts.token || "").trim();
+  const state = opts.state || (hasKey ? "ready" : "empty");
+  const sub = opts.sub || "";
+  let pillClass = "status-pill";
+  let dotClass = "dot";
+  let main = base;
+
+  if (state === "testing") {
+    pillClass += " testing";
+    dotClass += " busy";
+    main = base + " · 测试中";
+  } else if (state === "ok") {
+    pillClass += " ok";
+    dotClass += " on";
+    main = base + " · 连接成功";
+  } else if (state === "err") {
+    pillClass += " err";
+    dotClass += " err";
+    main = base + " · 连接失败";
+  } else if (state === "saving") {
+    pillClass += " testing";
+    dotClass += " busy";
+    main = base + " · 保存中";
+  } else if (hasKey) {
+    pillClass += "";
+    dotClass += " on";
+    main = base + " · 已配置密钥";
+  } else {
+    pillClass += " warn";
+    dotClass += " warn";
+    main = base + " · 未配置密钥";
+  }
+
   connStatus.innerHTML =
-    '<div class="status-pill"><span class="dot ' +
-    (hasKey ? "on" : "warn") +
-    '"></span><span>' +
-    base +
-    " · " +
-    auth +
+    '<div class="' +
+    pillClass +
+    '"><span class="' +
+    dotClass +
+    '"></span><span class="text">' +
+    escapeHtml(main) +
+    (sub ? '<span class="sub">' + escapeHtml(sub) + "</span>" : "") +
     "</span></div>";
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 async function load() {
@@ -71,7 +145,7 @@ async function load() {
     "whitelist",
   ]);
   $("baseUrl").value = r.baseUrl || "http://127.0.0.1:8787";
-  $("token").value = r.token || "";
+  tokenInput.value = r.token || "";
   $("seatNamePrefix").value = r.seatNamePrefix || "ext";
   $("defaultContribute").checked = r.defaultContribute !== false;
   const pm = r.panelMode === "all" ? "all" : "whitelist";
@@ -84,10 +158,12 @@ async function load() {
     await chrome.storage.local.set({ whitelist: list });
   }
   $("whitelist").value = list.join("\n");
-  renderConnStatus({ baseUrl: $("baseUrl").value, token: $("token").value });
+  setTokenVisible(false);
+  renderConnStatus({ baseUrl: $("baseUrl").value, token: tokenInput.value });
 }
 
-async function save() {
+async function save(opts = {}) {
+  const silent = !!opts.silent;
   const baseUrl = String($("baseUrl").value || "").trim().replace(/\/+$/, "");
   let whitelist = parseWhitelist($("whitelist").value);
   if (!whitelist.length) whitelist = [...DEFAULT_WHITELIST];
@@ -95,8 +171,7 @@ async function save() {
   const payload = {
     baseUrl: baseUrl || "http://127.0.0.1:8787",
     authMode: "token",
-    token: String($("token").value || "").trim(),
-    // clear legacy password fields
+    token: String(tokenInput.value || "").trim(),
     username: "",
     password: "",
     seatNamePrefix: String($("seatNamePrefix").value || "").trim() || "ext",
@@ -104,33 +179,114 @@ async function save() {
     panelMode: panelMode(),
     whitelist,
   };
-  await chrome.storage.local.set(payload);
-  $("whitelist").value = whitelist.join("\n");
-  renderConnStatus(payload);
-  setMsg("已保存。密钥与白名单仅存本机，页面内 SSO 会立即生效。", "ok");
-  return payload;
-}
 
-async function testConn() {
-  setMsg("测试连接中…");
-  await save();
+  if (!silent) {
+    setBusy(true, "save");
+    renderConnStatus({ ...payload, state: "saving", sub: "正在写入本机扩展存储…" });
+    setMsg("正在保存配置…", "info");
+  }
+
   try {
-    const res = await chrome.runtime.sendMessage({ type: "grokapi-test" });
-    if (!res?.ok) throw new Error(res?.error || "连接失败");
-    setMsg(
-      "连接成功 · " +
-        (res.username || "?") +
-        (res.auth === "api_key" ? " · 密钥鉴权" : res.auth === "session" ? " · 会话鉴权" : " · 密钥鉴权"),
-      "ok",
-    );
-    const cur = await chrome.storage.local.get(["token", "baseUrl"]);
-    if (cur.token) $("token").value = cur.token;
-    renderConnStatus(cur);
-  } catch (e) {
-    setMsg(e instanceof Error ? e.message : String(e), "err");
+    await chrome.storage.local.set(payload);
+    $("whitelist").value = whitelist.join("\n");
+    if (!silent) {
+      renderConnStatus(payload);
+      setMsg("已保存。密钥与白名单仅存本机，页面内 SSO 会立即生效。", "ok");
+    } else {
+      renderConnStatus(payload);
+    }
+    return payload;
+  } finally {
+    if (!silent) setBusy(false);
   }
 }
 
-$("save").addEventListener("click", () => save().catch((e) => setMsg(e.message || String(e), "err")));
-$("test").addEventListener("click", () => testConn());
+async function testConn() {
+  if (busy) return;
+  setBusy(true, "test");
+  setMsg("1/3 保存配置…", "info");
+  renderConnStatus({
+    baseUrl: $("baseUrl").value,
+    token: tokenInput.value,
+    state: "testing",
+    sub: "1/3 保存本机配置",
+  });
+
+  try {
+    const payload = await save({ silent: true });
+    if (!String(payload.token || "").trim()) {
+      throw new Error("请先填写密钥（gk_...，需绑定用户）");
+    }
+
+    setMsg("2/3 请求 /api/auth/me …", "info");
+    renderConnStatus({
+      ...payload,
+      state: "testing",
+      sub: "2/3 校验密钥 · GET /api/auth/me",
+    });
+
+    const res = await chrome.runtime.sendMessage({ type: "grokapi-test" });
+    if (!res?.ok) throw new Error(res?.error || "连接失败");
+
+    const who = res.username || "?";
+    const mode =
+      res.auth === "api_key" ? "密钥鉴权" : res.auth === "session" ? "会话鉴权" : "密钥鉴权";
+    const detail = who + " · " + mode;
+
+    setMsg("3/3 连接成功 · " + detail, "ok");
+    renderConnStatus({
+      ...payload,
+      state: "ok",
+      sub: detail,
+    });
+
+    const cur = await chrome.storage.local.get(["token", "baseUrl"]);
+    if (cur.token) tokenInput.value = cur.token;
+  } catch (e) {
+    const err = e instanceof Error ? e.message : String(e);
+    setMsg(err, "err");
+    renderConnStatus({
+      baseUrl: $("baseUrl").value,
+      token: tokenInput.value,
+      state: "err",
+      sub: err,
+    });
+  } finally {
+    setBusy(false);
+  }
+}
+
+toggleTokenBtn.addEventListener("click", () => {
+  if (busy) return;
+  setTokenVisible(!tokenVisible);
+});
+
+saveBtn.addEventListener("click", () => {
+  if (busy) return;
+  save().catch((e) => {
+    setBusy(false);
+    setMsg(e.message || String(e), "err");
+  });
+});
+
+testBtn.addEventListener("click", () => {
+  testConn();
+});
+
+tokenInput.addEventListener("input", () => {
+  if (busy) return;
+  renderConnStatus({
+    baseUrl: $("baseUrl").value,
+    token: tokenInput.value,
+  });
+});
+
+$("baseUrl").addEventListener("input", () => {
+  if (busy) return;
+  renderConnStatus({
+    baseUrl: $("baseUrl").value,
+    token: tokenInput.value,
+  });
+});
+
 load().catch((e) => setMsg(e.message || String(e), "err"));

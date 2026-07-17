@@ -4,10 +4,46 @@
   <meta charset="utf-8" />
   <title>SSO 贡献</title>
   <style>
+    @font-face {
+      font-family: "Geist";
+      src: url("fonts/Geist-Regular.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Geist";
+      src: url("fonts/Geist-Medium.woff2") format("woff2");
+      font-weight: 500;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Geist";
+      src: url("fonts/Geist-SemiBold.woff2") format("woff2");
+      font-weight: 600;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Geist Mono";
+      src: url("fonts/GeistMono-Regular.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Geist Mono";
+      src: url("fonts/GeistMono-Medium.woff2") format("woff2");
+      font-weight: 500;
+      font-style: normal;
+      font-display: swap;
+    }
     :root {
       --bg: #fafafa;
       --card: #fff;
       --ink: #111;
+      --body: #3f3f46;
       --mute: #71717a;
       --line: #e4e4e7;
       --soft: #f4f4f5;
@@ -15,36 +51,40 @@
       --err: #b42318;
       --ok-bg: #eaf7ee;
       --err-bg: #fdecec;
+      --warn: #a16207;
+      --warn-bg: #fef9c3;
+      --info: #1d4ed8;
+      --info-bg: #eff6ff;
       --radius: 10px;
+      --font: "Geist", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+      --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
     * { box-sizing: border-box; }
     html, body {
       margin: 0;
       width: 360px;
-      max-height: 540px;
+      max-height: 560px;
       background: var(--bg);
     }
     body {
       overflow: hidden;
-      font: 12.5px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-family: var(--font);
+      font-size: 12.5px;
+      line-height: 1.45;
       color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
     .scroll {
-      max-height: 540px;
+      max-height: 560px;
       overflow: auto;
       padding: 12px;
       overscroll-behavior: contain;
-      scrollbar-width: thin;              /* Firefox */
+      scrollbar-width: thin;
       scrollbar-color: #d4d4d8 transparent;
     }
-    /* Chromium thin, soft scrollbar */
-    .scroll::-webkit-scrollbar {
-      width: 8px;
-    }
-    .scroll::-webkit-scrollbar-track {
-      background: transparent;
-      margin: 6px 0;
-    }
+    .scroll::-webkit-scrollbar { width: 8px; }
+    .scroll::-webkit-scrollbar-track { background: transparent; margin: 6px 0; }
     .scroll::-webkit-scrollbar-thumb {
       background: #d4d4d8;
       border-radius: 999px;
@@ -62,26 +102,14 @@
       border: 2px solid transparent;
       background-clip: content-box;
     }
-    .scroll::-webkit-scrollbar-corner {
-      background: transparent;
-    }
-    /* nested textareas: even thinner */
     textarea {
       scrollbar-width: thin;
       scrollbar-color: #e4e4e7 transparent;
     }
-    textarea::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
+    textarea::-webkit-scrollbar { width: 6px; height: 6px; }
     textarea::-webkit-scrollbar-thumb {
       background: #e4e4e7;
       border-radius: 999px;
-      border: 1px solid transparent;
-      background-clip: content-box;
-    }
-    textarea::-webkit-scrollbar-thumb:hover {
-      background: #d4d4d8;
       border: 1px solid transparent;
       background-clip: content-box;
     }
@@ -95,17 +123,28 @@
     .hd h1 {
       margin: 0;
       font-size: 14px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
+      font-weight: 600;
+      letter-spacing: -0.02em;
     }
     .hd p {
       margin: 3px 0 0;
       color: var(--mute);
       font-size: 11.5px;
     }
+    .hd code {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 1px 5px;
+    }
     .badge {
       flex: 0 0 auto;
-      font: 600 10px/1 ui-sans-serif, system-ui, sans-serif;
+      font-family: var(--font);
+      font-weight: 600;
+      font-size: 10px;
+      line-height: 1;
       color: var(--mute);
       background: var(--soft);
       border: 1px solid var(--line);
@@ -126,7 +165,7 @@
       gap: 8px;
       margin: 0 0 10px;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 600;
     }
     .card-title span {
       color: var(--mute);
@@ -136,7 +175,7 @@
     label.field {
       display: block;
       margin: 0 0 4px;
-      color: #3f3f46;
+      color: var(--body);
       font-size: 11.5px;
       font-weight: 600;
     }
@@ -152,11 +191,52 @@
       background: #fff;
       color: var(--ink);
       padding: 8px 10px;
-      font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.4;
+      font-weight: 400;
       outline: none;
+      transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
     }
-    input:focus, textarea:focus { border-color: #111; box-shadow: 0 0 0 3px rgba(0,0,0,.06); }
-    textarea { min-height: 78px; resize: vertical; }
+    input:focus, textarea:focus {
+      border-color: #111;
+      box-shadow: 0 0 0 3px rgba(0,0,0,.06);
+    }
+    input:disabled, textarea:disabled, button:disabled {
+      opacity: .6;
+      cursor: default;
+    }
+    textarea { min-height: 78px; resize: vertical; font-family: var(--mono); }
+    .secret-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+      align-items: stretch;
+    }
+    .secret-row input {
+      min-width: 0;
+    }
+    .icon-btn {
+      width: 38px;
+      min-width: 38px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--body);
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s ease, border-color .12s ease, transform .08s ease, color .12s ease;
+    }
+    .icon-btn:hover { background: var(--soft); color: var(--ink); }
+    .icon-btn:active { transform: scale(.97); background: #ececee; }
+    .icon-btn[aria-pressed="true"] {
+      background: #111;
+      border-color: #111;
+      color: #fff;
+    }
     .seg {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -170,7 +250,6 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0;
       margin: 0;
       padding: 7px 8px;
       border-radius: 8px;
@@ -179,6 +258,7 @@
       font-weight: 600;
       font-size: 11.5px;
       user-select: none;
+      transition: background .12s ease, color .12s ease, box-shadow .12s ease;
     }
     .seg input { position: absolute; opacity: 0; pointer-events: none; }
     .seg label:has(input:checked) {
@@ -192,35 +272,68 @@
       align-items: flex-start;
       gap: 8px;
       margin: 0;
-      color: #3f3f46;
+      color: var(--body);
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
+      user-select: none;
     }
-    .check input { margin-top: 2px; }
+    .check input {
+      margin: 2px 0 0;
+      accent-color: #111;
+    }
     .actions {
       display: flex;
       gap: 8px;
       margin-top: 12px;
     }
-    button {
+    button.btn {
       border: 0;
       border-radius: 9px;
       background: #111;
       color: #fff;
-      padding: 8px 12px;
-      font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+      padding: 9px 12px;
+      font-family: var(--font);
+      font-weight: 600;
+      font-size: 12px;
+      line-height: 1;
       cursor: pointer;
+      transition: background .12s ease, transform .08s ease, box-shadow .12s ease, opacity .12s ease;
+      position: relative;
     }
-    button:hover { background: #222; }
-    button:disabled { opacity: .55; cursor: default; }
-    button.secondary {
+    button.btn:hover:not(:disabled) { background: #222; }
+    button.btn:active:not(:disabled) {
+      transform: scale(.98);
+      background: #000;
+    }
+    button.btn:disabled { opacity: .55; cursor: default; }
+    button.btn.secondary {
       background: #fff;
       color: #111;
       border: 1px solid var(--line);
     }
-    button.secondary:hover { background: var(--soft); }
-    button.grow { flex: 1; }
+    button.btn.secondary:hover:not(:disabled) { background: var(--soft); }
+    button.btn.secondary:active:not(:disabled) { background: #ececee; }
+    button.btn.grow { flex: 1; }
+    button.btn.busy {
+      pointer-events: none;
+      opacity: .78;
+    }
+    button.btn.busy::after {
+      content: "";
+      width: 11px;
+      height: 11px;
+      margin-left: 8px;
+      border: 1.5px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      display: inline-block;
+      vertical-align: -1px;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
     #msg {
       margin-top: 10px;
       min-height: 0;
@@ -233,79 +346,136 @@
     #msg:not(:empty) { padding: 8px 10px; }
     #msg.ok { background: var(--ok-bg); color: var(--ok); }
     #msg.err { background: var(--err-bg); color: var(--err); }
-    .hint { margin-top: 8px; color: var(--mute); font-size: 11px; }
+    #msg.info { background: var(--info-bg); color: var(--info); }
+    #msg.warn { background: var(--warn-bg); color: var(--warn); }
+    .hint { margin-top: 8px; color: var(--mute); font-size: 11px; line-height: 1.45; }
+    #connStatus { margin-top: 10px; }
     .status-pill {
       display: inline-flex;
-      align-items: center;
-      gap: 6px;
+      align-items: flex-start;
+      gap: 7px;
       max-width: 100%;
-      padding: 6px 8px;
+      padding: 7px 9px;
       border-radius: 8px;
       background: var(--soft);
-      color: #3f3f46;
-      font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--body);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.4;
       word-break: break-all;
+      border: 1px solid transparent;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .status-pill .text { min-width: 0; }
+    .status-pill .sub {
+      display: block;
+      margin-top: 2px;
+      color: var(--mute);
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 500;
+      word-break: break-word;
+    }
+    .status-pill.testing {
+      background: var(--info-bg);
+      border-color: #dbeafe;
+      color: #1e3a8a;
+    }
+    .status-pill.testing .sub { color: #3b82f6; }
+    .status-pill.ok {
+      background: var(--ok-bg);
+      border-color: #bbf7d0;
+      color: #14532d;
+    }
+    .status-pill.ok .sub { color: var(--ok); }
+    .status-pill.err {
+      background: var(--err-bg);
+      border-color: #fecaca;
+      color: #7f1d1d;
+    }
+    .status-pill.err .sub { color: var(--err); }
+    .status-pill.warn {
+      background: #fffbeb;
+      border-color: #fde68a;
+      color: #713f12;
     }
     .dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: #a1a1aa; flex: 0 0 auto;
+      width: 7px;
+      height: 7px;
+      margin-top: 5px;
+      border-radius: 50%;
+      background: #a1a1aa;
+      flex: 0 0 auto;
     }
     .dot.on { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
-    .dot.warn { background: #ca8a04; }
-      </style>
+    .dot.warn { background: #ca8a04; box-shadow: 0 0 0 3px rgba(202,138,4,.14); }
+    .dot.err { background: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.12); }
+    .dot.busy {
+      background: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.14);
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .45; }
+    }
+  </style>
 </head>
 <body>
   <div class="scroll">
-  <div class="hd">
-    <div>
-      <h1>Grok-API SSO</h1>
-      <p>右上角 SSO · <code>Ctrl+Shift+L</code></p>
-    </div>
-    <div class="badge">v2.2</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">连接 grok-api <span>本机保存</span></div>
-    <div class="field-wrap">
-      <label class="field" for="baseUrl">Base URL</label>
-      <input id="baseUrl" type="url" placeholder="http://127.0.0.1:8787" />
-    </div>
-    <div class="field-wrap">
-      <label class="field" for="token">密钥</label>
-      <input id="token" type="password" placeholder="粘贴控制台 API 密钥，如 gk_..." autocomplete="off" />
-      <div class="hint" style="margin-top:6px">在「API Keys」页生成并绑定用户后粘贴到这里。密钥仅保存在本机扩展存储。</div>
-    </div>
-    <div class="field-wrap">
-      <label class="field" for="seatNamePrefix">席位名前缀</label>
-      <input id="seatNamePrefix" type="text" placeholder="ext" />
-    </div>
-    <div class="checks">
-      <label class="check"><input type="checkbox" id="defaultContribute" checked /> 右上角默认勾选「写入并贡献」</label>
-    </div>
-    <div class="actions">
-      <button type="button" id="test" class="secondary grow">测试连接</button>
-      <button type="button" id="save" class="grow">保存全部</button>
-    </div>
-    <div id="connStatus" class="hint" style="margin-top:10px"></div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">面板显示 <span>哪些站出现 SSO</span></div>
-    <div class="field-wrap">
-      <label class="field">显示范围</label>
-      <div class="seg">
-        <label><input type="radio" name="panelMode" value="whitelist" checked /> 仅白名单</label>
-        <label><input type="radio" name="panelMode" value="all" /> 任意网站</label>
+    <div class="hd">
+      <div>
+        <h1>Grok-API SSO</h1>
+        <p>右上角 SSO · <code>Ctrl+Shift+L</code></p>
       </div>
+      <div class="badge">v2.2.1</div>
     </div>
-    <div class="field-wrap">
-      <label class="field" for="whitelist">白名单域名（一行一个）</label>
-      <textarea id="whitelist" placeholder="x.ai&#10;grok.com&#10;pay.ldxp.cn"></textarea>
-    </div>
-    <div class="hint">默认含 x.ai / grok.com / pay.ldxp.cn。Cookie 仍只写 .x.ai / .grok.com。</div>
-  </div>
 
-  <div id="msg"></div>
+    <div class="card">
+      <div class="card-title">连接 grok-api <span>本机保存</span></div>
+      <div class="field-wrap">
+        <label class="field" for="baseUrl">Base URL</label>
+        <input id="baseUrl" type="url" placeholder="http://127.0.0.1:8787" />
+      </div>
+      <div class="field-wrap">
+        <label class="field" for="token">密钥</label>
+        <div class="secret-row">
+          <input id="token" type="password" placeholder="粘贴控制台 API 密钥，如 gk_..." autocomplete="off" spellcheck="false" />
+          <button type="button" id="toggleToken" class="icon-btn" aria-pressed="false" title="显示密钥" aria-label="显示密钥">显示</button>
+        </div>
+        <div class="hint" style="margin-top:6px">在「API Keys」页生成并绑定用户后粘贴到这里。密钥仅保存在本机扩展存储。</div>
+      </div>
+      <div class="field-wrap">
+        <label class="field" for="seatNamePrefix">席位名前缀</label>
+        <input id="seatNamePrefix" type="text" placeholder="ext" />
+      </div>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="defaultContribute" checked /> 右上角默认勾选「写入并贡献」</label>
+      </div>
+      <div class="actions">
+        <button type="button" id="test" class="btn secondary grow">测试连接</button>
+        <button type="button" id="save" class="btn grow">保存全部</button>
+      </div>
+      <div id="connStatus"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">面板显示 <span>哪些站出现 SSO</span></div>
+      <div class="field-wrap">
+        <label class="field">显示范围</label>
+        <div class="seg">
+          <label><input type="radio" name="panelMode" value="whitelist" checked /> 仅白名单</label>
+          <label><input type="radio" name="panelMode" value="all" /> 任意网站</label>
+        </div>
+      </div>
+      <div class="field-wrap">
+        <label class="field" for="whitelist">白名单域名（一行一个）</label>
+        <textarea id="whitelist" placeholder="x.ai&#10;grok.com&#10;pay.ldxp.cn"></textarea>
+      </div>
+      <div class="hint">默认含 x.ai / grok.com / pay.ldxp.cn。Cookie 仍只写 .x.ai / .grok.com。</div>
+    </div>
+
+    <div id="msg"></div>
   </div>
   <script src="popup.js"></script>
 </body>
