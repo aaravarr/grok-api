@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "mcp": "tsx src/mcp/server.ts",
-    "mcp:start": "tsx src/mcp/server.ts"
+    "mcp:start": "tsx src/mcp/server.ts",
+    "pack:sso-extension": "node scripts/package-sso-extension.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.3",

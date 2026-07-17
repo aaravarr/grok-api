@@ -56,7 +56,11 @@ import {
   sanitizeResponsesInputItems,
 } from "../account/conversation-store.js";
 import { fetchUpstreamModels, proxyLLM, proxyUpstream } from "../client/xai.js";
-import { normalizeToolsInBody } from "../client/tool-schema.js";
+import {
+  bodyHasServerSearchTool,
+  injectDefaultServerTools,
+  normalizeToolsInBody,
+} from "../client/tool-schema.js";
 import {
   buildChatFallbackFromResponsesWithContext,
   buildCodexToolContextFromRequest,
@@ -254,6 +258,8 @@ export function createApp() {
       logBodies: settings.logBodies === true,
       logBodiesOnError: settings.logBodiesOnError !== false,
       allowRegisterSetting: settings.allowRegister,
+      defaultServerToolsEnabled: settings.defaultServerToolsEnabled !== false,
+      defaultServerTools: settings.defaultServerTools,
       xaiBaseUrl: resolveUpstreamBaseUrl(settings.upstreamBaseUrl),
       upstreamBaseUrlConfigured: settings.upstreamBaseUrl || "",
       oauthBaseUrl: resolveOauthBaseUrl(settings.oauthBaseUrl),
@@ -323,9 +329,24 @@ export function createApp() {
   });
 
   app.get("/api/auth/me", async (c) => {
-    const session = await resolveSession(bearer(c));
-    if (!session) return c.json({ error: "unauthorized" }, 401);
-    return c.json({ user: publicUser(session.user) });
+    const token = bearer(c);
+    const session = await resolveSession(token);
+    if (session) return c.json({ user: publicUser(session.user), auth: "session" });
+    if (token) {
+      const result = await verifyApiKey(token);
+      if (result.ok && result.record?.userId) {
+        const owner = await getUser(result.record.userId);
+        if (owner && owner.enabled !== false) {
+          return c.json({
+            user: publicUser(owner),
+            auth: "api_key",
+            apiKeyId: result.record.id,
+            apiKeyAlias: result.record.alias || result.record.keyPrefix,
+          });
+        }
+      }
+    }
+    return c.json({ error: "unauthorized" }, 401);
   });
 
   // ---------- User self-service (/api/me/*) ----------
@@ -1060,6 +1081,8 @@ export function createApp() {
       logBodies?: boolean;
       logBodiesOnError?: boolean;
       allowRegister?: boolean;
+      defaultServerToolsEnabled?: boolean;
+      defaultServerTools?: string[];
     };
     const patch: {
       proxyUrl?: string;
@@ -1071,6 +1094,8 @@ export function createApp() {
       logBodies?: boolean;
       logBodiesOnError?: boolean;
       allowRegister?: boolean;
+      defaultServerToolsEnabled?: boolean;
+      defaultServerTools?: string[];
     } = {};
     if (body.proxyUrl !== undefined) patch.proxyUrl = body.proxyUrl;
     if (body.upstreamBaseUrl !== undefined) patch.upstreamBaseUrl = body.upstreamBaseUrl;
@@ -1081,6 +1106,8 @@ export function createApp() {
     if (body.logBodies !== undefined) patch.logBodies = body.logBodies;
     if (body.logBodiesOnError !== undefined) patch.logBodiesOnError = body.logBodiesOnError;
     if (body.allowRegister !== undefined) patch.allowRegister = body.allowRegister;
+    if (body.defaultServerToolsEnabled !== undefined) patch.defaultServerToolsEnabled = body.defaultServerToolsEnabled;
+    if (body.defaultServerTools !== undefined) patch.defaultServerTools = body.defaultServerTools;
     try {
       const settings = await saveSettings(patch);
       let runtime = getProxyInfo();
@@ -2394,11 +2421,41 @@ async function handleMediaProxy(
   }
 }
 
+async function resolveUserFromBearer(token: string): Promise<User | null> {
+  const session = await resolveSession(token);
+  if (session) return session.user;
+  if (!token) return null;
+  // Allow user-bound API keys for extension / automation on /api/me/*
+  const result = await verifyApiKey(token);
+  if (!result.ok || !result.record?.userId) return null;
+  const owner = await getUser(result.record.userId);
+  if (!owner || owner.enabled === false) return null;
+  return owner;
+}
+
 async function requireLogin(c: Context<{ Variables: Variables }>, next: Next) {
-  const session = await resolveSession(bearer(c));
-  if (!session) return c.json({ error: "unauthorized" }, 401);
-  c.set("user", session.user);
-  await next();
+  const token = bearer(c);
+  const session = await resolveSession(token);
+  if (session) {
+    c.set("user", session.user);
+    await next();
+    return;
+  }
+  if (token) {
+    const result = await verifyApiKey(token);
+    if (result.ok && result.record?.userId) {
+      const owner = await getUser(result.record.userId);
+      if (owner && owner.enabled !== false) {
+        c.set("user", owner);
+        c.set("apiKeyId", result.record.id);
+        c.set("apiKeyAlias", result.record.alias || result.record.keyPrefix);
+        c.set("apiKeyUserId", result.record.userId);
+        await next();
+        return;
+      }
+    }
+  }
+  return c.json({ error: "unauthorized" }, 401);
 }
 
 async function requireAdmin(c: Context<{ Variables: Variables }>, next: Next) {
@@ -2698,15 +2755,28 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
       const lineage = await getConversationLineage(continuityKeys);
       const isCompact = String(upstreamPath || "").includes("compact");
 
+      // Default-inject xAI server search tools before route decision (not on compact).
+      const injectEnabled = settings.defaultServerToolsEnabled !== false;
+      const injectTools =
+        settings.defaultServerTools?.length > 0
+          ? settings.defaultServerTools
+          : ["web_search", "x_search"];
+      const bodyForRoute = isCompact
+        ? body
+        : injectDefaultServerTools(body, { enabled: injectEnabled, tools: injectTools });
+      const preferResponsesForServerTools =
+        injectEnabled || bodyHasServerSearchTool(body);
+
       let route: "responses" | "chat" = "responses";
       let routeReason = "responses_native";
       if (isCompact) {
         route = "responses";
         routeReason = "responses_compact";
       } else {
-        const eager = shouldEagerFallbackResponses(body, {
+        const eager = shouldEagerFallbackResponses(bodyForRoute, {
           preferredMode: lineage.preferredMode ?? null,
           storeHit: lineage.hit,
+          preferResponsesForServerTools,
         });
         if (eager.eager) {
           route = "chat";
@@ -2724,7 +2794,7 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
         } else {
           // Chat construction/upstream hard-failed. Surface via responses path once,
           // without silently locking lineage on failure.
-          const rewritten = await rewriteResponsesBodyForContinuity(body);
+          const rewritten = await rewriteResponsesBodyForContinuity(bodyForRoute);
           const sanitized = await sanitizeResponsesInputItems(rewritten.body);
           workBody = sanitized.body;
           sanitizeMeta.modified = sanitized.modified;
@@ -2742,6 +2812,7 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
         }
       } else if (isCompact) {
         // Pure responses compact path; never auto-fallback here.
+        // Keep deleting tools — do not leave injected tools on compact.
         const b = { ...(workBody as any) };
         delete b.tools;
         delete b.functions;
@@ -2760,7 +2831,8 @@ async function handleProxy(c: Context<{ Variables: Variables }>, mode: "response
         });
       } else {
         // Native responses path only: sanitize/normalize after route decision.
-        const rewritten = await rewriteResponsesBodyForContinuity(body);
+        // Use injected body so web_search/x_search reach upstream.
+        const rewritten = await rewriteResponsesBodyForContinuity(bodyForRoute);
         const sanitized = await sanitizeResponsesInputItems(rewritten.body);
         workBody = sanitized.body;
         sanitizeMeta.modified = sanitized.modified;

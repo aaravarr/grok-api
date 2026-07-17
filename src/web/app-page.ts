@@ -653,6 +653,26 @@ ${styles()}
             </div>
           </div>
 
+          <div class="panel mb sso-ext-card" id="contribExtCard">
+            <div class="sso-ext-row">
+              <div class="sso-ext-copy">
+                <div class="contrib-action-kicker" data-i18n="ssoExtKicker">Browser tool</div>
+                <strong data-i18n="ssoExtTitle">SSO login extension</strong>
+                <p data-i18n="ssoExtSub">Paste an SSO JWT, write grok/x.ai cookies, and optionally contribute a seat to this grok-api in one click. Optional helper — does not replace OAuth / JSON contribute.</p>
+                <ol class="sso-ext-steps">
+                  <li data-i18n="ssoExtStep1">Download the zip from GitHub Releases</li>
+                  <li data-i18n="ssoExtStep2">Unzip → chrome://extensions → Developer mode → Load unpacked</li>
+                  <li data-i18n="ssoExtStep3">Open the extension popup, paste Base URL + API key (bound to your user)</li>
+                </ol>
+              </div>
+              <div class="sso-ext-actions">
+                <a class="btn" id="btnSsoExtDownload" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.0/grok-api-sso-extension-v2.2.0.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">Download extension</a>
+                <a class="btn btn-secondary" href="https://github.com/aaravarr/grok-api/releases/tag/sso-extension-v2.2.0" target="_blank" rel="noreferrer" data-i18n="ssoExtRelease">Release notes</a>
+                <div class="mono sso-ext-ver">v2.2.0 · Chrome / Edge</div>
+              </div>
+            </div>
+          </div>
+
           <div class="why-grid">
             <div class="why-card">
               <div class="why-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
@@ -961,6 +981,27 @@ ${mediaViewHtml(page)}
                   </div>
                 </div>
               </div>
+
+              <div class="settings-card">
+                <div class="settings-card-hd">
+                  <div>
+                    <div class="settings-card-title" data-i18n="serverToolsSettings">Server tools</div>
+                    <div class="settings-card-sub" data-i18n="serverToolsSettingsSub">Default xAI tools on /v1/responses</div>
+                  </div>
+                  <button class="btn" type="button" id="btnSaveServerTools" data-i18n="save">Save</button>
+                </div>
+                <div class="settings-card-bd">
+                  <div class="toggle-list">
+                    <label class="toggle-row">
+                      <input type="checkbox" id="defaultServerToolsEnabled" />
+                      <span>
+                        <strong data-i18n="defaultServerToolsEnabled">Auto-inject web_search + x_search</strong>
+                        <em data-i18n="defaultServerToolsEnabledSub">When client omits them; respects external_web_access=false</em>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -1234,6 +1275,9 @@ ${mediaViewHtml(page)}
         subUsers:"注册用户与角色", subUsage:"Token / 次数 / 模型分布", subLogs:"完整请求排查（低频）", subSettings:"代理与日志策略",
         usersHint:"管理注册用户", colUser:"用户", colRole:"角色", colQuota:"额度",
         allowRegister:"允许注册", userSettings:"用户注册",
+        serverToolsSettings:"服务端工具", serverToolsSettingsSub:"/v1/responses 默认注入 xAI 工具",
+        defaultServerToolsEnabled:"默认注入 web_search + x_search",
+        defaultServerToolsEnabledSub:"客户端未声明时自动追加；external_web_access=false 时不注入",
         roleAdmin:"管理员", roleUser:"用户",
         editQuota:"编辑 Token 额度", quotaLabel:"Token 额度（空=不限）", quotaUsedLabel:"已用 Token",
         quotaResetUsed:"将已用清零", saveQuota:"保存额度", quotaUnlimited:"不限",
@@ -1469,6 +1513,9 @@ ${mediaViewHtml(page)}
         subUsers:"Registered users & roles", subUsage:"Tokens / calls / models", subLogs:"Full request debug (rare)", subSettings:"Proxy & log policy",
         usersHint:"Manage registered users", colUser:"User", colRole:"Role", colQuota:"Quota",
         allowRegister:"Allow registration", userSettings:"Registration",
+        serverToolsSettings:"Server tools", serverToolsSettingsSub:"Default xAI tools on /v1/responses",
+        defaultServerToolsEnabled:"Auto-inject web_search + x_search",
+        defaultServerToolsEnabledSub:"Append when client omits them; skip if external_web_access=false",
         roleAdmin:"Admin", roleUser:"User",
         editQuota:"Edit token quota", quotaLabel:"Token quota (empty = unlimited)", quotaUsedLabel:"Tokens used",
         quotaResetUsed:"Reset used to 0", saveQuota:"Save quota", quotaUnlimited:"Unlimited",
@@ -1624,6 +1671,14 @@ ${mediaViewHtml(page)}
         contribCta:"Contribute an account",
         contribActionTitle:"Link a SuperGrok seat in under a minute",
         contribActionSub:"Use device-code OAuth, or paste CPA / Sub2API credentials you already have.",
+        ssoExtKicker:"Browser tool",
+        ssoExtTitle:"SSO login / contribute extension",
+        ssoExtSub:"Paste an SSO JWT, write grok/x.ai cookies, and optionally start an OAuth seat contribution to this grok-api. Optional helper — does not replace OAuth / JSON above.",
+        ssoExtStep1:"Download the zip from GitHub Releases",
+        ssoExtStep2:"Unzip → chrome://extensions → Developer mode → Load unpacked",
+        ssoExtStep3:"Open the extension popup, set Base URL + a user-bound API key",
+        ssoExtDownload:"Download extension",
+        ssoExtRelease:"Release notes",
         contribCtaOauth:"Continue OAuth",
         contribCtaJson:"Confirm contribution",
         contribJsonHint:"Paste CPA / Sub2API Grok credentials JSON, or a raw refresh_token. The seat is bound to your account only.",
@@ -1694,7 +1749,7 @@ ${mediaViewHtml(page)}
     let sessionToken = localStorage.getItem("grok_api_session") || "";
     let currentUser = null; // { id, username, role }
         let routing = { mode: "auto", currentAccountId: null };
-    let meta = { needsSetup: false, allowRegister: true, proxy: null, proxySource: "none", proxyConfigured: "", logRetentionDays: 7, logEnabled: true, logBodies: false, logBodiesOnError: true, allowRegisterSetting: true, xaiBaseUrl: "https://cli-chat-proxy.grok.com/v1", upstreamBaseUrlConfigured: "" };
+    let meta = { needsSetup: false, allowRegister: true, proxy: null, proxySource: "none", proxyConfigured: "", logRetentionDays: 7, logEnabled: true, logBodies: false, logBodiesOnError: true, allowRegisterSetting: true, xaiBaseUrl: "https://cli-chat-proxy.grok.com/v1", upstreamBaseUrlConfigured: "" , defaultServerToolsEnabled: true, defaultServerTools: ["web_search","x_search"] };
     let pollTimer = null;
     let allUsers = [];
     let accountUsers = [];
@@ -1890,6 +1945,7 @@ ${mediaViewHtml(page)}
       if ($("logBodiesOnError")) $("logBodiesOnError").checked = meta.logBodiesOnError !== false;
       if ($("logRetention") && !$("logRetention").matches(":focus")) $("logRetention").value = meta.logRetentionDays || 7;
       if ($("allowRegister")) $("allowRegister").checked = meta.allowRegisterSetting !== false;
+      if ($("defaultServerToolsEnabled")) $("defaultServerToolsEnabled").checked = meta.defaultServerToolsEnabled !== false;
       if ($("upstreamUrl") && !$("upstreamUrl").matches(":focus")) {
         $("upstreamUrl").value = meta.upstreamBaseUrlConfigured || "";
       }
@@ -5808,6 +5864,22 @@ ${mediaViewHtml(page)}
         if (!res.ok) throw new Error(data.error || res.statusText);
         meta.allowRegisterSetting = data.settings.allowRegister;
         meta.allowRegister = data.settings.allowRegister;
+        paintProxyUI();
+        showMsg($("msgLogs"), t("logSaved"), "ok");
+      } catch (e) { showMsg($("msgLogs"), e.message, "err"); }
+    };
+    if ($("btnSaveServerTools")) $("btnSaveServerTools").onclick = async () => {
+      try {
+        const res = await fetch("/api/admin/settings", {
+          method: "PATCH", headers: jsonHeaders(),
+          body: JSON.stringify({
+            defaultServerToolsEnabled: $("defaultServerToolsEnabled") ? $("defaultServerToolsEnabled").checked : true,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        meta.defaultServerToolsEnabled = data.settings.defaultServerToolsEnabled !== false;
+        meta.defaultServerTools = data.settings.defaultServerTools || ["web_search", "x_search"];
         paintProxyUI();
         showMsg($("msgLogs"), t("logSaved"), "ok");
       } catch (e) { showMsg($("msgLogs"), e.message, "err"); }

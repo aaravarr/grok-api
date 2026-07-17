@@ -47,15 +47,21 @@ export function shouldEagerFallbackResponses(
   opts?: {
     preferredMode?: 'responses' | 'chat' | null;
     storeHit?: boolean;
+    /** When true, prefer native responses for server-search tool fidelity. */
+    preferResponsesForServerTools?: boolean;
   },
 ): { eager: boolean; reason?: string } {
   if (!isObj(body)) return { eager: false };
 
-  if (opts?.preferredMode === 'chat') {
-    return { eager: true, reason: 'session_lineage_chat' };
-  }
+  // Responses lineage always stays on native responses.
   if (opts?.preferredMode === 'responses') {
     return { eager: false, reason: 'session_lineage_responses' };
+  }
+
+  // Chat lineage usually eagers to chat, but when server search tools are present
+  // (or will be injected), fall through so only foreign_* residue still forces eager.
+  if (opts?.preferredMode === 'chat' && !opts?.preferResponsesForServerTools) {
+    return { eager: true, reason: 'session_lineage_chat' };
   }
 
   const hasPrev =
@@ -84,6 +90,11 @@ export function shouldEagerFallbackResponses(
   }
   if (hasPrev && !opts?.storeHit) {
     return { eager: true, reason: 'foreign_previous_response_id' };
+  }
+
+  // Chat lineage + server tools: stay on responses when no foreign residue.
+  if (opts?.preferredMode === 'chat' && opts?.preferResponsesForServerTools) {
+    return { eager: false, reason: 'prefer_responses_server_tools' };
   }
 
   return { eager: false };

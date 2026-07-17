@@ -831,6 +831,63 @@ const EXTERNAL_WEB_TOOL_TYPES = new Set([
   "view_x_video",
 ]);
 
+/** Subset of xAI server tools eligible for default injection on /v1/responses. */
+export const INJECTABLE_SERVER_TOOL_TYPES = ["web_search", "x_search"] as const;
+const INJECTABLE_SERVER_TOOL_TYPE_SET = new Set<string>(INJECTABLE_SERVER_TOOL_TYPES);
+
+/** True when the request already declares web_search and/or x_search. */
+export function bodyHasServerSearchTool(body: unknown): boolean {
+  if (!isObj(body) || !Array.isArray(body.tools)) return false;
+  for (const tool of body.tools) {
+    if (!isObj(tool)) continue;
+    const type = String(tool.type || "").toLowerCase();
+    if (INJECTABLE_SERVER_TOOL_TYPE_SET.has(type)) return true;
+  }
+  return false;
+}
+
+/**
+ * Auto-append injectable xAI server tools when the client omitted them.
+ * Pure/sync. Respects enabled flag and external_web_access === false.
+ * Does not duplicate an existing tool of the same type.
+ */
+export function injectDefaultServerTools(
+  body: unknown,
+  opts: { enabled: boolean; tools: string[] },
+): unknown {
+  if (!opts?.enabled) return body;
+  if (!isObj(body)) return body;
+  if (body.external_web_access === false) return body;
+
+  const wanted: string[] = [];
+  const seenWanted = new Set<string>();
+  for (const raw of opts.tools || []) {
+    const t = String(raw ?? "").toLowerCase().trim();
+    if (!INJECTABLE_SERVER_TOOL_TYPE_SET.has(t) || seenWanted.has(t)) continue;
+    seenWanted.add(t);
+    wanted.push(t);
+  }
+  if (wanted.length === 0) return body;
+
+  const existing = Array.isArray(body.tools) ? [...body.tools] : [];
+  const have = new Set<string>();
+  for (const tool of existing) {
+    if (!isObj(tool)) continue;
+    const type = String(tool.type || "").toLowerCase();
+    if (type) have.add(type);
+  }
+
+  let changed = false;
+  for (const type of wanted) {
+    if (have.has(type)) continue;
+    existing.push({ type });
+    have.add(type);
+    changed = true;
+  }
+  if (!changed) return body;
+  return { ...body, tools: existing };
+}
+
 function stripUnsupportedResponseFields(body: Obj): Obj {
   const b = { ...body };
   for (const k of UNSUPPORTED_RESPONSE_BODY_KEYS) {

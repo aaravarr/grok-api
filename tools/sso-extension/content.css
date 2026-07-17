@@ -191,3 +191,40 @@
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+
+#xai-sso-panel .xai-sso-target {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  color: #555;
+  font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+#xai-sso-panel .xai-sso-actions { gap: 8px; }
+#xai-sso-name {
+  box-sizing: border-box; width: 100%; border: 1px solid #ddd; border-radius: 8px;
+  background: #fff; color: #111; padding: 8px 10px;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif; outline: none;
+}
+#xai-sso-name:focus { border-color: #111; }
+#xai-sso-panel-root #xai-sso-diag { color: #333; border-color: #ddd; background: #fff; }
+
+/* xai-sso-panel-root v21 */
+#xai-sso-panel {
+  width: min(380px, calc(100vw - 24px));
+  border-color: #e4e4e7;
+  background: #fafafa;
+}
+#xai-sso-panel .xai-sso-hd strong {
+  letter-spacing: -0.01em;
+}
+#xai-sso-panel .xai-sso-target {
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+}
+#xai-sso-apply.primary {
+  min-width: 88px;
+  text-align: center;
+}

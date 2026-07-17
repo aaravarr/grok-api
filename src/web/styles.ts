@@ -992,6 +992,19 @@ export function styles(): string {
     }
     .contrib-action-copy strong{font-size:16px;font-weight:600;letter-spacing:-.3px;line-height:1.3}
     .contrib-action-copy p{margin:0;font-size:13px;color:var(--body);line-height:1.5}
+    .sso-ext-card{padding:16px 18px}
+    .sso-ext-row{display:flex;gap:18px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+    .sso-ext-copy{flex:1 1 280px;min-width:0;max-width:64ch}
+    .sso-ext-copy strong{display:block;margin:2px 0 6px;font-size:16px;font-weight:600;letter-spacing:-.3px}
+    .sso-ext-copy p{margin:0 0 10px;font-size:13px;color:var(--body);line-height:1.5}
+    .sso-ext-steps{margin:0;padding-left:18px;color:var(--mute);font-size:12.5px;line-height:1.55}
+    .sso-ext-steps li{margin:0 0 4px}
+    .sso-ext-actions{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:180px}
+    .sso-ext-actions .btn{text-align:center;text-decoration:none}
+    .sso-ext-ver{color:var(--mute);font-size:11px;text-align:center}
+    @media (max-width:720px){
+      .sso-ext-actions{width:100%}
+    }
     .contrib-action-body{
       padding:18px 20px 20px;border-top:0;
       background:linear-gradient(180deg,#fcfcfc 0%,#fff 42%);

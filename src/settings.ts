@@ -37,6 +37,10 @@ export interface AppSettings {
   logBodiesOnError: boolean;
   /** Allow public self-registration after admin setup. */
   allowRegister: boolean;
+  /** Auto-inject xAI server tools on /v1/responses when client omitted them. Default true. */
+  defaultServerToolsEnabled: boolean;
+  /** Subset of injectable types. Default ["web_search","x_search"]. */
+  defaultServerTools: string[];
 }
 
 const DEFAULT_UPSTREAM = "https://cli-chat-proxy.grok.com/v1";
@@ -53,7 +57,25 @@ const defaultSettings = (): AppSettings => ({
   logBodies: false,
   logBodiesOnError: true,
   allowRegister: true,
+  defaultServerToolsEnabled: true,
+  defaultServerTools: ["web_search", "x_search"],
 });
+
+const ALLOWED_DEFAULT_SERVER_TOOLS = new Set(["web_search", "x_search"]);
+
+/** Keep only injectable server tool types; dedupe; preserve order. Empty input => default pair. */
+export function normalizeDefaultServerTools(v: unknown): string[] {
+  if (!Array.isArray(v)) return ["web_search", "x_search"];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of v) {
+    const t = String(item ?? "").toLowerCase().trim();
+    if (!ALLOWED_DEFAULT_SERVER_TOOLS.has(t) || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
 
 function assertHttpUrl(raw: string, label: string): void {
   if (!/^https?:\/\//i.test(raw)) {
@@ -222,6 +244,10 @@ function normalizeSettings(data: Partial<AppSettings> | null | undefined): AppSe
     // default true when missing (legacy installs)
     logBodiesOnError: data?.logBodiesOnError !== false,
     allowRegister: data?.allowRegister !== false,
+    defaultServerToolsEnabled: data?.defaultServerToolsEnabled !== false,
+    defaultServerTools: normalizeDefaultServerTools(
+      data?.defaultServerTools ?? ["web_search", "x_search"],
+    ),
   };
 }
 
@@ -267,6 +293,14 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
         : cur.logBodiesOnError,
     allowRegister:
       patch.allowRegister !== undefined ? Boolean(patch.allowRegister) : cur.allowRegister,
+    defaultServerToolsEnabled:
+      patch.defaultServerToolsEnabled !== undefined
+        ? Boolean(patch.defaultServerToolsEnabled)
+        : cur.defaultServerToolsEnabled,
+    defaultServerTools:
+      patch.defaultServerTools !== undefined
+        ? normalizeDefaultServerTools(patch.defaultServerTools)
+        : cur.defaultServerTools,
   };
   mem = next;
   persist(next);

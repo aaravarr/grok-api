@@ -1,19 +1,12 @@
-/** xAI official cookie names: https://x.ai/legal/cookie-policy
- *  sso     — Login, 4 weeks
- *  sso-rw  — Security, 4 weeks
- *
- *  v1.3.0:
- *  - only write domain cookies (.x.ai / .grok.com)
- *  - clear stale host-only cookies that shadow domain cookies
- *  - verify value match + report diagnostics
- *  - do NOT land on /sign-in (login form ignores session)
+/** Grok-API SSO Contribute extension
+ *  v2.0.0:
+ *  - write sso/sso-rw domain cookies (.x.ai / .grok.com)
+ *  - connect to grok-api (session token or user-bound API key)
+ *  - start device-code OAuth contribution + open authorize URL + poll
  */
 
 const AUTH_COOKIE_NAMES = ["sso", "sso-rw"];
-
-/** Domain cookies only — avoid host-only duplicates that shadow .x.ai */
 const AUTH_DOMAINS = [".x.ai", ".grok.com"];
-
 const CLEAR_URLS = [
   "https://x.ai/",
   "https://accounts.x.ai/",
@@ -22,13 +15,14 @@ const CLEAR_URLS = [
   "https://grok.com/",
   "https://www.grok.com/",
 ];
-
 const DEFAULT_WHITELIST = [
   "x.ai",
   "accounts.x.ai",
   "auth.x.ai",
   "grok.com",
   "www.grok.com",
+  "pay.ldxp.cn",
+  "ldxp.cn"
 ];
 
 function extractSso(raw) {
@@ -94,7 +88,7 @@ function buildCookieSpecs(sso, names, domains) {
 async function removeCookieSafe(cookie) {
   const host = cookie.domain.startsWith(".") ? cookie.domain.slice(1) : cookie.domain;
   const protocol = cookie.secure ? "https:" : "http:";
-  const url = `${protocol}//${host}${cookie.path || "/"}`;
+  const url = protocol + "//" + host + (cookie.path || "/");
   try {
     await chrome.cookies.remove({ url, name: cookie.name, storeId: cookie.storeId });
   } catch {
@@ -104,7 +98,6 @@ async function removeCookieSafe(cookie) {
 
 async function clearAuthCookies(names) {
   let removed = 0;
-  // getAll by name across all domains we care about
   for (const name of names) {
     try {
       const list = await chrome.cookies.getAll({ name });
@@ -126,7 +119,6 @@ async function clearAuthCookies(names) {
       /* ignore */
     }
   }
-  // also try remove by url+name for stubborn host-only
   for (const url of CLEAR_URLS) {
     for (const name of names) {
       try {
@@ -142,14 +134,12 @@ async function clearAuthCookies(names) {
 
 async function setOneCookie(spec) {
   const host = spec.domain.startsWith(".") ? spec.domain.slice(1) : spec.domain;
-  const url = `https://${host}/`;
-
+  const url = "https://" + host + "/";
   const attempts = [
     { sameSite: "no_restriction", secure: true, httpOnly: true },
     { sameSite: "lax", secure: true, httpOnly: true },
     { sameSite: "lax", secure: true, httpOnly: false },
   ];
-
   let lastErr = "unknown";
   for (const a of attempts) {
     try {
@@ -166,7 +156,7 @@ async function setOneCookie(spec) {
       };
       const result = await chrome.cookies.set(details);
       if (result && result.value === spec.value) {
-        return { cookie: result, mode: `${a.sameSite}/httpOnly=${a.httpOnly}` };
+        return { cookie: result, mode: a.sameSite + "/httpOnly=" + a.httpOnly };
       }
       lastErr = result ? "value mismatch after set" : "cookies.set returned null";
     } catch (e) {
@@ -212,6 +202,76 @@ async function verifyCookies(names, expectedValue) {
   return checks;
 }
 
+async function writeSsoCookies(rawSso, cookieName) {
+  const sso = extractSso(rawSso);
+  if (!sso || sso.length < 20) throw new Error("未识别到有效 SSO JWT（需 eyJ 开头）");
+  if (!sso.startsWith("eyJ")) throw new Error("SSO 应为 JWT（eyJ…），不是 session_id 原文");
+
+  const onlyName = String(cookieName || "").trim();
+  const names = onlyName ? [onlyName] : [...AUTH_COOKIE_NAMES];
+  if (onlyName === "sso" && !names.includes("sso-rw")) names.push("sso-rw");
+
+  const removed = await clearAuthCookies(names);
+  const specs = buildCookieSpecs(sso, names, AUTH_DOMAINS);
+  let ok = 0;
+  let fail = 0;
+  const setList = [];
+  const errors = [];
+  for (const spec of specs) {
+    try {
+      const r = await setOneCookie(spec);
+      ok += 1;
+      setList.push(spec.name + "@" + spec.domain + " (" + r.mode + ")");
+    } catch (e) {
+      fail += 1;
+      if (errors.length < 6) {
+        errors.push(spec.name + "@" + spec.domain + ": " + (e instanceof Error ? e.message : String(e)));
+      }
+    }
+  }
+  const checks = await verifyCookies(names, sso);
+  const verifiedOk = checks.filter((c) => c.ok);
+  const accountsOk = verifiedOk.some((c) => c.url.includes("accounts.x.ai"));
+  const grokOk = verifiedOk.some((c) => c.url.includes("grok.com"));
+  await chrome.storage.local.set({
+    lastCookieName: onlyName || "",
+    lastUsedAt: Date.now(),
+    lastValuePreview: shortVal(sso),
+  });
+  const payload = decodeJwtPayload(sso);
+  const success = ok > 0 && verifiedOk.length > 0;
+  return {
+    ok: success,
+    set: ok,
+    fail,
+    removed,
+    verified: verifiedOk.map((c) => c.name + "@" + c.url.replace(/^https:\/\//, "").replace(/\/$/, "")),
+    checks,
+    setList,
+    accountsOk,
+    grokOk,
+    valuePreview: shortVal(sso),
+    error: success
+      ? undefined
+      : ok === 0
+        ? errors.join("; ") || "全部 Cookie 写入失败"
+        : "Cookie 已写入但读回不匹配，请检查扩展权限后重新加载扩展",
+    sessionId: payload && payload.session_id ? String(payload.session_id) : undefined,
+    redirectUrl: "https://grok.com/",
+  };
+}
+
+function ensureWhitelistHosts(list) {
+  const set = new Set((list || []).map((x) => String(x || "").trim().toLowerCase()).filter(Boolean));
+  if (!set.size) return [...DEFAULT_WHITELIST];
+  // Keep pay portal visible for typical x.ai/grok whitelists
+  if (set.has("x.ai") || set.has("grok.com") || set.has("accounts.x.ai") || set.has("pay.ldxp.cn")) {
+    set.add("pay.ldxp.cn");
+    set.add("ldxp.cn");
+  }
+  return [...set];
+}
+
 async function getPanelSettings() {
   const r = await chrome.storage.local.get(["panelMode", "whitelist"]);
   const mode = r.panelMode === "all" || r.panelMode === "whitelist" ? r.panelMode : "whitelist";
@@ -219,6 +279,7 @@ async function getPanelSettings() {
     ? r.whitelist.map((x) => String(x || "").trim().toLowerCase()).filter(Boolean)
     : [];
   if (!whitelist.length) whitelist = [...DEFAULT_WHITELIST];
+  else whitelist = ensureWhitelistHosts(whitelist);
   return { mode, whitelist };
 }
 
@@ -236,6 +297,165 @@ function hostAllowed(hostname, whitelist) {
     if (h === w || h.endsWith("." + w)) return true;
   }
   return false;
+}
+
+async function getGrokApiConfig() {
+  const r = await chrome.storage.local.get([
+    "baseUrl",
+    "authMode",
+    "token",
+    "username",
+    "password",
+    "seatNamePrefix",
+  ]);
+  return {
+    baseUrl: String(r.baseUrl || "http://127.0.0.1:8787").trim().replace(/\/+$/, ""),
+    authMode: r.authMode === "password" ? "password" : "token",
+    token: String(r.token || "").trim(),
+    username: String(r.username || "").trim(),
+    password: String(r.password || ""),
+    seatNamePrefix: String(r.seatNamePrefix || "ext").trim() || "ext",
+  };
+}
+
+async function apiFetch(baseUrl, path, opts = {}) {
+  const url = baseUrl.replace(/\/+$/, "") + path;
+  const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+  const res = await fetch(url, {
+    method: opts.method || "GET",
+    headers,
+    body: opts.body != null ? JSON.stringify(opts.body) : undefined,
+  });
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) {
+    const err = (data && (data.error || data.message)) || text || res.statusText;
+    throw new Error(typeof err === "string" ? err : JSON.stringify(err));
+  }
+  return data;
+}
+
+async function ensureAuthToken(cfg) {
+  const token = String(cfg.token || "").trim();
+  if (!token) throw new Error("未配置密钥：请在扩展弹窗粘贴 API 密钥（gk_...）");
+  const me = await apiFetch(cfg.baseUrl, "/api/auth/me", {
+    headers: { Authorization: "Bearer " + token },
+  });
+  return {
+    token,
+    username: me?.user?.username || "?",
+    auth: me?.auth || "token",
+  };
+}
+
+async function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function contributeWithSso(msg) {
+  const cfg = await getGrokApiConfig();
+  if (!cfg.baseUrl) throw new Error("未配置 grok-api Base URL");
+
+  const cookieRes = await writeSsoCookies(msg.sso, msg.cookieName);
+  if (!cookieRes.ok) {
+    return Object.assign({ step: "cookie" }, cookieRes);
+  }
+
+  const auth = await ensureAuthToken(cfg);
+  const seatName =
+    String(msg.name || "").trim() ||
+    cfg.seatNamePrefix + "-" + new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", "");
+
+  const started = await apiFetch(cfg.baseUrl, "/api/me/accounts/oauth", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + auth.token },
+    body: {
+      name: seatName,
+      openBrowser: false,
+      accountId: msg.accountId || undefined,
+    },
+  });
+
+  const verificationUriComplete = started.verificationUriComplete || started.verificationUri;
+  const sessionId = started.sessionId;
+  const accountId = started.accountId;
+  const userCode = started.userCode;
+
+  if (verificationUriComplete) {
+    try {
+      await chrome.tabs.create({ url: verificationUriComplete, active: true });
+    } catch (e) {
+      // fallback
+      await chrome.tabs.create({ url: started.verificationUri || "https://accounts.x.ai/", active: true });
+    }
+  }
+
+  const pollMs = Math.max(1500, Number(msg.pollMs) || 2000);
+  const maxWaitMs = Math.max(30_000, Number(msg.maxWaitMs) || 180_000);
+  const t0 = Date.now();
+  let last = null;
+  while (Date.now() - t0 < maxWaitMs) {
+    await sleep(pollMs);
+    last = await apiFetch(
+      cfg.baseUrl,
+      "/api/me/accounts/oauth/poll?sessionId=" + encodeURIComponent(sessionId),
+      { headers: { Authorization: "Bearer " + auth.token } },
+    );
+    if (last && last.ok && !last.pending) {
+      return {
+        ok: true,
+        step: "done",
+        cookie: cookieRes,
+        auth: { username: auth.username, auth: auth.auth },
+        oauth: {
+          sessionId,
+          accountId,
+          userCode,
+          verificationUri: started.verificationUri,
+          verificationUriComplete,
+          account: last.account || null,
+        },
+        message: "席位已授权并绑定到 grok-api",
+      };
+    }
+    if (last && last.pending === false && last.error) {
+      return {
+        ok: false,
+        step: "poll",
+        cookie: cookieRes,
+        auth: { username: auth.username, auth: auth.auth },
+        oauth: {
+          sessionId,
+          accountId,
+          userCode,
+          verificationUri: started.verificationUri,
+          verificationUriComplete,
+        },
+        error: last.error || "OAuth 失败",
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    step: "timeout",
+    cookie: cookieRes,
+    auth: { username: auth.username, auth: auth.auth },
+    oauth: {
+      sessionId,
+      accountId,
+      userCode,
+      verificationUri: started.verificationUri,
+      verificationUriComplete,
+      last,
+    },
+    error: "等待授权超时（Cookie 与授权页可能已就绪，请在贡献页查看席位状态）",
+  };
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -273,79 +493,59 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
-  if (msg.type === "sso-login") {
+  if (msg.type === "get-contribute-defaults") {
+    chrome.storage.local
+      .get(["defaultContribute", "seatNamePrefix", "baseUrl"])
+      .then((r) =>
+        sendResponse({
+          ok: true,
+          defaultContribute: r.defaultContribute !== false,
+          seatNamePrefix: r.seatNamePrefix || "ext",
+          baseUrl: r.baseUrl || "http://127.0.0.1:8787",
+        }),
+      )
+      .catch((e) => sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+    return true;
+  }
+
+  if (msg.type === "grokapi-test") {
     (async () => {
       try {
-        const sso = extractSso(msg.sso);
-        if (!sso || sso.length < 20) {
-          sendResponse({ ok: false, error: "未识别到有效 SSO JWT（需 eyJ 开头）" });
-          return;
-        }
-        if (!sso.startsWith("eyJ")) {
-          sendResponse({ ok: false, error: "SSO 应为 JWT（eyJ…），不是 session_id 原文" });
-          return;
-        }
-
-        const onlyName = (msg.cookieName || "").trim();
-        const names = onlyName ? [onlyName] : [...AUTH_COOKIE_NAMES];
-        if (onlyName === "sso" && !names.includes("sso-rw")) names.push("sso-rw");
-
-        const removed = await clearAuthCookies(names);
-        const specs = buildCookieSpecs(sso, names, AUTH_DOMAINS);
-
-        let ok = 0;
-        let fail = 0;
-        const setList = [];
-        const errors = [];
-        for (const spec of specs) {
-          try {
-            const r = await setOneCookie(spec);
-            ok += 1;
-            setList.push(`${spec.name}@${spec.domain} (${r.mode})`);
-          } catch (e) {
-            fail += 1;
-            if (errors.length < 6) {
-              errors.push(`${spec.name}@${spec.domain}: ${e instanceof Error ? e.message : String(e)}`);
-            }
-          }
-        }
-
-        const checks = await verifyCookies(names, sso);
-        const verifiedOk = checks.filter((c) => c.ok);
-        const accountsOk = verifiedOk.some((c) => c.url.includes("accounts.x.ai"));
-        const grokOk = verifiedOk.some((c) => c.url.includes("grok.com"));
-
-        await chrome.storage.local.set({
-          lastCookieName: onlyName || "",
-          lastUsedAt: Date.now(),
-          lastValuePreview: shortVal(sso),
-        });
-
-        const payload = decodeJwtPayload(sso);
-        const success = ok > 0 && verifiedOk.length > 0;
-
+        const cfg = await getGrokApiConfig();
+        const auth = await ensureAuthToken(cfg);
         sendResponse({
-          ok: success,
-          set: ok,
-          fail,
-          removed,
-          verified: verifiedOk.map((c) => `${c.name}@${c.url.replace(/^https:\/\//, "").replace(/\/$/, "")}`),
-          checks,
-          setList,
-          accountsOk,
-          grokOk,
-          valuePreview: shortVal(sso),
-          error: success
-            ? undefined
-            : ok === 0
-              ? errors.join("; ") || "全部 Cookie 写入失败"
-              : "Cookie 已写入但读回不匹配，请检查扩展权限后重新加载扩展",
-          sessionId: payload && payload.session_id ? String(payload.session_id) : undefined,
-          // content script uses this
-          redirectUrl: "https://grok.com/",
+          ok: true,
+          username: auth.username,
+          auth: auth.auth,
+          tokenPreview: auth.tokenPreview || shortVal(auth.token),
+          baseUrl: cfg.baseUrl,
         });
       } catch (e) {
         sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+    })();
+    return true;
+  }
+
+  if (msg.type === "sso-login") {
+    (async () => {
+      try {
+        const res = await writeSsoCookies(msg.sso, msg.cookieName);
+        sendResponse(res);
+      } catch (e) {
+        sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+    })();
+    return true;
+  }
+
+  if (msg.type === "sso-contribute") {
+    (async () => {
+      try {
+        const res = await contributeWithSso(msg);
+        sendResponse(res);
+      } catch (e) {
+        sendResponse({ ok: false, step: "error", error: e instanceof Error ? e.message : String(e) });
       }
     })();
     return true;

@@ -1,0 +1,114 @@
+name: Release SSO Extension
+
+on:
+  # Manual run: package current main (or chosen ref) into a downloadable zip artifact
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Optional existing release tag to attach the zip to (e.g. sso-extension-v2.2.0). Leave empty to only upload workflow artifact."
+        required: false
+        default: ""
+  # When you publish a GitHub Release, attach the extension zip automatically
+  release:
+    types: [published]
+  # Optional: push tags like sso-extension-v2.2.0
+  push:
+    tags:
+      - "sso-extension-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read extension version
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VER=$(node -p "require('./tools/sso-extension/manifest.json').version")
+          NAME=$(node -p "require('./tools/sso-extension/manifest.json').name")
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "zip=grok-api-sso-extension-v${VER}.zip" >> "$GITHUB_OUTPUT"
+          echo "Packaging $NAME v$VER"
+
+      - name: Build zip (load-unpacked ready)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Zip contents = extension root (manifest.json at zip root)
+          # Users: unzip folder → chrome://extensions → Load unpacked
+          STAGE="dist/sso-extension"
+          rm -rf dist
+          mkdir -p "$STAGE"
+          # copy extension files; skip junk
+          rsync -a \
+            --exclude '.DS_Store' \
+            --exclude '**/.DS_Store' \
+            --exclude '*.map' \
+            tools/sso-extension/ "$STAGE/"
+          # ensure required files exist
+          test -f "$STAGE/manifest.json"
+          test -f "$STAGE/background.js"
+          test -f "$STAGE/content.js"
+          test -f "$STAGE/popup.html"
+          (
+            cd dist
+            zip -r -9 "../${{ steps.meta.outputs.zip }}" "sso-extension"
+          )
+          ls -lah "${{ steps.meta.outputs.zip }}"
+          unzip -l "${{ steps.meta.outputs.zip }}" | head -n 40
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sso-extension-v${{ steps.meta.outputs.version }}
+          path: ${{ steps.meta.outputs.zip }}
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release (release event)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.meta.outputs.zip }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attach to GitHub Release (tag push)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/sso-extension-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: SSO Extension ${{ steps.meta.outputs.version }}
+          generate_release_notes: true
+          files: ${{ steps.meta.outputs.zip }}
+          fail_on_unmatched_files: true
+          body: |
+            ## Grok-API SSO 浏览器扩展 v${{ steps.meta.outputs.version }}
+
+            ### 安装
+            1. 下载下方 `grok-api-sso-extension-v${{ steps.meta.outputs.version }}.zip`
+            2. 解压得到 `sso-extension` 文件夹
+            3. 打开 `chrome://extensions` / `edge://extensions`
+            4. 开启「开发者模式」→「加载已解压的扩展程序」→ 选择该文件夹
+
+            > 这是未上架商店的自托管扩展包，需手动加载；更新请重新下载并「重新加载」。
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attach to existing release tag (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: ${{ steps.meta.outputs.zip }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

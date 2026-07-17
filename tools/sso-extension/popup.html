@@ -1,67 +1,312 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <title>SSO 快登</title>
-    <style>
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        width: 320px;
-        font: 12px/1.45 ui-sans-serif, system-ui, sans-serif;
-        color: #111;
-        background: #fafafa;
-        padding: 12px;
-      }
-      h1 { margin: 0 0 6px; font-size: 13px; }
-      p { margin: 0 0 10px; color: #666; }
-      label { display: block; margin: 10px 0 4px; color: #444; font-weight: 600; }
-      .row { display: flex; gap: 12px; align-items: center; margin: 6px 0; }
-      .row label { margin: 0; font-weight: 500; display: flex; gap: 6px; align-items: center; cursor: pointer; }
-      textarea {
-        width: 100%;
-        min-height: 88px;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 8px;
-        font: 11px/1.4 ui-monospace, Consolas, monospace;
-        resize: vertical;
-      }
-      button {
-        margin-top: 10px;
-        border: 0;
-        border-radius: 8px;
-        background: #111;
-        color: #fff;
-        padding: 8px 12px;
-        font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
-        cursor: pointer;
-      }
-      button:hover { background: #222; }
-      #msg { margin-top: 8px; color: #0f6b2e; min-height: 16px; }
-      #msg.err { color: #b42318; }
-      code { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
-      .hint { color: #999; font-size: 11px; margin-top: 4px; }
-    </style>
-  </head>
-  <body>
-    <h1>xAI SSO 快登</h1>
-    <p>页面右上角 <b>SSO</b> · 快捷键 <code>Ctrl+Shift+L</code></p>
-
-    <label>面板显示范围</label>
-    <div class="row">
-      <label><input type="radio" name="mode" value="whitelist" /> 仅白名单</label>
-      <label><input type="radio" name="mode" value="all" /> 任意网站</label>
+<head>
+  <meta charset="utf-8" />
+  <title>SSO 贡献</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --card: #fff;
+      --ink: #111;
+      --mute: #71717a;
+      --line: #e4e4e7;
+      --soft: #f4f4f5;
+      --ok: #0f6b2e;
+      --err: #b42318;
+      --ok-bg: #eaf7ee;
+      --err-bg: #fdecec;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 360px;
+      max-height: 540px;
+      background: var(--bg);
+    }
+    body {
+      overflow: hidden;
+      font: 12.5px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+    }
+    .scroll {
+      max-height: 540px;
+      overflow: auto;
+      padding: 12px;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;              /* Firefox */
+      scrollbar-color: #d4d4d8 transparent;
+    }
+    /* Chromium thin, soft scrollbar */
+    .scroll::-webkit-scrollbar {
+      width: 8px;
+    }
+    .scroll::-webkit-scrollbar-track {
+      background: transparent;
+      margin: 6px 0;
+    }
+    .scroll::-webkit-scrollbar-thumb {
+      background: #d4d4d8;
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+      min-height: 36px;
+    }
+    .scroll::-webkit-scrollbar-thumb:hover {
+      background: #a1a1aa;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    .scroll::-webkit-scrollbar-thumb:active {
+      background: #71717a;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    .scroll::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+    /* nested textareas: even thinner */
+    textarea {
+      scrollbar-width: thin;
+      scrollbar-color: #e4e4e7 transparent;
+    }
+    textarea::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    textarea::-webkit-scrollbar-thumb {
+      background: #e4e4e7;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background-clip: content-box;
+    }
+    textarea::-webkit-scrollbar-thumb:hover {
+      background: #d4d4d8;
+      border: 1px solid transparent;
+      background-clip: content-box;
+    }
+    .hd {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .hd h1 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .hd p {
+      margin: 3px 0 0;
+      color: var(--mute);
+      font-size: 11.5px;
+    }
+    .badge {
+      flex: 0 0 auto;
+      font: 600 10px/1 ui-sans-serif, system-ui, sans-serif;
+      color: var(--mute);
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 8px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .card-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 0 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .card-title span {
+      color: var(--mute);
+      font-weight: 500;
+      font-size: 11px;
+    }
+    label.field {
+      display: block;
+      margin: 0 0 4px;
+      color: #3f3f46;
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .field-wrap { margin-bottom: 10px; }
+    .field-wrap:last-child { margin-bottom: 0; }
+    input[type="text"],
+    input[type="password"],
+    input[type="url"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--ink);
+      padding: 8px 10px;
+      font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      outline: none;
+    }
+    input:focus, textarea:focus { border-color: #111; box-shadow: 0 0 0 3px rgba(0,0,0,.06); }
+    textarea { min-height: 78px; resize: vertical; }
+    .seg {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 3px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    .seg label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin: 0;
+      padding: 7px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--mute);
+      font-weight: 600;
+      font-size: 11.5px;
+      user-select: none;
+    }
+    .seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg label:has(input:checked) {
+      background: #111;
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,.12);
+    }
+    .checks { display: grid; gap: 6px; margin-top: 2px; }
+    .check {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin: 0;
+      color: #3f3f46;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .check input { margin-top: 2px; }
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    button {
+      border: 0;
+      border-radius: 9px;
+      background: #111;
+      color: #fff;
+      padding: 8px 12px;
+      font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+      cursor: pointer;
+    }
+    button:hover { background: #222; }
+    button:disabled { opacity: .55; cursor: default; }
+    button.secondary {
+      background: #fff;
+      color: #111;
+      border: 1px solid var(--line);
+    }
+    button.secondary:hover { background: var(--soft); }
+    button.grow { flex: 1; }
+    #msg {
+      margin-top: 10px;
+      min-height: 0;
+      padding: 0;
+      border-radius: 8px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    #msg:not(:empty) { padding: 8px 10px; }
+    #msg.ok { background: var(--ok-bg); color: var(--ok); }
+    #msg.err { background: var(--err-bg); color: var(--err); }
+    .hint { margin-top: 8px; color: var(--mute); font-size: 11px; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: var(--soft);
+      color: #3f3f46;
+      font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      word-break: break-all;
+    }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #a1a1aa; flex: 0 0 auto;
+    }
+    .dot.on { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
+    .dot.warn { background: #ca8a04; }
+      </style>
+</head>
+<body>
+  <div class="scroll">
+  <div class="hd">
+    <div>
+      <h1>Grok-API SSO</h1>
+      <p>右上角 SSO · <code>Ctrl+Shift+L</code></p>
     </div>
+    <div class="badge">v2.2</div>
+  </div>
 
-    <label>白名单域名（一行一个）</label>
-    <textarea id="whitelist" placeholder="x.ai&#10;grok.com&#10;example.com"></textarea>
-    <div class="hint">匹配自身及子域，如 x.ai 含 accounts.x.ai</div>
+  <div class="card">
+    <div class="card-title">连接 grok-api <span>本机保存</span></div>
+    <div class="field-wrap">
+      <label class="field" for="baseUrl">Base URL</label>
+      <input id="baseUrl" type="url" placeholder="http://127.0.0.1:8787" />
+    </div>
+    <div class="field-wrap">
+      <label class="field" for="token">密钥</label>
+      <input id="token" type="password" placeholder="粘贴控制台 API 密钥，如 gk_..." autocomplete="off" />
+      <div class="hint" style="margin-top:6px">在「API Keys」页生成并绑定用户后粘贴到这里。密钥仅保存在本机扩展存储。</div>
+    </div>
+    <div class="field-wrap">
+      <label class="field" for="seatNamePrefix">席位名前缀</label>
+      <input id="seatNamePrefix" type="text" placeholder="ext" />
+    </div>
+    <div class="checks">
+      <label class="check"><input type="checkbox" id="defaultContribute" checked /> 右上角默认勾选「写入并贡献」</label>
+    </div>
+    <div class="actions">
+      <button type="button" id="test" class="secondary grow">测试连接</button>
+      <button type="button" id="save" class="grow">保存全部</button>
+    </div>
+    <div id="connStatus" class="hint" style="margin-top:10px"></div>
+  </div>
 
-    <button type="button" id="save">保存设置</button>
-    <div id="msg"></div>
+  <div class="card">
+    <div class="card-title">面板显示 <span>哪些站出现 SSO</span></div>
+    <div class="field-wrap">
+      <label class="field">显示范围</label>
+      <div class="seg">
+        <label><input type="radio" name="panelMode" value="whitelist" checked /> 仅白名单</label>
+        <label><input type="radio" name="panelMode" value="all" /> 任意网站</label>
+      </div>
+    </div>
+    <div class="field-wrap">
+      <label class="field" for="whitelist">白名单域名（一行一个）</label>
+      <textarea id="whitelist" placeholder="x.ai&#10;grok.com&#10;pay.ldxp.cn"></textarea>
+    </div>
+    <div class="hint">默认含 x.ai / grok.com / pay.ldxp.cn。Cookie 仍只写 .x.ai / .grok.com。</div>
+  </div>
 
-    <p class="hint" style="margin-top:12px">Cookie 始终写入 x.ai / grok.com，与面板显示网站无关。</p>
-    <script src="popup.js"></script>
-  </body>
+  <div id="msg"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
 </html>

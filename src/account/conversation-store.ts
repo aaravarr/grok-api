@@ -1,4 +1,5 @@
 import { kvGet, kvSet } from "../db/sqlite.js";
+import { stripServerSearchQueryPrefix } from "../client/codex-chat-compat.js";
 import { now } from "../utils.js";
 
 /**
@@ -433,7 +434,7 @@ export function extractPlainMessagesFromInput(input: unknown): ConversationMessa
   for (const item of items) {
     if (!isObj(item) || isOpaqueInputItem(item)) continue;
     const type = String(item.type || "").toLowerCase();
-    if (type.includes("function_call") || type.includes("tool_call") || type.includes("web_search_call")) continue;
+    if (type.includes("function_call") || type.includes("tool_call") || type.includes("web_search_call") || type.includes("x_search_call") || type.includes("code_interpreter_call") || type.includes("mcp_call")) continue;
     let role = String(item.role || "").toLowerCase();
     if (!role && (type === "message" || type === "input_text" || !type)) role = "user";
     if (!role) continue;
@@ -748,6 +749,46 @@ export async function sanitizeResponsesInputItems(body: unknown): Promise<{
       });
       convertedCustomCalls += 1;
       modified = true;
+      continue;
+    }
+
+    // Codex-facing remaps may turn x_search_call into web_search_call; reverse for xAI input.
+    if (type === "web_search_call" || type === "x_search_call") {
+      const out: Record<string, unknown> = { ...item };
+      const xaiTool = String(out.xai_tool || "").toLowerCase();
+      if (type === "web_search_call" && (xaiTool === "x_search" || xaiTool.startsWith("x_"))) {
+        out.type = "x_search_call";
+        modified = true;
+      } else {
+        out.type = type;
+      }
+      if (typeof out.status !== "string" || !out.status.trim()) {
+        out.status = "completed";
+        modified = true;
+      }
+      // Prefer clean query for upstream; strip Codex display prefix like "x_keyword_search: ...".
+      if (isObj(out.action)) {
+        const action = { ...(out.action as Record<string, unknown>) };
+        const clean =
+          typeof out.xai_query === "string" && out.xai_query.trim()
+            ? String(out.xai_query).trim()
+            : stripServerSearchQueryPrefix(action.query);
+        if (typeof action.query === "string" && action.query !== clean) {
+          action.query = clean;
+          modified = true;
+        }
+        out.action = action;
+      }
+      // Drop client-only breadcrumbs before upstream.
+      if ("xai_tool" in out) {
+        delete out.xai_tool;
+        modified = true;
+      }
+      if ("xai_query" in out) {
+        delete out.xai_query;
+        modified = true;
+      }
+      nextItems.push(out);
       continue;
     }
 
