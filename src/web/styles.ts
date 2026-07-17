@@ -1169,11 +1169,20 @@ export function styles(): string {
     }
     .sso-win-ext-hd{ display: flex; align-items: center; gap: 9px; min-width: 0; }
     .sso-win-ext-icon{
-      width: 32px; height: 32px; border-radius: 9px; background: #111; color: #fff;
-      display: inline-flex; align-items: center; justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: #111;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font: 800 13px/1 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0;
+      text-align: center;
       flex: 0 0 auto;
     }
-    .sso-win-ext-icon svg{ display: block; }
+
     .sso-win-ext-hd b{
       display: block; font: 700 12px/1.2 ui-sans-serif, system-ui, sans-serif; color: #18181b;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

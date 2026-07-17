@@ -720,7 +720,7 @@ ${styles()}
                         </div>
                         <div class="sso-win-ext">
                           <div class="sso-win-ext-hd">
-                            <span class="sso-win-ext-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M10 3h4v3.2a2.8 2.8 0 0 1 0 5.6V15h-1.5a2.5 2.5 0 1 0 0 5H14v1H8v-3.2a2.8 2.8 0 0 1 0-5.6V8H9.5a2.5 2.5 0 1 0 0-5H10V3z" fill="currentColor"/><path d="M15 8h6v2.2a2.3 2.3 0 1 1 0 4.6V17h-6v-2.2a2.3 2.3 0 1 1 0-4.6V8z" fill="currentColor" opacity=".9"/></svg></span>
+                            <span class="sso-win-ext-icon" aria-hidden="true">G</span>
                             <div>
                               <b>Grok-API SSO 贡献</b>
                               <span>v2.2.0 · 已解压加载</span>
