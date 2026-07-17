@@ -656,18 +656,18 @@ ${styles()}
           <div class="panel mb sso-ext-card" id="contribExtCard">
             <div class="sso-ext-row">
               <div class="sso-ext-copy">
-                <div class="contrib-action-kicker" data-i18n="ssoExtKicker">Browser tool</div>
-                <strong data-i18n="ssoExtTitle">SSO login extension</strong>
-                <p data-i18n="ssoExtSub">Paste an SSO JWT, write grok/x.ai cookies, and optionally contribute a seat to this grok-api in one click. Optional helper — does not replace OAuth / JSON contribute.</p>
+                <div class="contrib-action-kicker" data-i18n="ssoExtKicker">浏览器工具</div>
+                <strong data-i18n="ssoExtTitle">SSO 登录 / 贡献插件</strong>
+                <p data-i18n="ssoExtSub">粘贴 SSO JWT，写入 grok/x.ai Cookie；可选一键向本站发起 OAuth 席位贡献。辅助工具，不替代上方 OAuth / JSON 贡献。</p>
                 <ol class="sso-ext-steps">
-                  <li data-i18n="ssoExtStep1">Download the zip from GitHub Releases</li>
-                  <li data-i18n="ssoExtStep2">Unzip → chrome://extensions → Developer mode → Load unpacked</li>
-                  <li data-i18n="ssoExtStep3">Open the extension popup, paste Base URL + API key (bound to your user)</li>
+                  <li data-i18n="ssoExtStep1">从 GitHub Release 下载 zip 安装包</li>
+                  <li data-i18n="ssoExtStep2">解压 → chrome://extensions → 开发者模式 → 加载已解压的扩展程序</li>
+                  <li data-i18n="ssoExtStep3">打开扩展弹窗，填写 Base URL + 绑定用户的 API 密钥</li>
                 </ol>
               </div>
               <div class="sso-ext-actions">
-                <a class="btn" id="btnSsoExtDownload" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.0/grok-api-sso-extension-v2.2.0.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">Download extension</a>
-                <a class="btn btn-secondary" href="https://github.com/aaravarr/grok-api/releases/tag/sso-extension-v2.2.0" target="_blank" rel="noreferrer" data-i18n="ssoExtRelease">Release notes</a>
+                <a class="btn" id="btnSsoExtDownload" href="https://github.com/aaravarr/grok-api/releases/download/sso-extension-v2.2.0/grok-api-sso-extension-v2.2.0.zip" target="_blank" rel="noreferrer" data-i18n="ssoExtDownload">下载扩展包</a>
+                <a class="btn btn-secondary" href="https://github.com/aaravarr/grok-api/releases/tag/sso-extension-v2.2.0" target="_blank" rel="noreferrer" data-i18n="ssoExtRelease">Release 说明</a>
                 <div class="mono sso-ext-ver">v2.2.0 · Chrome / Edge</div>
               </div>
             </div>
@@ -1433,6 +1433,14 @@ ${mediaViewHtml(page)}
         contribCta:"贡献一个账号",
         contribActionTitle:"一分钟绑定 SuperGrok 席位",
         contribActionSub:"支持设备码 OAuth，或粘贴已有的 CPA / Sub2API 凭证。",
+        ssoExtKicker:"浏览器工具",
+        ssoExtTitle:"SSO 登录 / 贡献插件",
+        ssoExtSub:"粘贴 SSO JWT，写入 grok/x.ai Cookie；可选一键向本站发起 OAuth 席位贡献。辅助工具，不替代上方 OAuth / JSON 贡献。",
+        ssoExtStep1:"从 GitHub Release 下载 zip 安装包",
+        ssoExtStep2:"解压 → chrome://extensions → 开发者模式 → 加载已解压的扩展程序",
+        ssoExtStep3:"打开扩展弹窗，填写 Base URL + 绑定用户的 API 密钥",
+        ssoExtDownload:"下载扩展包",
+        ssoExtRelease:"Release 说明",
         contribCtaOauth:"继续 OAuth",
         contribCtaJson:"确认贡献",
         contribJsonHint:"粘贴 CPA / Sub2API 的 Grok 凭证 JSON，或直接粘贴 refresh_token。席位只会绑定到你的账号。",
