@@ -720,7 +720,7 @@ ${styles()}
                         </div>
                         <div class="sso-win-ext">
                           <div class="sso-win-ext-hd">
-                            <span class="sso-win-ext-icon" aria-hidden="true">G</span>
+                            <span class="sso-win-ext-icon">G</span>
                             <div>
                               <b>Grok-API SSO 贡献</b>
                               <span>v2.2.0 · 已解压加载</span>

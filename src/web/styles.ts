@@ -1174,19 +1174,16 @@ export function styles(): string {
       border-radius: 9px;
       background: #111;
       color: #fff;
-      display: grid;
-      place-items: center;
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-      font-size: 13px;
-      font-weight: 800;
-      line-height: 1;
+      display: block;
+      box-sizing: border-box;
+      text-align: center;
+      font: 800 13px/32px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
       letter-spacing: 0;
       flex: 0 0 auto;
-      /* optical vertical center for capital glyph */
-      padding-top: 1px;
-      box-sizing: border-box;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
     }
-
     .sso-win-ext-hd b{
       display: block; font: 700 12px/1.2 ui-sans-serif, system-ui, sans-serif; color: #18181b;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
