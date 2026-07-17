@@ -16,7 +16,9 @@ export const config = {
     authorizeUrl: "https://auth.x.ai/oauth2/authorize",
     tokenUrl: "https://auth.x.ai/oauth2/token",
     deviceAuthorizationUrl: "https://auth.x.ai/oauth2/device/code",
-    scope: "openid profile email offline_access grok-cli:access api:access",
+    // Match grok-build default_oauth2_scopes
+    scope:
+      "openid profile email offline_access grok-cli:access api:access conversations:read conversations:write",
     refreshSkewMs: 120_000,
     /** Proactive refresh if idle for this long (lastUsedAt/lastRefreshedAt/createdAt). */
     proactiveIdleMs: 1 * 24 * 60 * 60 * 1000,
@@ -29,7 +31,8 @@ export const config = {
     proactiveCheckMs: 13 * 60 * 1000,
   },
   xai: {
-    baseUrl: process.env.XAI_BASE_URL ?? "https://api.x.ai/v1",
+    // Official grok-shell uses cli-chat-proxy, not bare api.x.ai
+    baseUrl: process.env.XAI_BASE_URL ?? "https://cli-chat-proxy.grok.com/v1",
     defaultModel: process.env.XAI_DEFAULT_MODEL ?? "grok-4.5",
   },
   adminToken: process.env.ADMIN_TOKEN ?? "",

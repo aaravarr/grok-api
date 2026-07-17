@@ -16,6 +16,7 @@ import {
   markUsed,
   setCurrentAccount,
 } from "./store.js";
+import { effectiveSubscriptionEndMs } from "./subscription.js";
 import { getValidAccessToken } from "./token.js";
 
 export type RouteResult = {
@@ -50,20 +51,8 @@ export function accountRoutePriority(
 
 /** SuperGrok billing period end as epoch ms; unknown => +Infinity (use later). */
 export function accountPeriodEndMs(acc: Account): number {
-  const raw = acc.credits?.periodEnd;
-  if (raw == null || raw === "") return Number.POSITIVE_INFINITY;
-  if (typeof raw === "number" && Number.isFinite(raw)) {
-    return raw < 1e12 ? raw * 1000 : raw;
-  }
-  const s = String(raw).trim();
-  if (!s) return Number.POSITIVE_INFINITY;
-  if (/^\d+$/.test(s)) {
-    const n = Number(s);
-    if (!Number.isFinite(n)) return Number.POSITIVE_INFINITY;
-    return n < 1e12 ? n * 1000 : n;
-  }
-  const d = Date.parse(s);
-  return Number.isFinite(d) ? d : Number.POSITIVE_INFINITY;
+  const end = effectiveSubscriptionEndMs(acc);
+  return end == null ? Number.POSITIVE_INFINITY : end;
 }
 
 function sortAccountsForAuto(
@@ -232,6 +221,7 @@ async function useAccount(accountId: string, checkCredits: boolean): Promise<Rou
   const acc = await getAccount(accountId);
   if (!acc) throw new Error(`account not found: ${accountId}`);
   if (acc.status === "expired") throw new Error(`account expired: ${accountId}`);
+  if (acc.status === "sub_expired") throw new Error(`account subscription expired: ${accountId}`);
 
   if (checkCredits) {
     try {

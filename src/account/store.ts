@@ -12,6 +12,7 @@ import type {
   RoutingState,
 } from "../types.js";
 import { now, randomId } from "../utils.js";
+import { effectivePeriodEndIso, isSubscriptionPeriodEnded, isSubscriptionUnexpired } from "./subscription.js";
 
 const NS = "accounts";
 const KEY = "store";
@@ -484,6 +485,7 @@ export async function updateAccount(
       (next.status === "pending" ||
         next.status === "error" ||
         next.status === "expired" ||
+        next.status === "sub_expired" ||
         !next.tokens?.refresh)
     ) {
       store.routing.currentAccountId =
@@ -632,6 +634,14 @@ export async function markStatus(
   status: AccountStatus,
   lastError?: string,
 ): Promise<void> {
+  // Prefer subscription-expired over token-expired when period already ended.
+  if (status === "expired") {
+    const acc = await getAccount(id);
+    if (acc && !isSubscriptionUnexpired(acc)) {
+      await updateAccount(id, { status: "sub_expired", lastError: undefined });
+      return;
+    }
+  }
   await updateAccount(id, { status, lastError });
 }
 
@@ -649,12 +659,18 @@ export async function markUsed(id: string): Promise<void> {
 
 export async function setCredits(id: string, credits: CreditSnapshot): Promise<void> {
   const patch: Partial<Account> = { credits };
-  if (credits.remainingPercent <= 0.5) {
+  const acc = await getAccount(id);
+  // Subscription ended: dedicated status, no error banner text
+  if (isSubscriptionPeriodEnded(credits, now(), acc?.createdAt)) {
+    if (acc?.status !== "pending" && acc?.status !== "error") {
+      patch.status = "sub_expired";
+      patch.lastError = undefined;
+    }
+  } else if (credits.remainingPercent <= 0.5) {
     patch.status = "exhausted";
     patch.lastError = `额度已用尽 (${credits.creditUsagePercent.toFixed(1)}%)`;
   } else if (credits.remainingPercent > 0.5) {
-    const acc = await getAccount(id);
-    if (acc?.status === "exhausted") {
+    if (acc?.status === "exhausted" || acc?.status === "sub_expired") {
       patch.status = "active";
       patch.lastError = undefined;
     }
@@ -861,15 +877,20 @@ export async function verifyApiKey(
 }
 
 export function publicAccount(a: Account, currentId?: string | null) {
+  const subEnded = !isSubscriptionUnexpired(a);
+  const status =
+    subEnded && (a.status === "expired" || a.status === "active" || a.status === "exhausted")
+      ? "sub_expired"
+      : a.status;
   return {
     id: a.id,
     name: a.name,
-    status: a.status,
+    status,
     createdAt: a.createdAt,
     updatedAt: a.updatedAt,
     lastUsedAt: a.lastUsedAt,
     useCount: a.useCount,
-    lastError: a.lastError,
+    lastError: status === "sub_expired" ? undefined : a.lastError,
     note: a.note,
     email: a.email ?? null,
     xaiUsername: a.xaiUsername ?? null,
@@ -896,7 +917,7 @@ export function publicAccount(a: Account, currentId?: string | null) {
           remainingPercent: a.credits.remainingPercent,
           periodType: a.credits.periodType,
           periodStart: a.credits.periodStart,
-          periodEnd: a.credits.periodEnd,
+          periodEnd: effectivePeriodEndIso(a) ?? a.credits.periodEnd,
           productUsage: a.credits.productUsage,
           prepaidBalance: a.credits.prepaidBalance,
           checkedAt: a.credits.checkedAt,

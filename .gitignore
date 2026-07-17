@@ -4,3 +4,6 @@ data/
 .env
 *.log
 .DS_Store
+
+# local tool deps
+tools/sso-browser/node_modules/

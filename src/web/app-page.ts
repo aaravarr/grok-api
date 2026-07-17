@@ -346,6 +346,7 @@ ${styles()}
                 <option value="active">active</option>
                 <option value="exhausted">exhausted</option>
                 <option value="expired">expired</option>
+                <option value="sub_expired">sub_expired</option>
                 <option value="error">error</option>
               </select>
               <select id="accFilterVis" class="select" style="min-width:130px">
@@ -427,6 +428,7 @@ ${styles()}
                 <option value="active">active</option>
                 <option value="disabled">disabled</option>
                 <option value="expired">expired</option>
+                <option value="sub_expired">sub_expired</option>
               </select>
             </div>
             <div class="dt dt-keys">
@@ -720,6 +722,7 @@ ${styles()}
                 <option value="active">active</option>
                 <option value="exhausted">exhausted</option>
                 <option value="expired">expired</option>
+                <option value="sub_expired">sub_expired</option>
                 <option value="error">error</option>
               </select>
               <select id="contribFilterVis" class="select" style="min-width:130px">
@@ -851,9 +854,9 @@ ${mediaViewHtml(page)}
                 <div class="endpoint-grid">
                   <div class="endpoint-field">
                     <label class="field-label" data-i18n="upstreamTitle">LLM upstream</label>
-                    <input id="upstreamUrl" class="input block" placeholder="https://api.x.ai/v1" />
+                    <input id="upstreamUrl" class="input block" placeholder="https://cli-chat-proxy.grok.com/v1" />
                     <div class="hint-active mono" id="upstreamActive">–</div>
-                    <div class="hint" id="upstreamHint" data-i18n="upstreamHint">Empty = api.x.ai/v1</div>
+                    <div class="hint" id="upstreamHint" data-i18n="upstreamHint">Empty = cli-chat-proxy.grok.com/v1</div>
                   </div>
                   <div class="endpoint-field">
                     <label class="field-label" data-i18n="oauthBaseTitle">OAuth base</label>
@@ -1262,7 +1265,7 @@ ${mediaViewHtml(page)}
         endpointsTitle:"出站端点", endpointsSub:"LLM / OAuth / 额度 — 可填官方地址或跳板域名",
         upstreamTitle:"LLM 上游", saveUpstream:"保存上游", saveEndpoints:"保存端点",
         upstreamSaved:"端点已更新",
-        upstreamHint:"留空 = api.x.ai/v1 · 跳板如 https://xai.ahao1.tech/v1",
+        upstreamHint:"留空 = cli-chat-proxy.grok.com/v1 · 跳板如 https://xai.ahao1.tech/v1",
         upstreamActive:(u)=>"生效 "+u,
         oauthBaseTitle:"OAuth 基址",
         oauthBaseHint:"留空 = auth.x.ai · 跳板如 https://xai.ahao1.tech",
@@ -1392,7 +1395,7 @@ ${mediaViewHtml(page)}
         contribJsonEmpty:"请先粘贴 JSON 或 refresh_token",
         contribJsonOk:(n,f)=>"贡献完成：成功 "+n+(f?("，失败 "+f):""),
         contribSeeLb:"查看贡献榜",
-        oauthOpenBrowser:"打开授权页", oauthRetry:"重新发起", oauthReauth:"重新授权",
+        oauthOpenBrowser:"打开授权页", oauthRetry:"重新发起", oauthReauth:"授权",
         oauthPhaseWaiting:"等待授权", oauthPhaseFailed:"授权失败",
         why1t:"仅你可见", why1d:"你绑定的账号状态、额度与调用记录只对你开放，其他用户看不到列表。",
         why2t:"点亮账号池", why2d:"闲置的 SuperGrok 额度变成共享容量。额度感知路由会自动挑选健康席位。",
@@ -1497,7 +1500,7 @@ ${mediaViewHtml(page)}
         endpointsTitle:"Outbound endpoints", endpointsSub:"LLM / OAuth / Billing — official hosts or a jump proxy",
         upstreamTitle:"LLM upstream", saveUpstream:"Save upstream", saveEndpoints:"Save endpoints",
         upstreamSaved:"Endpoints updated",
-        upstreamHint:"Empty = api.x.ai/v1 · jump e.g. https://xai.ahao1.tech/v1",
+        upstreamHint:"Empty = cli-chat-proxy.grok.com/v1 · jump e.g. https://xai.ahao1.tech/v1",
         upstreamActive:(u)=>"Active "+u,
         oauthBaseTitle:"OAuth base",
         oauthBaseHint:"Empty = auth.x.ai · jump e.g. https://xai.ahao1.tech",
@@ -1627,7 +1630,7 @@ ${mediaViewHtml(page)}
         contribJsonEmpty:"Paste JSON or a refresh_token first",
         contribJsonOk:(n,f)=>"Contributed: "+n+" ok"+(f?(", "+f+" failed"):""),
         contribSeeLb:"View leaderboard",
-        oauthOpenBrowser:"Open authorize URL", oauthRetry:"Retry OAuth", oauthReauth:"Re-authorize",
+        oauthOpenBrowser:"Open authorize URL", oauthRetry:"Retry OAuth", oauthReauth:"Authorize",
         oauthPhaseWaiting:"Waiting for auth", oauthPhaseFailed:"Failed",
         why1t:"Private to you", why1d:"Only you can see the accounts you linked — status, credits, and usage. Others never see your list.",
         why2t:"Power the pool", why2d:"Idle SuperGrok credits become shared capacity. Credit-aware routing picks healthy seats automatically.",
@@ -1691,7 +1694,7 @@ ${mediaViewHtml(page)}
     let sessionToken = localStorage.getItem("grok_api_session") || "";
     let currentUser = null; // { id, username, role }
         let routing = { mode: "auto", currentAccountId: null };
-    let meta = { needsSetup: false, allowRegister: true, proxy: null, proxySource: "none", proxyConfigured: "", logRetentionDays: 7, logEnabled: true, logBodies: false, logBodiesOnError: true, allowRegisterSetting: true, xaiBaseUrl: "https://api.x.ai/v1", upstreamBaseUrlConfigured: "" };
+    let meta = { needsSetup: false, allowRegister: true, proxy: null, proxySource: "none", proxyConfigured: "", logRetentionDays: 7, logEnabled: true, logBodies: false, logBodiesOnError: true, allowRegisterSetting: true, xaiBaseUrl: "https://cli-chat-proxy.grok.com/v1", upstreamBaseUrlConfigured: "" };
     let pollTimer = null;
     let allUsers = [];
     let accountUsers = [];
@@ -1897,7 +1900,7 @@ ${mediaViewHtml(page)}
         $("billingBaseUrl").value = meta.billingBaseUrlConfigured || "";
       }
       if ($("upstreamActive")) {
-        $("upstreamActive").textContent = t("upstreamActive", meta.xaiBaseUrl || "https://api.x.ai/v1");
+        $("upstreamActive").textContent = t("upstreamActive", meta.xaiBaseUrl || "https://cli-chat-proxy.grok.com/v1");
       }
       if ($("upstreamHint")) $("upstreamHint").textContent = t("upstreamHint");
       if ($("oauthBaseActive")) {
@@ -2178,8 +2181,9 @@ ${mediaViewHtml(page)}
       if (st === "pending") return 1;
       if (st === "exhausted") return 2;
       if (st === "error") return 3;
-      if (st === "expired") return 4;
-      return 5;
+      if (st === "sub_expired") return 4;
+      if (st === "expired") return 5;
+      return 6;
     }
 
     /** public → restricted (allowlist) → private (donor-only) */
@@ -2821,9 +2825,17 @@ ${mediaViewHtml(page)}
       if (lang === "zh") {
         if (st === "active") return "可用";
         if (st === "exhausted") return "耗尽";
-        if (st === "expired") return "过期";
+        if (st === "sub_expired") return "订阅到期";
+        if (st === "expired") return "令牌过期";
         if (st === "error") return "错误";
         if (st === "pending") return "待授权";
+      } else {
+        if (st === "active") return "active";
+        if (st === "exhausted") return "exhausted";
+        if (st === "sub_expired") return "sub expired";
+        if (st === "expired") return "token expired";
+        if (st === "error") return "error";
+        if (st === "pending") return "pending";
       }
       return st;
     }
@@ -2842,7 +2854,7 @@ ${mediaViewHtml(page)}
       const slice = list.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((a) => {
         const cur = a.isCurrent;
-        const err = a.lastError ? shortErr(a.lastError) : "";
+        const err = (a.status === "sub_expired" || !a.lastError) ? "" : shortErr(a.lastError);
         const isPriv = accIsPrivate(a);
         const pending = a.status === "pending" || !a.hasRefresh;
         let useTitle = "";
@@ -2878,7 +2890,7 @@ ${mediaViewHtml(page)}
           '<button class="btn btn-secondary btn-sm" type="button" data-act="edit" data-id="' + esc(a.id) + '">' + esc(t("accEdit")) + "</button>" +
           '<button class="btn btn-secondary btn-sm" type="button" data-act="refresh" data-id="' + esc(a.id) + '" title="' + esc((lang === "zh" ? "查额度 + 同步名称；有额度则自动恢复" : "Check credits + sync name; auto-restore when credits remain")) + '">' + esc(t("accRefresh")) + "</button>" +
           '<button class="btn btn-danger btn-sm" type="button" data-act="del" data-id="' + esc(a.id) + '">' + esc(t("del")) + "</button>" +
-          (a.status === "expired" || a.status === "pending" || a.status === "error"
+          (a.status === "expired" || a.status === "sub_expired" || a.status === "pending" || a.status === "error"
             ? '<button class="btn btn-sm" type="button" data-act="reauth" data-id="' + esc(a.id) + '">' + esc(t("oauthReauth")) + "</button>"
             : "") +
           "</div></div>";
@@ -4355,12 +4367,12 @@ ${mediaViewHtml(page)}
       const start = (contribPage - 1) * PAGE_SIZE;
       const slice = list.slice(start, start + PAGE_SIZE);
       tbody.innerHTML = slice.map((a) => {
-        const err = a.lastError ? shortErr(a.lastError) : "";
+        const err = (a.status === "sub_expired" || !a.lastError) ? "" : shortErr(a.lastError);
         const phase = oauthPhaseLabel(a);
         const oauthMsg = (a.oauth && a.oauth.lastMessage) ? shortErr(a.oauth.lastMessage) : "";
         const membersTxt = myMembersLabel(a);
         const mCount = Array.isArray(a.members) ? a.members.length : 1;
-        const canManual = a.status === "pending" || a.status === "error" || a.status === "expired" || (a.oauth && a.oauth.phase === "failed");
+        const canManual = a.status === "pending" || a.status === "error" || a.status === "expired" || a.status === "sub_expired" || (a.oauth && a.oauth.phase === "failed");
         const hasUrl = a.oauth && (a.oauth.verificationUriComplete || a.oauth.verificationUri);
         let acts = "";
         if (canManual && hasUrl) {
@@ -4368,9 +4380,9 @@ ${mediaViewHtml(page)}
         }
         if (canManual) {
           acts += '<button class="btn btn-secondary btn-sm" type="button" data-act="c-retry" data-id="' + esc(a.id) + '">' +
-            esc(a.status === "expired" ? t("oauthReauth") : t("oauthRetry")) + "</button>";
+            esc((a.status === "expired" || a.status === "sub_expired") ? t("oauthReauth") : t("oauthRetry")) + "</button>";
         }
-        if (a.status === "active" || a.status === "exhausted" || a.status === "expired") {
+        if (a.status === "active" || a.status === "exhausted" || a.status === "expired" || a.status === "sub_expired") {
           acts += '<button class="btn btn-secondary btn-sm" type="button" data-act="c-members" data-id="' + esc(a.id) + '">' + esc(t("membersTitle")) + "</button>";
           acts += '<button class="btn btn-secondary btn-sm" type="button" data-act="c-credits" data-id="' + esc(a.id) + '">' + esc(t("credits")) + "</button>";
         }

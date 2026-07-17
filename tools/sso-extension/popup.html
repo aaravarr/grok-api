@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>SSO 快登</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 320px;
+        font: 12px/1.45 ui-sans-serif, system-ui, sans-serif;
+        color: #111;
+        background: #fafafa;
+        padding: 12px;
+      }
+      h1 { margin: 0 0 6px; font-size: 13px; }
+      p { margin: 0 0 10px; color: #666; }
+      label { display: block; margin: 10px 0 4px; color: #444; font-weight: 600; }
+      .row { display: flex; gap: 12px; align-items: center; margin: 6px 0; }
+      .row label { margin: 0; font-weight: 500; display: flex; gap: 6px; align-items: center; cursor: pointer; }
+      textarea {
+        width: 100%;
+        min-height: 88px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 8px;
+        font: 11px/1.4 ui-monospace, Consolas, monospace;
+        resize: vertical;
+      }
+      button {
+        margin-top: 10px;
+        border: 0;
+        border-radius: 8px;
+        background: #111;
+        color: #fff;
+        padding: 8px 12px;
+        font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+        cursor: pointer;
+      }
+      button:hover { background: #222; }
+      #msg { margin-top: 8px; color: #0f6b2e; min-height: 16px; }
+      #msg.err { color: #b42318; }
+      code { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+      .hint { color: #999; font-size: 11px; margin-top: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>xAI SSO 快登</h1>
+    <p>页面右上角 <b>SSO</b> · 快捷键 <code>Ctrl+Shift+L</code></p>
+
+    <label>面板显示范围</label>
+    <div class="row">
+      <label><input type="radio" name="mode" value="whitelist" /> 仅白名单</label>
+      <label><input type="radio" name="mode" value="all" /> 任意网站</label>
+    </div>
+
+    <label>白名单域名（一行一个）</label>
+    <textarea id="whitelist" placeholder="x.ai&#10;grok.com&#10;example.com"></textarea>
+    <div class="hint">匹配自身及子域，如 x.ai 含 accounts.x.ai</div>
+
+    <button type="button" id="save">保存设置</button>
+    <div id="msg"></div>
+
+    <p class="hint" style="margin-top:12px">Cookie 始终写入 x.ai / grok.com，与面板显示网站无关。</p>
+    <script src="popup.js"></script>
+  </body>
+</html>

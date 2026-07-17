@@ -655,6 +655,7 @@ export function createApp() {
         pending: accounts.filter((a) => a.status === "pending").length,
         exhausted: accounts.filter((a) => a.status === "exhausted").length,
         expired: accounts.filter((a) => a.status === "expired").length,
+        subExpired: accounts.filter((a) => a.status === "sub_expired").length,
         error: accounts.filter((a) => a.status === "error").length,
       },
     });
@@ -1214,6 +1215,7 @@ export function createApp() {
         active: accounts.filter((a) => a.status === "active").length,
         exhausted: accounts.filter((a) => a.status === "exhausted").length,
         expired: accounts.filter((a) => a.status === "expired").length,
+        subExpired: accounts.filter((a) => a.status === "sub_expired").length,
         error: accounts.filter((a) => a.status === "error").length,
       },
     });
@@ -1536,7 +1538,7 @@ export function createApp() {
   app.patch("/api/admin/accounts/:id", async (c) => {
     const body = (await c.req.json()) as {
       name?: string;
-      status?: "active" | "exhausted" | "expired" | "error";
+      status?: "active" | "exhausted" | "expired" | "sub_expired" | "error";
       note?: string;
       private?: boolean;
       donorUserId?: string | null;
@@ -1544,7 +1546,7 @@ export function createApp() {
     };
     const patch: {
       name?: string;
-      status?: "active" | "exhausted" | "expired" | "error";
+      status?: "active" | "exhausted" | "expired" | "sub_expired" | "error";
       note?: string;
       private?: boolean;
       donorUserId?: string | null;

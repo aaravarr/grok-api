@@ -1,3 +1,4 @@
+import { grokUpstreamHeaders } from "../client/identity.js";
 import { outboundFetch } from "../proxy.js";
 import { getBillingUrl } from "../settings.js";
 import type { CreditSnapshot } from "../types.js";
@@ -144,11 +145,10 @@ async function fetchBillingJson(accessToken: string): Promise<{ config?: Billing
   const billingUrl = await getBillingUrl();
   const res = await outboundFetch(billingUrl, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
-      "User-Agent": "grok-api/1.0",
-    },
+    headers: grokUpstreamHeaders({
+      accessToken,
+      url: billingUrl,
+    }),
   });
   const text = await res.text();
   if (!res.ok) {

@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "xAI SSO Quick Login",
+  "version": "1.3.0",
+  "description": "粘贴 SSO JWT，写入 sso/sso-rw 后打开 grok.com。支持诊断与仅写入。",
+  "permissions": ["cookies", "storage", "activeTab"],
+  "host_permissions": [
+    "*://*/*",
+    "*://*.x.ai/*",
+    "*://x.ai/*",
+    "*://*.grok.com/*",
+    "*://grok.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "SSO 快登",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  }
+}

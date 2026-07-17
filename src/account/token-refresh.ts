@@ -1,8 +1,8 @@
 import { config } from "../config.js";
 import type { Account } from "../types.js";
 import { now } from "../utils.js";
-import { accountPeriodEndMs } from "./router.js";
 import { listAccounts, updateAccount } from "./store.js";
+import { isSubscriptionUnexpired } from "./subscription.js";
 import { getValidAccessToken } from "./token.js";
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -14,18 +14,6 @@ function activityTs(acc: {
   createdAt: number;
 }): number {
   return Math.max(acc.lastUsedAt ?? 0, acc.lastRefreshedAt ?? 0, acc.createdAt || 0);
-}
-
-/**
- * SuperGrok subscription still valid?
- * - known periodEnd in the future => yes
- * - known periodEnd already past => no
- * - unknown periodEnd (never checked credits) => allow (don't block refresh)
- */
-export function isSubscriptionUnexpired(acc: Pick<Account, "credits">, t = now()): boolean {
-  const end = accountPeriodEndMs(acc as Account);
-  if (!Number.isFinite(end) || end === Number.POSITIVE_INFINITY) return true;
-  return end > t;
 }
 
 /**
@@ -45,7 +33,7 @@ export function needsProactiveRefresh(acc: {
 }): boolean {
   if (acc.status === "pending" || acc.oauth) return false;
   if (!acc.tokens?.refresh) return false;
-  if (acc.status === "expired") return false;
+  if (acc.status === "expired" || acc.status === "sub_expired") return false;
   if (!isSubscriptionUnexpired(acc as Account)) return false;
 
   const t = now();
@@ -58,6 +46,19 @@ async function tick(): Promise<void> {
   running = true;
   try {
     const accounts = await listAccounts();
+    // Sync subscription-expired status without writing lastError
+    for (const a of accounts) {
+      if (
+        (a.status === "active" || a.status === "exhausted" || a.status === "expired") &&
+        !isSubscriptionUnexpired(a)
+      ) {
+        try {
+          await updateAccount(a.id, { status: "sub_expired", lastError: undefined });
+        } catch {
+          /* ignore */
+        }
+      }
+    }
     const due = accounts
       .filter((a) => needsProactiveRefresh(a))
       .sort((a, b) => activityTs(a) - activityTs(b));

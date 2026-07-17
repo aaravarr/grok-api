@@ -2,6 +2,7 @@ import { onProviderError, onSuccess, routeAccount } from "../account/router.js";
 import { advanceToNextActive } from "../account/store.js";
 import { outboundFetch } from "../proxy.js";
 import { getUpstreamBaseUrl } from "../settings.js";
+import { grokUpstreamHeaders } from "./identity.js";
 
 export async function fetchUpstreamModels(
   preferredId?: string,
@@ -18,13 +19,13 @@ export async function fetchUpstreamModels(
     callerUserId,
   });
   const base = await getUpstreamBaseUrl();
-  const res = await outboundFetch(`${base}/models`, {
+  const url = `${base}/models`;
+  const res = await outboundFetch(url, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${routed.accessToken}`,
-      Accept: "application/json",
-      "User-Agent": "grok-api/1.0",
-    },
+    headers: grokUpstreamHeaders({
+      accessToken: routed.accessToken,
+      url,
+    }),
   });
   const body = await res.json().catch(async () => ({ error: await res.text() }));
   return {
@@ -121,22 +122,26 @@ export async function proxyUpstream(req: UpstreamProxyRequest): Promise<ProxyRes
     if (tried.has(routed.account.id)) break;
     tried.add(routed.account.id);
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${routed.accessToken}`,
-      Accept: req.accept || "application/json",
-      "User-Agent": "grok-api/1.0",
-    };
+    const url = `${base}${path}`;
+    let contentType: string | null | undefined;
     let body: any;
     if (req.rawBody != null) {
       body = req.rawBody;
-      if (req.contentType) headers["Content-Type"] = req.contentType;
+      contentType = req.contentType;
     } else if (req.body !== undefined && method !== "GET" && method !== "DELETE") {
-      headers["Content-Type"] = "application/json";
+      contentType = "application/json";
       body = JSON.stringify(req.body);
     }
 
+    const headers = grokUpstreamHeaders({
+      accessToken: routed.accessToken,
+      url,
+      accept: req.accept,
+      contentType,
+    });
+
     const upstreamStartedAt = Date.now();
-    const res = await outboundFetch(`${base}${path}`, {
+    const res = await outboundFetch(url, {
       method,
       headers,
       body,

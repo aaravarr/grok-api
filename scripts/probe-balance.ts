@@ -5,10 +5,9 @@ applyProxy();
 const d = JSON.parse(readFileSync("./data/accounts.json", "utf8"));
 const a = d.accounts?.find((x: any) => x.status === "active") || d.accounts?.[0];
 const token = a.tokens.access;
+const { grokUpstreamHeaders } = await import("../src/client/identity.ts");
 const h = {
-  Authorization: `Bearer ${token}`,
-  Accept: "application/json",
-  "User-Agent": "grok-api/1.0",
+  ...grokUpstreamHeaders({ accessToken: token, url: "https://api.x.ai/v1" }),
   "Content-Type": "application/json",
 };
 

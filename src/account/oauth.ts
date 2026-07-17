@@ -1,4 +1,5 @@
 import open from "open";
+import { grokOAuthHeaders, grokOAuthReferrer, grokUpstreamHeaders } from "../client/identity.js";
 import { config } from "../config.js";
 import { outboundFetch } from "../proxy.js";
 import { getOAuthEndpoints } from "../settings.js";
@@ -55,11 +56,8 @@ const sessions = new Map<string, DeviceSession>();
 const pollers = new Map<string, Promise<void>>();
 
 function authHeaders(): Record<string, string> {
-  return {
-    "Content-Type": "application/x-www-form-urlencoded",
-    Accept: "application/json",
-    "User-Agent": "grok-api/1.0",
-  };
+  // Match grok-build device_code / token: UA + client-version + client-surface
+  return grokOAuthHeaders({ form: true, surface: "cli" });
 }
 
 function positiveSecondsToMs(value: unknown, defaultMs: number): number {
@@ -75,6 +73,7 @@ async function requestDeviceCode(): Promise<DeviceCodeResponse> {
     body: new URLSearchParams({
       client_id: config.oauth.clientId,
       scope: config.oauth.scope,
+      referrer: grokOAuthReferrer(),
     }).toString(),
   });
   const data = (await res.json().catch(() => ({}))) as DeviceCodeResponse;
@@ -100,11 +99,10 @@ export async function fetchXaiUserinfo(accessToken: string): Promise<XaiUserProf
     const ep = await getOAuthEndpoints();
     const res = await outboundFetch(ep.userinfoUrl, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
-        "User-Agent": "grok-api/1.0",
-      },
+      headers: grokUpstreamHeaders({
+        accessToken,
+        url: ep.userinfoUrl,
+      }),
     });
     if (!res.ok) return {};
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -362,9 +360,10 @@ export async function startDeviceLogin(opts?: {
     if (
       existing.status !== "pending" &&
       existing.status !== "error" &&
-      existing.status !== "expired"
+      existing.status !== "expired" &&
+      existing.status !== "sub_expired"
     ) {
-      throw new Error("only pending/error/expired seats can restart OAuth");
+      throw new Error("only pending/error/expired/sub_expired seats can restart OAuth");
     }
     const updated = await updateAccount(opts.accountId, {
       status: "pending",

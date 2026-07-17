@@ -1,0 +1,193 @@
+#xai-sso-panel-root {
+  all: initial;
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2147483646;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  color: #111;
+  line-height: 1.4;
+}
+
+#xai-sso-fab {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #111;
+  color: #fff;
+  font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  opacity: 0.88;
+}
+
+#xai-sso-fab:hover {
+  opacity: 1;
+}
+
+#xai-sso-panel {
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid #e7e7e7;
+  border-radius: 12px;
+  background: #fafafa;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.14);
+}
+
+#xai-sso-panel[hidden],
+#xai-sso-fab[hidden] {
+  display: none !important;
+}
+
+#xai-sso-panel .xai-sso-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+#xai-sso-panel .xai-sso-hd strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+#xai-sso-close {
+  all: unset;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #666;
+  font-size: 18px;
+}
+
+#xai-sso-close:hover {
+  background: #eee;
+  color: #111;
+}
+
+#xai-sso-panel .xai-sso-lab {
+  display: block;
+  margin: 8px 0 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+#xai-sso-input,
+#xai-sso-cookie {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  padding: 8px 10px;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  outline: none;
+}
+
+#xai-sso-input:focus,
+#xai-sso-cookie:focus {
+  border-color: #111;
+}
+
+#xai-sso-input {
+  resize: vertical;
+  min-height: 84px;
+}
+
+#xai-sso-panel .xai-sso-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+#xai-sso-apply {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  background: #111;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+}
+
+#xai-sso-apply:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+#xai-sso-apply:hover:not(:disabled) {
+  background: #222;
+}
+
+.xai-sso-msg {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  color: #333;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.xai-sso-msg.ok {
+  background: #eaf7ee;
+  color: #0f6b2e;
+}
+
+.xai-sso-msg.err {
+  background: #fdecec;
+  color: #b42318;
+}
+
+.xai-sso-foot {
+  margin-top: 8px;
+  color: #999;
+  font-size: 11px;
+}
+
+#xai-sso-panel-root .xai-sso-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: #a1a1aa;
+  line-height: 1.4;
+  cursor: pointer;
+}
+#xai-sso-panel-root .xai-sso-check input {
+  margin-top: 2px;
+}
+#xai-sso-panel-root #xai-sso-diag {
+  background: transparent;
+  border: 1px solid #3f3f46;
+  color: #e4e4e7;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+#xai-sso-panel-root #xai-sso-diag:hover {
+  border-color: #71717a;
+}
+#xai-sso-panel-root .xai-sso-msg {
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

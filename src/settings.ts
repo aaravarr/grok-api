@@ -6,7 +6,7 @@ export interface AppSettings {
   proxyUrl: string;
   /**
    * OpenAI-compatible LLM API base (should end with /v1).
-   * Empty = env XAI_BASE_URL or https://api.x.ai/v1.
+   * Empty = env XAI_BASE_URL or https://cli-chat-proxy.grok.com/v1.
    */
   upstreamBaseUrl: string;
   /**
@@ -39,7 +39,7 @@ export interface AppSettings {
   allowRegister: boolean;
 }
 
-const DEFAULT_UPSTREAM = "https://api.x.ai/v1";
+const DEFAULT_UPSTREAM = "https://cli-chat-proxy.grok.com/v1";
 const DEFAULT_OAUTH = "https://auth.x.ai";
 const DEFAULT_BILLING = "https://cli-chat-proxy.grok.com";
 

@@ -1,4 +1,4 @@
-export type AccountStatus = "active" | "exhausted" | "expired" | "error" | "pending";
+export type AccountStatus = "active" | "exhausted" | "expired" | "sub_expired" | "error" | "pending";
 
 /** Progress of in-flight device-code authorization */
 export type OAuthPhase = "waiting_user" | "failed" | "authorized";
