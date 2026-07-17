@@ -681,11 +681,26 @@ ${styles()}
                 </div>
               </div>
 
-              <div class="sso-ext-section-title" data-i18n="ssoExtInstallTitle">安装</div>
+                            <div class="sso-ext-section-title" data-i18n="ssoExtInstallTitle">安装</div>
               <div class="sso-guide-grid">
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-mock sso-mock-dl"><div class="sso-mock-bar"></div><div class="sso-mock-file">ZIP</div></div>
+                    <div class="sso-illu sso-illu-dl">
+                      <div class="sso-illu-chrome">
+                        <span class="sso-illu-dot"></span><span class="sso-illu-dot"></span><span class="sso-illu-dot"></span>
+                        <span class="sso-illu-url">github.com/.../releases</span>
+                      </div>
+                      <div class="sso-illu-row">
+                        <div class="sso-illu-zip">
+                          <div class="sso-illu-zip-ico">ZIP</div>
+                          <div>
+                            <div class="sso-illu-strong">sso-extension</div>
+                            <div class="sso-illu-muted">v2.2.0 · ~18 KB</div>
+                          </div>
+                        </div>
+                        <div class="sso-illu-pill">Download</div>
+                      </div>
+                    </div>
                   </div>
                   <div class="sso-guide-n">01</div>
                   <strong data-i18n="ssoExtStep1t">下载扩展包</strong>
@@ -693,7 +708,23 @@ ${styles()}
                 </div>
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-mock sso-mock-ext"><div class="sso-mock-toggle on"></div><div class="sso-mock-line w60"></div><div class="sso-mock-line w40"></div><div class="sso-mock-chip">Load unpacked</div></div>
+                    <div class="sso-illu sso-illu-ext">
+                      <div class="sso-illu-chrome">
+                        <span class="sso-illu-url">chrome://extensions</span>
+                      </div>
+                      <div class="sso-illu-row between">
+                        <span class="sso-illu-strong">Developer mode</span>
+                        <span class="sso-illu-toggle on"><i></i></span>
+                      </div>
+                      <div class="sso-illu-card">
+                        <div class="sso-illu-strong">Grok-API SSO</div>
+                        <div class="sso-illu-muted">ID · Unpacked</div>
+                        <div class="sso-illu-actions">
+                          <span class="sso-illu-chip">Details</span>
+                          <span class="sso-illu-chip primary">Load unpacked</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div class="sso-guide-n">02</div>
                   <strong data-i18n="ssoExtStep2t">加载到浏览器</strong>
@@ -701,7 +732,17 @@ ${styles()}
                 </div>
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-mock sso-mock-cfg"><div class="sso-mock-line w50"></div><div class="sso-mock-input"></div><div class="sso-mock-line w30"></div><div class="sso-mock-input"></div><div class="sso-mock-btn"></div></div>
+                    <div class="sso-illu sso-illu-cfg">
+                      <div class="sso-illu-title">Grok-API SSO</div>
+                      <div class="sso-illu-label">Base URL</div>
+                      <div class="sso-illu-field">http://127.0.0.1:8787</div>
+                      <div class="sso-illu-label">密钥</div>
+                      <div class="sso-illu-field mono">gk_••••••••</div>
+                      <div class="sso-illu-actions">
+                        <span class="sso-illu-chip">测试连接</span>
+                        <span class="sso-illu-chip primary">保存全部</span>
+                      </div>
+                    </div>
                   </div>
                   <div class="sso-guide-n">03</div>
                   <strong data-i18n="ssoExtStep3t">填写连接配置</strong>
@@ -713,7 +754,18 @@ ${styles()}
               <div class="sso-guide-grid use">
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-mock sso-mock-page"><div class="sso-mock-fab">SSO</div></div>
+                    <div class="sso-illu sso-illu-site">
+                      <div class="sso-illu-chrome">
+                        <span class="sso-illu-url">grok.com</span>
+                      </div>
+                      <div class="sso-illu-site-body">
+                        <div class="sso-illu-muted">Grok</div>
+                        <div class="sso-illu-line w70"></div>
+                        <div class="sso-illu-line w45"></div>
+                      </div>
+                      <div class="sso-illu-fab">SSO</div>
+                      <div class="sso-illu-hotkey">Ctrl+Shift+L</div>
+                    </div>
                   </div>
                   <div class="sso-guide-n">01</div>
                   <strong data-i18n="ssoExtUse1t">打开面板</strong>
@@ -721,7 +773,15 @@ ${styles()}
                 </div>
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-mock sso-mock-panel"><div class="sso-mock-line w40"></div><div class="sso-mock-area"></div><div class="sso-mock-check"></div><div class="sso-mock-btn wide"></div></div>
+                    <div class="sso-illu sso-illu-panel">
+                      <div class="sso-illu-title">SSO · 贡献</div>
+                      <div class="sso-illu-label">SSO JWT</div>
+                      <div class="sso-illu-area">eyJhbGciOi... · paste</div>
+                      <div class="sso-illu-check"><span class="sso-illu-box on"></span>写入并贡献到 grok-api</div>
+                      <div class="sso-illu-actions end">
+                        <span class="sso-illu-chip primary">开始</span>
+                      </div>
+                    </div>
                   </div>
                   <div class="sso-guide-n">02</div>
                   <strong data-i18n="ssoExtUse2t">粘贴 SSO 并开始</strong>
@@ -729,7 +789,18 @@ ${styles()}
                 </div>
                 <div class="sso-guide-card">
                   <div class="sso-guide-art" aria-hidden="true">
-                    <div class="sso-mock sso-mock-auth"><div class="sso-mock-line w55"></div><div class="sso-mock-code">ABCD-EFGH</div><div class="sso-mock-btn"></div></div>
+                    <div class="sso-illu sso-illu-oauth">
+                      <div class="sso-illu-chrome">
+                        <span class="sso-illu-url">accounts.x.ai/device</span>
+                      </div>
+                      <div class="sso-illu-muted">Device authorization</div>
+                      <div class="sso-illu-code">ABCD-EFGH</div>
+                      <div class="sso-illu-muted">Authorize SuperGrok access</div>
+                      <div class="sso-illu-actions">
+                        <span class="sso-illu-chip primary">Authorize</span>
+                      </div>
+                      <div class="sso-illu-status">轮询席位状态…</div>
+                    </div>
                   </div>
                   <div class="sso-guide-n">03</div>
                   <strong data-i18n="ssoExtUse3t">完成授权</strong>
